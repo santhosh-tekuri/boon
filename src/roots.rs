@@ -89,7 +89,7 @@ impl Roots {
 
         let ids = {
             let mut ids = HashMap::default();
-            if let Err(ptr) = draft.collect_ids(&doc, &url, String::new(), &mut ids) {
+            if let Err(ptr) = draft.collect_resources(&doc, &url, String::new(), &mut ids) {
                 let mut url = url;
                 url.set_fragment(Some(&ptr));
                 return Err(InvalidId { loc: url.into() });
@@ -99,7 +99,7 @@ impl Roots {
 
         let r = Root {
             draft,
-            ids,
+            resources: ids,
             url: url.clone(),
             doc,
         };
@@ -118,7 +118,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_resource_find() {
+    fn test_load() {
         let path = fs::canonicalize("test.json").unwrap();
         let url = Url::from_file_path(path).unwrap();
         let mut roots = Roots::new();

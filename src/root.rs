@@ -11,7 +11,7 @@ use url::Url;
 //#[derive(Debug)]
 pub(crate) struct Root {
     pub(crate) draft: &'static Draft,
-    pub(crate) ids: HashMap<String, Url>, // ptr => id
+    pub(crate) resources: HashMap<String, Resource>, // ptr => _
     pub(crate) url: Url,
     pub(crate) doc: Value,
 }
@@ -19,11 +19,11 @@ pub(crate) struct Root {
 impl Root {
     pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
         let mut set = HashSet::new();
-        for url in self.ids.values() {
-            if !set.insert(url) {
+        for Resource { id, .. } in self.resources.values() {
+            if !set.insert(id) {
                 return Err(CompileError::DuplicateId {
                     url: self.url.as_str().to_owned(),
-                    id: url.as_str().to_owned(),
+                    id: id.as_str().to_owned(),
                 });
             }
         }
@@ -32,7 +32,7 @@ impl Root {
 
     fn base_url(&self, mut ptr: &str) -> &Url {
         loop {
-            if let Some(id) = self.ids.get(ptr) {
+            if let Some(Resource { id, .. }) = self.resources.get(ptr) {
                 return id;
             }
             let Some(slash) = ptr.rfind('/') else {
@@ -67,5 +67,19 @@ impl Root {
             return Ok(None);
         }
         Ok(Some(v))
+    }
+}
+
+pub(crate) struct Resource {
+    pub(crate) id: Url,
+    pub(crate) anchors: HashMap<String, String>, // anchor => ptr
+}
+
+impl Resource {
+    pub(crate) fn new(id: Url) -> Self {
+        Self {
+            id,
+            anchors: HashMap::new(),
+        }
     }
 }
