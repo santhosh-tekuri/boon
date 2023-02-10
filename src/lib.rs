@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod compiler;
 mod draft;
 mod resource;
 mod util;

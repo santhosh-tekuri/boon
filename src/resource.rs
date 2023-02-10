@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    compiler::CompileError,
     draft::{latest, Draft},
     util::*,
 };
@@ -57,7 +58,7 @@ impl Resource {
 // --
 
 pub struct Resources {
-    draft: &'static Draft,
+    default_draft: &'static Draft,
     map: HashMap<Url, Resource>,
     loader: Box<dyn ResourceLoader>,
 }
@@ -65,7 +66,7 @@ pub struct Resources {
 impl Resources {
     fn new() -> Self {
         Self {
-            draft: latest(),
+            default_draft: latest(),
             map: Default::default(),
             loader: Box::new(DefaultResourceLoader::new()),
         }
@@ -73,7 +74,7 @@ impl Resources {
 
     fn with_loader(loader: Box<dyn ResourceLoader>) -> Self {
         Self {
-            draft: latest(),
+            default_draft: latest(),
             map: Default::default(),
             loader,
         }
@@ -81,7 +82,7 @@ impl Resources {
 }
 
 impl Resources {
-    fn load_if_absent(&mut self, url: Url) -> Result<&Resource, LoadResourceError> {
+    fn load_if_absent(&mut self, url: Url) -> Result<&Resource, CompileError> {
         if let Some(_r) = self.map.get(&url) {
             // return Ok(r); does not work
             // this is current borrow checker limitation
@@ -99,35 +100,30 @@ impl Resources {
         mut cycle: HashSet<Url>,
         url: Url,
         doc: Value,
-    ) -> Result<&Resource, LoadResourceError> {
-        let draft = match &doc {
-            Value::Object(obj) => match obj.get("$schema") {
-                Some(Value::String(sch)) => match Draft::from_url(sch) {
-                    Some(draft) => draft,
-                    _ => {
-                        let (sch, _) = split(sch);
-                        let sch =
-                            Url::parse(sch).map_err(|_| LoadResourceError::InvalidMetaSchema {
-                                resource_url: url.clone(),
-                            })?;
-                        match self.map.get(&sch) {
-                            Some(r) => r.draft,
-                            None => {
-                                if !cycle.insert(sch.clone()) {
-                                    return Err(LoadResourceError::MetaSchemaCycle {
-                                        resource_url: sch,
-                                    });
-                                }
-                                let doc = self.loader.load(&sch)?;
-                                self.add_resource(cycle, sch, doc)?.draft
-                            }
-                        }
-                    }
-                },
-                _ => self.draft,
-            },
-            _ => self.draft,
-        };
+    ) -> Result<&Resource, CompileError> {
+        let draft = (|| {
+            let Value::Object(obj) = &doc else {
+                return Ok(self.default_draft);
+            };
+            let Some(Value::String(sch)) = obj.get("$schema") else {
+                return Ok(self.default_draft);
+            };
+            if let Some(draft) = Draft::from_url(sch) {
+                return Ok(draft);
+            }
+            let (sch, _) = split(sch);
+            let Ok(sch) = Url::parse(sch) else {
+                return Err(CompileError::InvalidMetaSchema { resource_url: url.clone()});
+            };
+            if let Some(r) = self.map.get(&sch) {
+                return Ok(r.draft);
+            }
+            if !cycle.insert(sch.clone()) {
+                return Err(CompileError::MetaSchemaCycle { resource_url: sch });
+            }
+            let doc = self.loader.load(&sch)?;
+            Ok(self.add_resource(cycle, sch, doc)?.draft)
+        })()?;
 
         let r = Resource {
             draft,
@@ -143,8 +139,6 @@ impl Resources {
 #[derive(Debug)]
 pub enum LoadResourceError {
     Load(Box<dyn Error>),
-    InvalidMetaSchema { resource_url: Url },
-    MetaSchemaCycle { resource_url: Url },
     Unsupported,
 }
 
