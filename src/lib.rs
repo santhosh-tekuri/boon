@@ -2,7 +2,9 @@
 
 mod compiler;
 mod draft;
+mod loader;
 mod resource;
+mod resources;
 mod util;
 
 use std::{borrow::Cow, collections::HashMap};

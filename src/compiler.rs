@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use url::Url;
 
-use crate::resource::LoadResourceError;
-use crate::resource::Resources;
+use crate::loader::LoadResourceError;
+use crate::resources::Resources;
 use crate::Decoder;
 use crate::MediaType;
 
