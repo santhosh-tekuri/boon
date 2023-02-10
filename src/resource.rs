@@ -1,24 +1,29 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, HashSet},
     error::Error,
     fs::File,
     str::FromStr,
 };
 
-use crate::util::*;
+use crate::{
+    draft::{latest, Draft},
+    util::*,
+};
 
 use serde_json::Value;
 use url::Url;
 
-trait ResourceLoader {
+pub trait ResourceLoader {
     fn load(&self, url: &Url) -> Result<Value, LoadResourceError>;
 }
 
 // --
 
-#[derive(Debug)]
-struct Resource {
-    doc: Value,
+//#[derive(Debug)]
+pub(crate) struct Resource {
+    pub(crate) draft: &'static Draft,
+    pub(crate) url: Url,
+    pub(crate) doc: Value,
 }
 
 impl Resource {
@@ -52,6 +57,7 @@ impl Resource {
 // --
 
 pub struct Resources {
+    draft: &'static Draft,
     map: HashMap<Url, Resource>,
     loader: Box<dyn ResourceLoader>,
 }
@@ -59,6 +65,7 @@ pub struct Resources {
 impl Resources {
     fn new() -> Self {
         Self {
+            draft: latest(),
             map: Default::default(),
             loader: Box::new(DefaultResourceLoader::new()),
         }
@@ -66,6 +73,7 @@ impl Resources {
 
     fn with_loader(loader: Box<dyn ResourceLoader>) -> Self {
         Self {
+            draft: latest(),
             map: Default::default(),
             loader,
         }
@@ -74,21 +82,69 @@ impl Resources {
 
 impl Resources {
     fn load_if_absent(&mut self, url: Url) -> Result<&Resource, LoadResourceError> {
-        match self.map.entry(url) {
-            Entry::Occupied(e) => Ok(e.into_mut()),
-            Entry::Vacant(e) => {
-                let value = self.loader.load(e.key())?;
-                Ok(e.insert(Resource { doc: value }))
-            }
+        if let Some(_r) = self.map.get(&url) {
+            // return Ok(r); does not work
+            // this is current borrow checker limitation
+            // see: https://github.com/rust-lang/rust/issues/51545
+            // see: https://users.rust-lang.org/t/strange-borrow-checker-behavior-when-returning-content-of-option/88982
+            return Ok(self.map.get(&url).unwrap());
         }
+
+        let doc = self.loader.load(&url)?;
+        self.add_resource(HashSet::new(), url, doc)
+    }
+
+    fn add_resource(
+        &mut self,
+        mut cycle: HashSet<Url>,
+        url: Url,
+        doc: Value,
+    ) -> Result<&Resource, LoadResourceError> {
+        let draft = match &doc {
+            Value::Object(obj) => match obj.get("$schema") {
+                Some(Value::String(sch)) => match Draft::from_url(sch) {
+                    Some(draft) => draft,
+                    _ => {
+                        let (sch, _) = split(sch);
+                        let sch =
+                            Url::parse(sch).map_err(|_| LoadResourceError::InvalidMetaSchema {
+                                resource_url: url.clone(),
+                            })?;
+                        match self.map.get(&sch) {
+                            Some(r) => r.draft,
+                            None => {
+                                if !cycle.insert(sch.clone()) {
+                                    return Err(LoadResourceError::MetaSchemaCycle {
+                                        resource_url: sch,
+                                    });
+                                }
+                                let doc = self.loader.load(&sch)?;
+                                self.add_resource(cycle, sch, doc)?.draft
+                            }
+                        }
+                    }
+                },
+                _ => self.draft,
+            },
+            _ => self.draft,
+        };
+
+        let r = Resource {
+            draft,
+            url: url.clone(),
+            doc,
+        };
+        Ok(self.map.entry(url).or_insert(r))
     }
 }
 
 // --
 
 #[derive(Debug)]
-enum LoadResourceError {
+pub enum LoadResourceError {
     Load(Box<dyn Error>),
+    InvalidMetaSchema { resource_url: Url },
+    MetaSchemaCycle { resource_url: Url },
     Unsupported,
 }
 
@@ -149,7 +205,7 @@ mod tests {
         let path = fs::canonicalize("test.json").unwrap();
         let url = Url::from_file_path(path).unwrap();
         let mut resources = Resources::new();
-        let resource = resources.load_if_absent(url);
-        println!("{resource:?}");
+        let resource = resources.load_if_absent(url).unwrap();
+        println!("{:?}", resource.doc);
     }
 }
