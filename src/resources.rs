@@ -49,7 +49,7 @@ impl Resources {
 
         let doc = match self.loader.load(&url) {
             Ok(doc) => doc,
-            Err(e) => return Err(e.into_compile_error(url.clone())),
+            Err(e) => return Err(e.into_compile_error(&url)),
         };
         self.add_resource(HashSet::new(), url, doc)
     }
@@ -72,17 +72,17 @@ impl Resources {
             }
             let (sch, _) = split(sch);
             let Ok(sch) = Url::parse(sch) else {
-                return Err(InvalidMetaSchema { res: url.clone()});
+                return Err(InvalidMetaSchema { res: url.as_str().to_owned()});
             };
             if let Some(r) = self.map.get(&sch) {
                 return Ok(r.draft);
             }
             if !cycle.insert(sch.clone()) {
-                return Err(MetaSchemaCycle { res: sch });
+                return Err(MetaSchemaCycle { res: sch.into() });
             }
             let doc = match self.loader.load(&url) {
                 Ok(doc) => doc,
-                Err(e) => return Err(e.into_compile_error(url.clone())),
+                Err(e) => return Err(e.into_compile_error(&url)),
             };
             Ok(self.add_resource(cycle, sch, doc)?.draft)
         })()?;
@@ -92,7 +92,7 @@ impl Resources {
             if let Err(ptr) = draft.collect_ids(&doc, &url, String::new(), &mut ids) {
                 let mut url = url;
                 url.set_fragment(Some(&ptr));
-                return Err(InvalidId { loc: url });
+                return Err(InvalidId { loc: url.into() });
             }
             ids
         };

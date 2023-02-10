@@ -18,7 +18,8 @@ pub enum LoadResourceError {
 }
 
 impl LoadResourceError {
-    pub(crate) fn into_compile_error(self, res: Url) -> CompileError {
+    pub(crate) fn into_compile_error(self, res: &Url) -> CompileError {
+        let res = res.as_str().to_owned();
         match self {
             Self::Load(src) => CompileError::LoadResourceError { res, src },
             Self::Unsupported => CompileError::LoadUnsupported { res },

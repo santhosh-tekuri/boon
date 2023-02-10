@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 
-use url::Url;
-
 use crate::resources::Resources;
 use crate::Decoder;
 use crate::MediaType;
@@ -16,12 +14,12 @@ struct Compiler {
 
 #[derive(Debug)]
 pub enum CompileError {
-    LoadResourceError { res: Url, src: Box<dyn Error> },
-    LoadUnsupported { res: Url },
-    InvalidMetaSchema { res: Url },
-    MetaSchemaCycle { res: Url },
-    InvalidId { loc: Url },
-    DuplicateId { res: Url, id: Url },
+    LoadResourceError { res: String, src: Box<dyn Error> },
+    LoadUnsupported { res: String },
+    InvalidMetaSchema { res: String },
+    MetaSchemaCycle { res: String },
+    InvalidId { loc: String },
+    DuplicateId { res: String, id: String },
 }
 
 impl Error for CompileError {
