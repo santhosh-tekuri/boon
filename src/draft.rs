@@ -1,5 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, str::Utf8Error};
 
+use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
 use url::Url;
 
@@ -9,13 +10,114 @@ const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
 const POS_ITEM: u8 = 1 << 2;
 
-struct Draft {
+static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
+    version: 4,
+    id: "id",
+    bool_schema: false,
+    subschemas: HashMap::from([
+        // core
+        ("definitions", POS_PROP),
+        ("not", POS_SELF),
+        ("allOf", POS_ITEM),
+        ("anyOf", POS_ITEM),
+        ("oneOf", POS_ITEM),
+        // object
+        ("properties", POS_PROP),
+        ("additionalProperties", POS_SELF),
+        ("patternProperties", POS_PROP),
+        // array
+        ("items", POS_SELF | POS_ITEM),
+        ("additionalItems", POS_SELF),
+        ("dependencies", POS_PROP),
+    ]),
+});
+
+static DRAFT6: Lazy<Draft> = Lazy::new(|| {
+    let mut subschemas = DRAFT4.subschemas.clone();
+    subschemas.extend([("propertyNames", POS_SELF), ("contains", POS_SELF)]);
+    Draft {
+        version: 6,
+        id: "$id",
+        bool_schema: true,
+        subschemas,
+    }
+});
+
+static DRAFT7: Lazy<Draft> = Lazy::new(|| {
+    let mut subschemas = DRAFT6.subschemas.clone();
+    subschemas.extend([("if", POS_SELF), ("then", POS_SELF), ("else", POS_SELF)]);
+    Draft {
+        version: 7,
+        id: "$id",
+        bool_schema: true,
+        subschemas,
+    }
+});
+
+static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
+    let mut subschemas = DRAFT7.subschemas.clone();
+    subschemas.extend([
+        ("$defs", POS_PROP),
+        ("dependentSchemas", POS_PROP),
+        ("unevaluatedProperties", POS_SELF),
+        ("unevaluatedItems", POS_SELF),
+    ]);
+    Draft {
+        version: 2019,
+        id: "$id",
+        bool_schema: true,
+        subschemas,
+    }
+});
+
+static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
+    let mut subschemas = DRAFT2019.subschemas.clone();
+    subschemas.extend([("prefixItems", POS_ITEM)]);
+    Draft {
+        version: 2020,
+        id: "$id",
+        bool_schema: true,
+        subschemas,
+    }
+});
+
+pub(crate) fn latest() -> &'static Draft {
+    &DRAFT2020
+}
+
+// --
+
+pub(crate) struct Draft {
     version: usize,
     id: &'static str,
-    positions: HashMap<&'static str, u8>,
+    bool_schema: bool,
+    subschemas: HashMap<&'static str, u8>,
 }
 
 impl Draft {
+    pub(crate) fn from_url(mut url: &str) -> Option<&'static Draft> {
+        let (_, fragment) = split(url);
+        if !fragment.is_empty() {
+            return None;
+        }
+        if let Some(s) = url.strip_prefix("http://") {
+            url = s;
+        }
+        if let Some(s) = url.strip_prefix("https://") {
+            url = s;
+        }
+        // todo: url normalization??
+        match url {
+            "json-schema.org/schema" => Some(latest()),
+            "json-schema.org/draft/2020-12/schema" => Some(&DRAFT2020),
+            "json-schema.org/draft/2019-09/schema" => Some(&DRAFT2019),
+            "json-schema.org/draft-07/schema" => Some(&DRAFT7),
+            "json-schema.org/draft-06/schema" => Some(&DRAFT6),
+            "json-schema.org/draft-04/schema" => Some(&DRAFT4),
+            _ => None,
+        }
+    }
+
     fn has_anchor(&self, json: &Value, anchor: &str) -> Result<bool, Utf8Error> {
         let Value::Object(obj) = json else {
             return Ok(false);
@@ -66,7 +168,7 @@ impl Draft {
             base = Cow::Owned(obj_id);
         }
 
-        for (&kw, &pos) in &self.positions {
+        for (&kw, &pos) in &self.subschemas {
             let Some(v) = obj.get(kw) else {
                 continue;
             };
@@ -120,7 +222,7 @@ impl Draft {
             base = Cow::Owned(obj_id);
         }
 
-        for (&kw, &pos) in &self.positions {
+        for (&kw, &pos) in &self.subschemas {
             let Some(v) = obj.get(kw) else {
                 continue;
             };
@@ -191,16 +293,6 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let draft = Draft {
-            version: 7,
-            id: "id",
-            positions: {
-                let mut map = HashMap::new();
-                map.insert("definitions", POS_PROP);
-                map.insert("items", POS_SELF | POS_ITEM);
-                map
-            },
-        };
 
         struct Test {
             id: &'static str,
@@ -238,7 +330,7 @@ mod tests {
         ];
 
         for test in tests {
-            match draft
+            match DRAFT4
                 .lookup_id(&Url::parse(test.id).unwrap(), &base, &json)
                 .expect(&format!("lookup {} failed", test.id))
             {
@@ -263,7 +355,7 @@ mod tests {
             m
         };
         let mut got = HashMap::new();
-        draft
+        DRAFT4
             .collect_ids(&base, &json, String::new(), &mut got)
             .unwrap();
         let got = got
