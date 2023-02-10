@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashMap, str::Utf8Error};
 
 use once_cell::sync::Lazy;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use url::Url;
 
 use crate::util::*;
@@ -251,55 +251,6 @@ mod tests {
             }"#,
         )
         .unwrap();
-
-        struct Test {
-            id: &'static str,
-            ptr: &'static str,
-        }
-        let tests = vec![
-            Test {
-                id: "http://a.com/schemas/schema.json",
-                ptr: "",
-            },
-            Test {
-                id: "http://a.com/definitions/s1",
-                ptr: "/definitions/s1",
-            },
-            Test {
-                id: "http://a.com/s2",
-                ptr: "/definitions/s2",
-            },
-            Test {
-                id: "http://a.com/schemas/s3",
-                ptr: "/definitions/s3/definitions/s1",
-            },
-            Test {
-                id: "http://b.com/item",
-                ptr: "/definitions/s3/definitions/s1/items",
-            },
-            Test {
-                id: "http://c.com/item",
-                ptr: "/definitions/s2/items/0",
-            },
-            Test {
-                id: "http://d.com/item",
-                ptr: "/definitions/s2/items/1",
-            },
-        ];
-
-        for test in tests {
-            match DRAFT4
-                .lookup_id(&Url::parse(test.id).unwrap(), &base, &json)
-                .expect(&format!("lookup {} failed", test.id))
-            {
-                Some((_, ptr)) => {
-                    assert_eq!(ptr, test.ptr);
-                }
-                None => {
-                    panic!("{} not found", test.id);
-                }
-            }
-        }
 
         let want = {
             let mut m = HashMap::new();

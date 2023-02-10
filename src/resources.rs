@@ -4,7 +4,7 @@ use crate::{
     compiler::CompileError::{self, *},
     draft::{latest, Draft},
     loader::{DefaultUrlLoader, UrlLoader},
-    resource::Resource,
+    resource::Root,
     util::*,
 };
 
@@ -13,13 +13,13 @@ use url::Url;
 
 // --
 
-pub(crate) struct Resources {
+pub(crate) struct Roots {
     default_draft: &'static Draft,
-    map: HashMap<Url, Resource>,
+    map: HashMap<Url, Root>,
     loader: Box<dyn UrlLoader>,
 }
 
-impl Resources {
+impl Roots {
     fn new() -> Self {
         Self {
             default_draft: latest(),
@@ -37,8 +37,8 @@ impl Resources {
     }
 }
 
-impl Resources {
-    fn load_if_absent(&mut self, url: Url) -> Result<&Resource, CompileError> {
+impl Roots {
+    fn load_if_absent(&mut self, url: Url) -> Result<&Root, CompileError> {
         if let Some(_r) = self.map.get(&url) {
             // return Ok(r); does not work
             // this is current borrow checker limitation
@@ -51,15 +51,15 @@ impl Resources {
             Ok(doc) => doc,
             Err(e) => return Err(e.into_compile_error(&url)),
         };
-        self.add_resource(HashSet::new(), url, doc)
+        self.add_root(HashSet::new(), url, doc)
     }
 
-    fn add_resource(
+    fn add_root(
         &mut self,
         mut cycle: HashSet<Url>,
         url: Url,
         doc: Value,
-    ) -> Result<&Resource, CompileError> {
+    ) -> Result<&Root, CompileError> {
         let draft = (|| {
             let Value::Object(obj) = &doc else {
                 return Ok(self.default_draft);
@@ -84,7 +84,7 @@ impl Resources {
                 Ok(doc) => doc,
                 Err(e) => return Err(e.into_compile_error(&url)),
             };
-            Ok(self.add_resource(cycle, sch, doc)?.draft)
+            Ok(self.add_root(cycle, sch, doc)?.draft)
         })()?;
 
         let ids = {
@@ -97,7 +97,7 @@ impl Resources {
             ids
         };
 
-        let r = Resource {
+        let r = Root {
             draft,
             ids,
             url: url.clone(),
@@ -121,8 +121,8 @@ mod tests {
     fn test_resource_find() {
         let path = fs::canonicalize("test.json").unwrap();
         let url = Url::from_file_path(path).unwrap();
-        let mut resources = Resources::new();
-        let resource = resources.load_if_absent(url).unwrap();
-        println!("{:?}", resource.doc);
+        let mut roots = Roots::new();
+        let root = roots.load_if_absent(url).unwrap();
+        println!("{:?}", root.doc);
     }
 }

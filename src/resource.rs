@@ -9,14 +9,14 @@ use serde_json::Value;
 use url::Url;
 
 //#[derive(Debug)]
-pub(crate) struct Resource {
+pub(crate) struct Root {
     pub(crate) draft: &'static Draft,
     pub(crate) ids: HashMap<String, Url>, // ptr => id
     pub(crate) url: Url,
     pub(crate) doc: Value,
 }
 
-impl Resource {
+impl Root {
     pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
         let mut set = HashSet::new();
         for url in self.ids.values() {

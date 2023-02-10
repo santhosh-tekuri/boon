@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::resources::Resources;
+use crate::resources::Roots;
 use crate::Decoder;
 use crate::MediaType;
 
 struct Compiler {
-    resources: Resources,
+    roots: Roots,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
 }
