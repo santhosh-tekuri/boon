@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::resources::Roots;
+use crate::roots::Roots;
 use crate::Decoder;
 use crate::MediaType;
 

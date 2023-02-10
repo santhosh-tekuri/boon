@@ -4,7 +4,7 @@ use crate::{
     compiler::CompileError::{self, *},
     draft::{latest, Draft},
     loader::{DefaultUrlLoader, UrlLoader},
-    resource::Root,
+    root::Root,
     util::*,
 };
 
