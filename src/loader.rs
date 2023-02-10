@@ -3,6 +3,8 @@ use std::{collections::HashMap, error::Error, fs::File};
 use serde_json::Value;
 use url::Url;
 
+use crate::compiler::CompileError;
+
 pub trait ResourceLoader {
     fn load(&self, url: &Url) -> Result<Value, LoadResourceError>;
 }
@@ -13,6 +15,15 @@ pub trait ResourceLoader {
 pub enum LoadResourceError {
     Load(Box<dyn Error>),
     Unsupported,
+}
+
+impl LoadResourceError {
+    pub(crate) fn into_compile_error(self, res: Url) -> CompileError {
+        match self {
+            Self::Load(src) => CompileError::LoadResourceError { res, src },
+            Self::Unsupported => CompileError::LoadUnsupported { res },
+        }
+    }
 }
 
 impl<E> From<E> for LoadResourceError

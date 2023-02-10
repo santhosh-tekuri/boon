@@ -1,6 +1,9 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
-use crate::{draft::*, util::*};
+use crate::{compiler::CompileError, draft::*, util::*};
 
 use serde_json::Value;
 use url::Url;
@@ -14,6 +17,19 @@ pub(crate) struct Resource {
 }
 
 impl Resource {
+    pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
+        let mut set = HashSet::new();
+        for url in self.ids.values() {
+            if !set.insert(url) {
+                return Err(CompileError::DuplicateId {
+                    res: self.url.clone(),
+                    id: url.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, std::str::Utf8Error> {
         let mut v = &self.doc;
         for tok in ptr_tokens(ptr) {

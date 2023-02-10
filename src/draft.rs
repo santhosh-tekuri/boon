@@ -364,9 +364,9 @@ mod tests {
 
         let want = {
             let mut m = HashMap::new();
-            m.insert("", "http://a.com/schemas/schema.json");
+            m.insert("", "http://a.com/schemas/schema.json"); // root with id
             m.insert("/definitions/s1", "http://a.com/definitions/s1");
-            m.insert("/definitions/s2", "http://a.com/s2");
+            m.insert("/definitions/s2", "http://a.com/s2"); // relative id
             m.insert("/definitions/s3/definitions/s1", "http://a.com/schemas/s3");
             m.insert("/definitions/s3/definitions/s1/items", "http://b.com/item");
             m.insert("/definitions/s2/items/0", "http://c.com/item");
