@@ -72,13 +72,13 @@ impl Roots {
             }
             let (sch, _) = split(sch);
             let Ok(sch) = Url::parse(sch) else {
-                return Err(InvalidMetaSchema { res: url.as_str().to_owned()});
+                return Err(InvalidMetaSchema { url: url.as_str().to_owned()});
             };
             if let Some(r) = self.map.get(&sch) {
                 return Ok(r.draft);
             }
             if !cycle.insert(sch.clone()) {
-                return Err(MetaSchemaCycle { res: sch.into() });
+                return Err(MetaSchemaCycle { url: sch.into() });
             }
             let doc = match self.loader.load(&url) {
                 Ok(doc) => doc,

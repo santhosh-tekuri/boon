@@ -18,11 +18,11 @@ pub enum UrlLoadError {
 }
 
 impl UrlLoadError {
-    pub(crate) fn into_compile_error(self, res: &Url) -> CompileError {
-        let res = res.as_str().to_owned();
+    pub(crate) fn into_compile_error(self, url: &Url) -> CompileError {
+        let url = url.as_str().to_owned();
         match self {
-            Self::Loading(src) => CompileError::LoadUrlError { res, src },
-            Self::Unsupported => CompileError::UnsupportedUrl { res },
+            Self::Loading(src) => CompileError::LoadUrlError { url, src },
+            Self::Unsupported => CompileError::UnsupportedUrl { url },
         }
     }
 }

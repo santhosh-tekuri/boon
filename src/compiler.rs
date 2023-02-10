@@ -14,12 +14,12 @@ struct Compiler {
 
 #[derive(Debug)]
 pub enum CompileError {
-    LoadUrlError { res: String, src: Box<dyn Error> },
-    UnsupportedUrl { res: String },
-    InvalidMetaSchema { res: String },
-    MetaSchemaCycle { res: String },
+    LoadUrlError { url: String, src: Box<dyn Error> },
+    UnsupportedUrl { url: String },
+    InvalidMetaSchema { url: String },
+    MetaSchemaCycle { url: String },
     InvalidId { loc: String },
-    DuplicateId { res: String, id: String },
+    DuplicateId { url: String, id: String },
 }
 
 impl Error for CompileError {
@@ -34,20 +34,20 @@ impl Error for CompileError {
 impl Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::LoadUrlError { res, src } => {
+            Self::LoadUrlError { url, src } => {
                 if f.alternate() {
-                    write!(f, "error loading {res}: {src}")
+                    write!(f, "error loading {url}: {src}")
                 } else {
-                    write!(f, "error loading {res}")
+                    write!(f, "error loading {url}")
                 }
             }
-            Self::UnsupportedUrl { res } => write!(f, "loading {res} unsupported"),
-            Self::InvalidMetaSchema { res } => write!(f, "invalid $schema in {res}"),
-            Self::MetaSchemaCycle { res } => {
-                write!(f, "cycle in resolving $schema in {res}")
+            Self::UnsupportedUrl { url } => write!(f, "loading {url} unsupported"),
+            Self::InvalidMetaSchema { url } => write!(f, "invalid $schema in {url}"),
+            Self::MetaSchemaCycle { url } => {
+                write!(f, "cycle in resolving $schema in {url}")
             }
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
-            Self::DuplicateId { res, id } => write!(f, "duplicate $id {id} in {res}"),
+            Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
         }
     }
 }

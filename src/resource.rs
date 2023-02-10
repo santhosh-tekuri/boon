@@ -22,7 +22,7 @@ impl Root {
         for url in self.ids.values() {
             if !set.insert(url) {
                 return Err(CompileError::DuplicateId {
-                    res: self.url.as_str().to_owned(),
+                    url: self.url.as_str().to_owned(),
                     id: url.as_str().to_owned(),
                 });
             }
