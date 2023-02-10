@@ -106,8 +106,10 @@ impl Draft {
         if let Some(s) = url.strip_prefix("https://") {
             url = s;
         }
-        // todo: url normalization??
-        match url {
+        let Ok(url) = path_unescape(url) else {
+            return None;
+        };
+        match url.as_str() {
             "json-schema.org/schema" => Some(latest()),
             "json-schema.org/draft/2020-12/schema" => Some(&DRAFT2020),
             "json-schema.org/draft/2019-09/schema" => Some(&DRAFT2019),
@@ -261,6 +263,20 @@ impl Draft {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_from_url() {
+        let tests = [
+            ("http://json-schema.org/draft/2020-12/schema", Some(2020)), // http url
+            ("https://json-schema.org/draft/2020-12/schema", Some(2020)), // https url
+            ("https://json-schema.org/schema", Some(latest().version)),  // latest
+            ("https://json-schema.org/%64raft/2020-12/schema", Some(2020)), // percent-encoded
+        ];
+        for (url, version) in tests {
+            let got = Draft::from_url(url).map(|d| d.version);
+            assert_eq!(got, version, "for {url}");
+        }
+    }
 
     #[test]
     fn test_lookup_id() {

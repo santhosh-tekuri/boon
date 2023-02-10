@@ -14,7 +14,7 @@ pub(crate) fn escape(token: &str) -> String {
     path_escape(&token.replace('~', "~0").replace('/', "~1"))
 }
 
-fn path_unescape(s: &str) -> Result<String, Utf8Error> {
+pub(crate) fn path_unescape(s: &str) -> Result<String, Utf8Error> {
     Ok(percent_decode_str(s).decode_utf8()?.into_owned())
 }
 
