@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     compiler::CompileError::{self, *},
     draft::{latest, Draft},
-    loader::{DefaultResourceLoader, ResourceLoader},
+    loader::{DefaultUrlLoader, UrlLoader},
     resource::Resource,
     util::*,
 };
@@ -16,7 +16,7 @@ use url::Url;
 pub(crate) struct Resources {
     default_draft: &'static Draft,
     map: HashMap<Url, Resource>,
-    loader: Box<dyn ResourceLoader>,
+    loader: Box<dyn UrlLoader>,
 }
 
 impl Resources {
@@ -24,11 +24,11 @@ impl Resources {
         Self {
             default_draft: latest(),
             map: Default::default(),
-            loader: Box::new(DefaultResourceLoader::new()),
+            loader: Box::new(DefaultUrlLoader::new()),
         }
     }
 
-    fn with_loader(loader: Box<dyn ResourceLoader>) -> Self {
+    fn with_loader(loader: Box<dyn UrlLoader>) -> Self {
         Self {
             default_draft: latest(),
             map: Default::default(),

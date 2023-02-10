@@ -5,34 +5,34 @@ use url::Url;
 
 use crate::compiler::CompileError;
 
-pub trait ResourceLoader {
-    fn load(&self, url: &Url) -> Result<Value, LoadResourceError>;
+pub trait UrlLoader {
+    fn load(&self, url: &Url) -> Result<Value, UrlLoadError>;
 }
 
 // --
 
 #[derive(Debug)]
-pub enum LoadResourceError {
-    Load(Box<dyn Error>),
+pub enum UrlLoadError {
+    Loading(Box<dyn Error>),
     Unsupported,
 }
 
-impl LoadResourceError {
+impl UrlLoadError {
     pub(crate) fn into_compile_error(self, res: &Url) -> CompileError {
         let res = res.as_str().to_owned();
         match self {
-            Self::Load(src) => CompileError::LoadResourceError { res, src },
-            Self::Unsupported => CompileError::LoadUnsupported { res },
+            Self::Loading(src) => CompileError::LoadUrlError { res, src },
+            Self::Unsupported => CompileError::UnsupportedUrl { res },
         }
     }
 }
 
-impl<E> From<E> for LoadResourceError
+impl<E> From<E> for UrlLoadError
 where
     E: Into<Box<dyn Error>>,
 {
     fn from(value: E) -> Self {
-        LoadResourceError::Load(value.into())
+        UrlLoadError::Loading(value.into())
     }
 }
 
@@ -40,8 +40,8 @@ where
 
 struct FileLoader;
 
-impl ResourceLoader for FileLoader {
-    fn load(&self, url: &Url) -> Result<Value, LoadResourceError> {
+impl UrlLoader for FileLoader {
+    fn load(&self, url: &Url) -> Result<Value, UrlLoadError> {
         let path = url.to_file_path().map_err(|_| "invalid file path")?;
         let file = File::open(path)?;
         Ok(serde_json::from_reader(file)?)
@@ -50,25 +50,25 @@ impl ResourceLoader for FileLoader {
 
 // --
 
-pub struct DefaultResourceLoader(HashMap<&'static str, Box<dyn ResourceLoader>>);
+pub struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
 
-impl DefaultResourceLoader {
+impl DefaultUrlLoader {
     pub fn new() -> Self {
         let mut v = Self(Default::default());
         v.0.insert("file", Box::new(FileLoader));
         v
     }
 
-    pub fn register(&mut self, schema: &'static str, loader: Box<dyn ResourceLoader>) {
+    pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
         self.0.insert(schema, loader);
     }
 }
 
-impl ResourceLoader for DefaultResourceLoader {
-    fn load(&self, url: &Url) -> Result<Value, LoadResourceError> {
+impl UrlLoader for DefaultUrlLoader {
+    fn load(&self, url: &Url) -> Result<Value, UrlLoadError> {
         match self.0.get(url.scheme()) {
             Some(rl) => rl.load(url),
-            None => Err(LoadResourceError::Unsupported),
+            None => Err(UrlLoadError::Unsupported),
         }
     }
 }
@@ -82,10 +82,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_default_resource_loader() {
+    fn test_default_url_loader() {
         let path = fs::canonicalize("test.json").unwrap();
         let url = Url::from_file_path(path).unwrap();
-        let doc = DefaultResourceLoader::new().load(&url).unwrap();
+        let doc = DefaultUrlLoader::new().load(&url).unwrap();
         println!("{:?}", doc);
     }
 }

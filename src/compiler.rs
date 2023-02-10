@@ -14,8 +14,8 @@ struct Compiler {
 
 #[derive(Debug)]
 pub enum CompileError {
-    LoadResourceError { res: String, src: Box<dyn Error> },
-    LoadUnsupported { res: String },
+    LoadUrlError { res: String, src: Box<dyn Error> },
+    UnsupportedUrl { res: String },
     InvalidMetaSchema { res: String },
     MetaSchemaCycle { res: String },
     InvalidId { loc: String },
@@ -25,7 +25,7 @@ pub enum CompileError {
 impl Error for CompileError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::LoadResourceError { src, .. } => Some(src.as_ref()),
+            Self::LoadUrlError { src, .. } => Some(src.as_ref()),
             _ => None,
         }
     }
@@ -34,14 +34,14 @@ impl Error for CompileError {
 impl Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::LoadResourceError { res, src } => {
+            Self::LoadUrlError { res, src } => {
                 if f.alternate() {
                     write!(f, "error loading {res}: {src}")
                 } else {
                     write!(f, "error loading {res}")
                 }
             }
-            Self::LoadUnsupported { res } => write!(f, "loading {res} unsupported"),
+            Self::UnsupportedUrl { res } => write!(f, "loading {res} unsupported"),
             Self::InvalidMetaSchema { res } => write!(f, "invalid $schema in {res}"),
             Self::MetaSchemaCycle { res } => {
                 write!(f, "cycle in resolving $schema in {res}")
