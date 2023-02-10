@@ -18,6 +18,7 @@ pub enum CompileError {
     LoadResourceError(LoadResourceError),
     InvalidMetaSchema { resource_url: Url },
     MetaSchemaCycle { resource_url: Url },
+    InvalidId { url: Url },
 }
 
 impl From<LoadResourceError> for CompileError {

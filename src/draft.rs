@@ -152,20 +152,24 @@ impl Draft {
         Ok(false)
     }
 
-    fn collect_ids(
+    // error is json-ptr to invalid id
+    pub(crate) fn collect_ids(
         &self,
-        base: &Url,
         json: &Value,
-        ptr: String,
+        base: &Url,  // base of json
+        ptr: String, // ptr of json
         ids: &mut HashMap<String, Url>,
-    ) -> Result<(), url::ParseError> {
+    ) -> Result<(), String> {
         let Value::Object(obj) = json else {
             return Ok(());
         };
 
         let mut base = Cow::Borrowed(base);
         if let Some(Value::String(obj_id)) = obj.get(self.id) {
-            let obj_id = base.join(obj_id)?;
+            let (obj_id, _) = split(obj_id);
+            let Ok(obj_id) = base.join(obj_id) else {
+                return Err(ptr);
+            };
             ids.insert(ptr.clone(), obj_id.clone());
             base = Cow::Owned(obj_id);
         }
@@ -176,13 +180,13 @@ impl Draft {
             };
             if pos & POS_SELF != 0 {
                 let ptr = format!("{ptr}/{kw}");
-                self.collect_ids(base.as_ref(), v, ptr, ids)?;
+                self.collect_ids(v, base.as_ref(), ptr, ids)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
                         let ptr = format!("{ptr}/{kw}/{i}");
-                        self.collect_ids(base.as_ref(), item, ptr, ids)?;
+                        self.collect_ids(item, base.as_ref(), ptr, ids)?;
                     }
                 }
             }
@@ -190,7 +194,7 @@ impl Draft {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
                         let ptr = format!("{ptr}/{kw}/{}", escape(pname));
-                        self.collect_ids(base.as_ref(), pvalue, ptr, ids)?;
+                        self.collect_ids(pvalue, base.as_ref(), ptr, ids)?;
                     }
                 }
             }
@@ -285,9 +289,7 @@ mod tests {
             &r#"{
                 "id": "http://a.com/schemas/schema.json",
                 "definitions": {
-                    "s1": {
-                        "id": "http://a.com/definitions/s1"
-                    },
+                    "s1": { "id": "http://a.com/definitions/s1" },
                     "s2": {
                         "id": "../s2",
                         "items": [
@@ -304,7 +306,8 @@ mod tests {
                                 }
                             }
                         }
-                    }
+                    },
+                    "s4": { "id": "http://e.com/def#abcd" }
                 }
             }"#,
         )
@@ -368,11 +371,12 @@ mod tests {
             m.insert("/definitions/s3/definitions/s1/items", "http://b.com/item");
             m.insert("/definitions/s2/items/0", "http://c.com/item");
             m.insert("/definitions/s2/items/1", "http://d.com/item");
+            m.insert("/definitions/s4", "http://e.com/def"); // id with fragments
             m
         };
         let mut got = HashMap::new();
         DRAFT4
-            .collect_ids(&base, &json, String::new(), &mut got)
+            .collect_ids(&json, &base, String::new(), &mut got)
             .unwrap();
         let got = got
             .iter()

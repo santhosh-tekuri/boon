@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{draft::*, util::*};
 
@@ -8,6 +8,7 @@ use url::Url;
 //#[derive(Debug)]
 pub(crate) struct Resource {
     pub(crate) draft: &'static Draft,
+    pub(crate) ids: HashMap<String, Url>,
     pub(crate) url: Url,
     pub(crate) doc: Value,
 }

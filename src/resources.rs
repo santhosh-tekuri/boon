@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    compiler::CompileError,
+    compiler::CompileError::{self, *},
     draft::{latest, Draft},
     loader::{DefaultResourceLoader, ResourceLoader},
     resource::Resource,
@@ -69,26 +69,39 @@ impl Resources {
             }
             let (sch, _) = split(sch);
             let Ok(sch) = Url::parse(sch) else {
-                return Err(CompileError::InvalidMetaSchema { resource_url: url.clone()});
+                return Err(InvalidMetaSchema { resource_url: url.clone()});
             };
             if let Some(r) = self.map.get(&sch) {
                 return Ok(r.draft);
             }
             if !cycle.insert(sch.clone()) {
-                return Err(CompileError::MetaSchemaCycle { resource_url: sch });
+                return Err(MetaSchemaCycle { resource_url: sch });
             }
             let doc = self.loader.load(&sch)?;
             Ok(self.add_resource(cycle, sch, doc)?.draft)
         })()?;
 
+        let ids = {
+            let mut ids = HashMap::default();
+            if let Err(ptr) = draft.collect_ids(&doc, &url, String::new(), &mut ids) {
+                let mut url = url;
+                url.set_fragment(Some(&ptr));
+                return Err(InvalidId { url });
+            }
+            ids
+        };
+
         let r = Resource {
             draft,
+            ids,
             url: url.clone(),
             doc,
         };
+
         Ok(self.map.entry(url).or_insert(r))
     }
 }
+
 // --
 
 #[cfg(test)]
