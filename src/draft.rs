@@ -201,67 +201,6 @@ impl Draft {
         }
         Ok(())
     }
-
-    // returns (Value, json_ptr)
-    fn lookup_id<'a>(
-        &self,
-        id: &Url,   // id to look for
-        base: &Url, // base of json
-        json: &'a Value,
-    ) -> Result<Option<(&'a Value, String)>, url::ParseError> {
-        let get_id = |v: &Map<String, Value>| {
-            let Some(id) = v.get(self.id) else { return None };
-            let Value::String(id) = id else { return None };
-            Some(base.join(id))
-        };
-
-        let Value::Object(obj) = json else {
-            return Ok(None);
-        };
-
-        let mut base = Cow::Borrowed(base);
-        if let Some(obj_id) = get_id(obj) {
-            let obj_id = obj_id?;
-            if obj_id == *id {
-                return Ok(Some((json, String::new())));
-            }
-            base = Cow::Owned(obj_id);
-        }
-
-        for (&kw, &pos) in &self.subschemas {
-            let Some(v) = obj.get(kw) else {
-                continue;
-            };
-            if pos & POS_SELF != 0 {
-                if let Some((v, mut ptr)) = self.lookup_id(id, base.as_ref(), v)? {
-                    ptr.insert_str(0, &format!("/{kw}"));
-                    return Ok(Some((v, ptr)));
-                }
-            }
-            if pos & POS_ITEM != 0 {
-                if let Value::Array(arr) = v {
-                    for (i, item) in arr.iter().enumerate() {
-                        if let Some((v, mut ptr)) = self.lookup_id(id, base.as_ref(), item)? {
-                            ptr.insert_str(0, &format!("/{kw}/{i}"));
-                            return Ok(Some((v, ptr)));
-                        }
-                    }
-                }
-            }
-            if pos & POS_PROP != 0 {
-                if let Value::Object(obj) = v {
-                    for (pname, pvalue) in obj {
-                        if let Some((v, mut ptr)) = self.lookup_id(id, base.as_ref(), pvalue)? {
-                            ptr.insert_str(0, &format!("/{kw}/{}", escape(pname)));
-                            return Ok(Some((v, ptr)));
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(None)
-    }
 }
 
 #[cfg(test)]

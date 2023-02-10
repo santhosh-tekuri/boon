@@ -11,7 +11,7 @@ use url::Url;
 //#[derive(Debug)]
 pub(crate) struct Resource {
     pub(crate) draft: &'static Draft,
-    pub(crate) ids: HashMap<String, Url>,
+    pub(crate) ids: HashMap<String, Url>, // ptr => id
     pub(crate) url: Url,
     pub(crate) doc: Value,
 }
@@ -28,6 +28,19 @@ impl Resource {
             }
         }
         Ok(())
+    }
+
+    fn base_url(&self, mut ptr: &str) -> &Url {
+        loop {
+            if let Some(id) = self.ids.get(ptr) {
+                return id;
+            }
+            let Some(slash) = ptr.rfind('/') else {
+                break;
+            };
+            ptr = &ptr[..slash];
+        }
+        &self.url
     }
 
     fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, std::str::Utf8Error> {
