@@ -70,6 +70,7 @@ impl Root {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Resource {
     pub(crate) id: Url,
     pub(crate) anchors: HashMap<String, String>, // anchor => ptr

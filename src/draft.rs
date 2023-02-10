@@ -152,6 +152,39 @@ impl Draft {
         Ok(false)
     }
 
+    fn collect_anchors(
+        &self,
+        json: &Value,
+        ptr: &str,
+        res: &mut Resource,
+    ) -> Result<(), Utf8Error> {
+        let Value::Object(obj) = json else {
+            return Ok(());
+        };
+
+        if self.version < 2019 {
+            // anchor is specified in id
+            if let Some(Value::String(id)) = obj.get(self.id) {
+                let (_, fragment) = split(id);
+                if let Some(anchor) = fragment_to_anchor(fragment)? {
+                    res.anchors.insert(anchor.into_owned(), ptr.to_owned());
+                };
+                return Ok(());
+            }
+        }
+        if self.version >= 2019 {
+            if let Some(Value::String(anchor)) = obj.get("$anchor") {
+                res.anchors.insert(anchor.to_owned(), ptr.to_owned());
+            }
+        }
+        if self.version >= 2020 {
+            if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
+                res.anchors.insert(anchor.to_owned(), ptr.to_owned());
+            }
+        }
+        Ok(())
+    }
+
     // error is json-ptr to invalid id
     pub(crate) fn collect_resources(
         &self,
@@ -175,6 +208,15 @@ impl Draft {
         } else if ptr.is_empty() {
             // root resource
             resources.insert(ptr.clone(), Resource::new(base.as_ref().clone()));
+        }
+
+        // collect anchors
+        if let Some(res) = resources.values_mut().find(|res| res.id == *base.as_ref()) {
+            if self.collect_anchors(json, &ptr, res).is_err() {
+                return Err(ptr);
+            };
+        } else {
+            debug_assert!(false, "base resource must exist");
         }
 
         for (&kw, &pos) in &self.subschemas {
@@ -225,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lookup_id() {
+    fn test_collect_ids() {
         let base = Url::parse("http://a.com/schema.json").unwrap();
         let json: Value = serde_json::from_str(
             &r#"{
@@ -276,5 +318,50 @@ mod tests {
             .map(|(k, v)| (k.as_ref(), v.id.as_str()))
             .collect::<HashMap<&str, &str>>();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn test_collect_anchors() {
+        let base = Url::parse("http://a.com/schema.json").unwrap();
+        let json: Value = serde_json::from_str(
+            &r#"{
+                "$defs": {
+                    "s2": {
+                        "$id": "http://b.com",
+                        "$anchor": "b1", 
+                        "items": [
+                            { "$anchor": "b2" },
+                            {
+                                "$id": "http//c.com",
+                                "items": [
+                                    {"$anchor": "c1"},
+                                    {"$dynamicAnchor": "c2"}
+                                ]
+                            },
+                            { "$dynamicAnchor": "b3" }
+                        ]
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let mut resources = HashMap::new();
+        DRAFT2020
+            .collect_resources(&json, &base, String::new(), &mut resources)
+            .unwrap();
+        assert!(resources.get("").unwrap().anchors.is_empty());
+        assert_eq!(resources.get("/$defs/s2").unwrap().anchors, {
+            let mut want = HashMap::new();
+            want.insert("b1".into(), "/$defs/s2".into());
+            want.insert("b2".into(), "/$defs/s2/items/0".into());
+            want.insert("b3".into(), "/$defs/s2/items/2".into());
+            want
+        });
+        assert_eq!(resources.get("/$defs/s2/items/1").unwrap().anchors, {
+            let mut want = HashMap::new();
+            want.insert("c1".into(), "/$defs/s2/items/1/items/0".into());
+            want.insert("c2".into(), "/$defs/s2/items/1/items/1".into());
+            want
+        });
     }
 }
