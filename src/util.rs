@@ -1,7 +1,30 @@
-use std::{borrow::Cow, str::Utf8Error};
+use std::{borrow::Cow, fmt::Display, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use url::Url;
+
+/// returns single-quoted string
+pub(crate) fn quote<T>(s: &T) -> String
+where
+    T: AsRef<str> + std::fmt::Debug + ?Sized,
+{
+    let s = format!("{s:?}")
+        .replace(r#"\""#, "\"")
+        .replace('\'', r#"\'"#);
+    format!("'{}'", &s[1..s.len() - 1])
+}
+
+pub(crate) fn join_iter<T>(iterable: T, sep: &str) -> String
+where
+    T: IntoIterator,
+    T::Item: Display,
+{
+    iterable
+        .into_iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join(sep)
+}
 
 fn path_escape(s: &str) -> String {
     let mut url = Url::parse("http://a.com").unwrap();
@@ -45,6 +68,11 @@ pub(crate) fn ptr_tokens(ptr: &str) -> impl Iterator<Item = Result<String, Utf8E
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_quote() {
+        assert_eq!(quote(r#"abc"def'ghi"#), r#"'abc"def\'ghi'"#);
+    }
 
     #[test]
     fn test_path_escape() {

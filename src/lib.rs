@@ -11,7 +11,7 @@ use std::{borrow::Cow, collections::HashMap, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Number, Value};
-use util::escape;
+use util::{escape, join_iter, quote};
 
 struct SchemaIndex(usize);
 
@@ -414,6 +414,7 @@ enum ErrorKind {
     Const { got: Value, want: Value },
     MinProperties { got: usize, want: usize },
     MaxProperties { got: usize, want: usize },
+    AdditionalProperties { got: Vec<String> },
     Required { want: Vec<String> },
     DependentRequired { got: String, want: Vec<String> },
     MinItems { got: usize, want: usize },
@@ -437,9 +438,7 @@ impl Display for ErrorKind {
         match self {
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
-                let want = want
-                    .iter()
-                    .fold(String::new(), |s, t| s + &t.to_string() + " or ");
+                let want = join_iter(want, ", ");
                 write!(f, "want {want}, but got {got}",)
             }
             Self::Enum { want, .. } => {
@@ -447,10 +446,7 @@ impl Display for ErrorKind {
                     if want.len() == 1 {
                         write!(f, "value must be {want:?}")
                     } else {
-                        // todo: why join not working for Type struct ??
-                        let want = want
-                            .iter()
-                            .fold(String::new(), |s, v| s + &v.to_string() + " or ");
+                        let want = join_iter(want.iter().map(|e| format!("{e:?}")), " or ");
                         write!(f, "value must be one of {want}")
                     }
                 } else {
@@ -472,11 +468,19 @@ impl Display for ErrorKind {
                 f,
                 "maximum {want} properties allowed, but got {got} properties"
             ),
+            Self::AdditionalProperties { got } => {
+                write!(
+                    f,
+                    "additionalProperties {} not allowed",
+                    join_iter(got.iter().map(quote), ", ")
+                )
+            }
             Self::Required { want } => write!(f, "missing properties {}", want.join(", ")),
             Self::DependentRequired { got, want } => write!(
                 f,
-                "properties {} required, if {got} property exists",
-                want.join(", ")
+                "properties {} required, if {} property exists",
+                join_iter(want.iter().map(quote), ", "),
+                quote(got)
             ),
             Self::MinItems { got, want } => {
                 write!(f, "minimum {want} items allowed, but got {got} items")
@@ -487,9 +491,13 @@ impl Display for ErrorKind {
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
             Self::MinLength { got, want } => write!(f, "length must be >={want}, but got {got}"),
             Self::MaxLength { got, want } => write!(f, "length must be <={want}, but got {got}"),
-            Self::Pattern { got, want } => write!(f, "{got:?} does not match pattern {want:?}"),
-            Self::ContentEncoding { want, .. } => write!(f, "value is not {want} encoded"),
-            Self::ContentMediaType { want, .. } => write!(f, "value is not of mediatype {want}"),
+            Self::Pattern { got, want } => {
+                write!(f, "{} does not match pattern {}", quote(got), quote(want))
+            }
+            Self::ContentEncoding { want, .. } => write!(f, "value is not {} encoded", quote(want)),
+            Self::ContentMediaType { want, .. } => {
+                write!(f, "value is not of mediatype {}", quote(want))
+            }
             Self::Minimum { got, want } => write!(f, "must be >={want}, but got {got}"),
             Self::Maximum { got, want } => write!(f, "must be <={want}, but got {got}"),
             Self::ExclusiveMinimum { got, want } => write!(f, "must be > {want} but got {got}"),
