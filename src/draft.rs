@@ -15,7 +15,7 @@ static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
     id: "id",
     bool_schema: false,
     subschemas: HashMap::from([
-        // core
+        // type agnostic
         ("definitions", POS_PROP),
         ("not", POS_SELF),
         ("allOf", POS_ITEM),
@@ -30,6 +30,7 @@ static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
         ("additionalItems", POS_SELF),
         ("dependencies", POS_PROP),
     ]),
+    vocab: vec![],
 });
 
 static DRAFT6: Lazy<Draft> = Lazy::new(|| {
@@ -40,6 +41,7 @@ static DRAFT6: Lazy<Draft> = Lazy::new(|| {
         id: "$id",
         bool_schema: true,
         subschemas,
+        vocab: vec![],
     }
 });
 
@@ -51,6 +53,7 @@ static DRAFT7: Lazy<Draft> = Lazy::new(|| {
         id: "$id",
         bool_schema: true,
         subschemas,
+        vocab: vec![],
     }
 });
 
@@ -67,6 +70,14 @@ static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
         id: "$id",
         bool_schema: true,
         subschemas,
+        vocab: vec![
+            "https://json-schema.org/draft/2019-09/vocab/core",
+            "https://json-schema.org/draft/2019-09/vocab/applicator",
+            "https://json-schema.org/draft/2019-09/vocab/validation",
+            "https://json-schema.org/draft/2019-09/vocab/meta-data",
+            "https://json-schema.org/draft/2019-09/vocab/format",
+            "https://json-schema.org/draft/2019-09/vocab/content",
+        ],
     }
 });
 
@@ -78,6 +89,16 @@ static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
         id: "$id",
         bool_schema: true,
         subschemas,
+        vocab: vec![
+            "https://json-schema.org/draft/2020-12/vocab/core",
+            "https://json-schema.org/draft/2020-12/vocab/applicator",
+            "https://json-schema.org/draft/2020-12/vocab/unevaluated",
+            "https://json-schema.org/draft/2020-12/vocab/validation",
+            "https://json-schema.org/draft/2020-12/vocab/meta-data",
+            "https://json-schema.org/draft/2020-12/vocab/format-annotation",
+            "https://json-schema.org/draft/2020-12/vocab/format-assertion",
+            "https://json-schema.org/draft/2020-12/vocab/content",
+        ],
     }
 });
 
@@ -88,10 +109,11 @@ pub(crate) fn latest() -> &'static Draft {
 // --
 
 pub(crate) struct Draft {
-    version: usize,
+    pub(crate) version: usize,
     id: &'static str,
     bool_schema: bool,
     subschemas: HashMap<&'static str, u8>,
+    vocab: Vec<&'static str>,
 }
 
 impl Draft {

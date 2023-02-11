@@ -38,7 +38,7 @@ impl Roots {
 }
 
 impl Roots {
-    fn load_if_absent(&mut self, url: Url) -> Result<&Root, CompileError> {
+    pub(crate) fn load_if_absent(&mut self, url: Url) -> Result<&Root, CompileError> {
         if let Some(_r) = self.map.get(&url) {
             // return Ok(r); does not work
             // this is current borrow checker limitation

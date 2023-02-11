@@ -43,7 +43,7 @@ impl Root {
         &self.url
     }
 
-    fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, std::str::Utf8Error> {
+    pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, std::str::Utf8Error> {
         let mut v = &self.doc;
         for tok in ptr_tokens(ptr) {
             let tok = tok?;

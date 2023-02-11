@@ -12,20 +12,64 @@ use std::{borrow::Cow, collections::HashMap};
 use regex::Regex;
 use serde_json::{Number, Value};
 
+#[derive(Default)]
+struct Schemas {
+    list: Vec<Schema>,
+    map: HashMap<String, usize>,
+}
+
+impl Schemas {
+    fn enqueue(&self, queue: &mut Vec<String>, loc: String) -> usize {
+        queue.push(loc);
+        self.list.len() + queue.len() - 1
+    }
+
+    fn insert(&mut self, loc: String, sch: Schema) {
+        self.list.push(sch);
+        self.map.insert(loc, self.list.len() - 1);
+    }
+}
+
+#[derive(Default)]
 struct Schema {
+    loc: String,
+    vocab: Vec<String>,
+
+    // type agnostic --
     types: Vec<Type>,
     enum_: Vec<Value>,
     constant: Option<Value>,
+    not: Option<usize>,
+    all_of: Vec<usize>,
+    any_of: Vec<usize>,
+    one_of: Vec<usize>,
+    if_: Option<usize>,
+    then: Option<usize>,
+    else_: Option<usize>,
 
+    // object --
     min_properties: Option<usize>,
     max_properties: Option<usize>,
     required: Vec<String>,
+    properties: HashMap<String, usize>,
+    property_names: Option<usize>,
+    additional_properties: Option<AdditionalProperties>,
     dependent_required: HashMap<String, Vec<String>>,
+    dependent_schemas: HashMap<String, usize>,
+    dependencies: HashMap<String, Dependency>,
 
+    // array --
     min_items: Option<usize>,
     max_items: Option<usize>,
     unique_items: bool,
+    min_contains: Option<usize>,
+    max_contains: Option<usize>,
+    contains: Option<usize>,
+    prefix_items: Option<usize>,
+    items: Option<Items>,
+    items2020: Option<usize>,
 
+    // string --
     min_length: Option<usize>,
     max_length: Option<usize>,
     pattern: Option<Regex>,
@@ -34,6 +78,7 @@ struct Schema {
     content_media_type: Option<String>,
     media_type: Option<MediaType>,
 
+    // number --
     minimum: Option<Number>,
     maximum: Option<Number>,
     exclusive_minimum: Option<Number>,
@@ -41,7 +86,33 @@ struct Schema {
     multiple_of: Option<Number>,
 }
 
+enum Items {
+    SchemaRef(usize),
+    SchemaRefs(Vec<usize>),
+}
+
+enum AdditionalProperties {
+    Bool(bool),
+    SchemaRef(usize),
+}
+
+enum Dependency {
+    Props(Vec<String>),
+    SchemaRef(usize),
+}
+
 impl Schema {
+    fn new(loc: String) -> Self {
+        Self {
+            loc,
+            ..Default::default()
+        }
+    }
+
+    fn has_vocab(&self, _name: &str) -> bool {
+        todo!();
+    }
+
     fn validate(&self, v: &Value) -> Result<(), ErrorKind> {
         if !self.types.is_empty() {
             let v_type = Type::of(v);
@@ -277,6 +348,18 @@ impl Type {
             Value::String(_) => Type::String,
             Value::Array(_) => Type::Array,
             Value::Object(_) => Type::Object,
+        }
+    }
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "null" => Some(Self::Null),
+            "boolean" => Some(Self::Bool),
+            "number" => Some(Self::Number),
+            "integer" => Some(Self::Integer),
+            "string" => Some(Self::String),
+            "array" => Some(Self::Array),
+            "object" => Some(Self::Object),
+            _ => None,
         }
     }
 }
