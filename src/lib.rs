@@ -7,7 +7,7 @@ mod root;
 mod roots;
 mod util;
 
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Number, Value};
@@ -380,6 +380,24 @@ impl Type {
             _ => None,
         }
     }
+
+    fn primitive(v: &Value) -> bool {
+        !matches!(Self::of(v), Self::Array | Self::Object)
+    }
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Null => write!(f, "null"),
+            Type::Bool => write!(f, "boolean"),
+            Type::Number => write!(f, "number"),
+            Type::Integer => write!(f, "integer"),
+            Type::String => write!(f, "string"),
+            Type::Array => write!(f, "array"),
+            Type::Object => write!(f, "object"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -411,6 +429,74 @@ enum ErrorKind {
     ExclusiveMinimum { got: Number, want: Number },
     ExclusiveMaximum { got: Number, want: Number },
     MultipleOf { got: Number, want: Number },
+}
+
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // todo: use single quote for strings
+        match self {
+            Self::Type { got, want } => {
+                // todo: why join not working for Type struct ??
+                let want = want
+                    .iter()
+                    .fold(String::new(), |s, t| s + &t.to_string() + " or ");
+                write!(f, "want {want}, but got {got}",)
+            }
+            Self::Enum { want, .. } => {
+                if want.iter().all(Type::primitive) {
+                    if want.len() == 1 {
+                        write!(f, "value must be {want:?}")
+                    } else {
+                        // todo: why join not working for Type struct ??
+                        let want = want
+                            .iter()
+                            .fold(String::new(), |s, v| s + &v.to_string() + " or ");
+                        write!(f, "value must be one of {want}")
+                    }
+                } else {
+                    write!(f, "enum failed")
+                }
+            }
+            Self::Const { want, .. } => {
+                if Type::primitive(want) {
+                    write!(f, "value must be {want:?}")
+                } else {
+                    write!(f, "const failed")
+                }
+            }
+            Self::MinProperties { got, want } => write!(
+                f,
+                "minimum {want} properties allowed, but got {got} properties"
+            ),
+            Self::MaxProperties { got, want } => write!(
+                f,
+                "maximum {want} properties allowed, but got {got} properties"
+            ),
+            Self::Required { want } => write!(f, "missing properties {}", want.join(", ")),
+            Self::DependentRequired { got, want } => write!(
+                f,
+                "properties {} required, if {got} property exists",
+                want.join(", ")
+            ),
+            Self::MinItems { got, want } => {
+                write!(f, "minimum {want} items allowed, but got {got} items")
+            }
+            Self::MaxItems { got, want } => {
+                write!(f, "maximum {want} items allowed, but got {got} items")
+            }
+            Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
+            Self::MinLength { got, want } => write!(f, "length must be >={want}, but got {got}"),
+            Self::MaxLength { got, want } => write!(f, "length must be <={want}, but got {got}"),
+            Self::Pattern { got, want } => write!(f, "{got:?} does not match pattern {want:?}"),
+            Self::ContentEncoding { want, .. } => write!(f, "value is not {want} encoded"),
+            Self::ContentMediaType { want, .. } => write!(f, "value is not of mediatype {want}"),
+            Self::Minimum { got, want } => write!(f, "must be >={want}, but got {got}"),
+            Self::Maximum { got, want } => write!(f, "must be <={want}, but got {got}"),
+            Self::ExclusiveMinimum { got, want } => write!(f, "must be > {want} but got {got}"),
+            Self::ExclusiveMaximum { got, want } => write!(f, "must be < {want} but got {got}"),
+            Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
+        }
+    }
 }
 
 type Decoder = Box<dyn Fn(&str) -> Option<Vec<u8>>>;

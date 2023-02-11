@@ -40,7 +40,8 @@ impl Compiler {
             };
 
             let sch = self.compile_one(target, v, loc.clone(), root, &mut queue)?;
-            sch_index = sch_index.or(Some(target.insert(loc, sch)));
+            let index = target.insert(loc, sch);
+            sch_index = sch_index.or(Some(index));
         }
         sch_index.ok_or(CompileError::Bug("schema_index must exist".into()))
     }
