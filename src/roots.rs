@@ -37,12 +37,27 @@ impl Roots {
     }
 }
 
+impl Default for Roots {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Roots {
     pub(crate) fn get(&self, url: &Url) -> Option<&Root> {
         self.map.get(url)
     }
 
-    pub(crate) fn load_if_absent(&mut self, url: Url) -> Result<&Root, CompileError> {
+    pub(crate) fn or_insert(&mut self, mut url: Url, doc: Value) -> Result<(), CompileError> {
+        url.set_fragment(None);
+        if !self.map.contains_key(&url) {
+            self.add_root(HashSet::new(), url, doc)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn or_load(&mut self, url: Url) -> Result<&Root, CompileError> {
+        debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
         if let Some(_r) = self.map.get(&url) {
             // return Ok(r); does not work
             // this is current borrow checker limitation
@@ -126,7 +141,7 @@ mod tests {
         let path = fs::canonicalize("test.json").unwrap();
         let url = Url::from_file_path(path).unwrap();
         let mut roots = Roots::new();
-        let root = roots.load_if_absent(url).unwrap();
+        let root = roots.or_load(url).unwrap();
         println!("{:?}", root.doc);
     }
 }

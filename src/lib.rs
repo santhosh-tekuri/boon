@@ -28,6 +28,10 @@ impl Schemas {
         self.list.push(sch);
         self.map.insert(loc, self.list.len() - 1);
     }
+
+    fn get(&self, loc: &str) -> Option<&Schema> {
+        self.map.get(loc).map_or(None, |&i| self.list.get(i))
+    }
 }
 
 #[derive(Default)]
@@ -86,16 +90,19 @@ struct Schema {
     multiple_of: Option<Number>,
 }
 
+//#[derive(Debug)]
 enum Items {
     SchemaRef(usize),
     SchemaRefs(Vec<usize>),
 }
 
+//#[derive(Debug)]
 enum AdditionalProperties {
     Bool(bool),
     SchemaRef(usize),
 }
 
+//#[derive(Debug)]
 enum Dependency {
     Props(Vec<String>),
     SchemaRef(usize),
@@ -113,7 +120,7 @@ impl Schema {
         todo!();
     }
 
-    fn validate(&self, v: &Value) -> Result<(), ErrorKind> {
+    pub(crate) fn validate(&self, v: &Value) -> Result<(), ErrorKind> {
         if !self.types.is_empty() {
             let v_type = Type::of(v);
             let matched = self.types.iter().any(|t| {
@@ -364,6 +371,7 @@ impl Type {
     }
 }
 
+#[derive(Debug)]
 enum ErrorKind {
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },

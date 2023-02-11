@@ -12,6 +12,7 @@ use crate::roots::Roots;
 use crate::util::*;
 use crate::*;
 
+#[derive(Default)]
 struct Compiler {
     roots: Roots,
     decoders: HashMap<String, Decoder>,
@@ -20,17 +21,16 @@ struct Compiler {
 }
 
 impl Compiler {
-    fn compile_all(&mut self, v: &Value, loc: String, root: &Root) -> Result<(), CompileError> {
+    fn compile(&mut self, loc: String) -> Result<(), CompileError> {
         let mut queue = vec![];
-        let sch = self.compile_one(v, loc.clone(), root, &mut queue)?;
-        self.schemas.insert(loc, sch);
+        queue.push(loc);
         while let Some(loc) = queue.pop() {
             let (url, ptr) = split(&loc);
             let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
                 url: url.to_owned(),
                 src: e.into(),
             })?;
-            self.roots.load_if_absent(url.clone())?;
+            self.roots.or_load(url.clone())?;
             let root = self.roots.get(&url).unwrap();
             let v = root
                 .lookup_ptr(ptr)
@@ -314,5 +314,25 @@ impl Display for CompileError {
 impl From<BorrowMutError> for CompileError {
     fn from(value: BorrowMutError) -> Self {
         Self::Bug(value.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compiler() {
+        let sch: Value = serde_json::from_str(r#"{"type":"string"}"#).unwrap();
+        let mut c = Compiler::default();
+        let url = Url::parse("http://a.com/schema.json").unwrap();
+        c.roots.or_insert(url.clone(), sch).unwrap();
+        let loc = format!("{url}#");
+        c.compile(loc.clone()).unwrap();
+        let sch = c.schemas.get(&loc).unwrap();
+        println!("{:?}", sch.types);
+        println!("{:?}", c.schemas.map);
+        let inst: Value = Value::String("xx".into());
+        sch.validate(&inst).unwrap();
     }
 }
