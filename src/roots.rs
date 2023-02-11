@@ -38,6 +38,10 @@ impl Roots {
 }
 
 impl Roots {
+    pub(crate) fn get(&self, url: &Url) -> Option<&Root> {
+        self.map.get(url)
+    }
+
     pub(crate) fn load_if_absent(&mut self, url: Url) -> Result<&Root, CompileError> {
         if let Some(_r) = self.map.get(&url) {
             // return Ok(r); does not work

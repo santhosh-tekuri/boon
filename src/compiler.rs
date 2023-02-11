@@ -1,5 +1,4 @@
 use std::cell::BorrowMutError;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
@@ -10,19 +9,11 @@ use url::Url;
 
 use crate::root::Root;
 use crate::roots::Roots;
-use crate::util::escape;
-use crate::util::split;
-use crate::AdditionalProperties;
-use crate::Decoder;
-use crate::Dependency;
-use crate::Items;
-use crate::MediaType;
-use crate::Schema;
-use crate::Schemas;
-use crate::Type;
+use crate::util::*;
+use crate::*;
 
 struct Compiler {
-    roots: RefCell<Roots>,
+    roots: Roots,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
     schemas: Schemas,
@@ -39,8 +30,8 @@ impl Compiler {
                 url: url.to_owned(),
                 src: e.into(),
             })?;
-            let mut roots = self.roots.try_borrow_mut()?;
-            let root = roots.load_if_absent(url)?;
+            self.roots.load_if_absent(url.clone())?;
+            let root = self.roots.get(&url).unwrap();
             let v = root
                 .lookup_ptr(ptr)
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
