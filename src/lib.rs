@@ -7,16 +7,19 @@ mod root;
 mod roots;
 mod util;
 
+pub use compiler::*;
+
 use std::{borrow::Cow, collections::HashMap, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Number, Value};
 use util::{escape, join_iter, quote};
 
-struct SchemaIndex(usize);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SchemaIndex(usize);
 
 #[derive(Default)]
-struct Schemas {
+pub struct Schemas {
     list: Vec<Schema>,
     map: HashMap<String, usize>,
 }
@@ -39,27 +42,38 @@ impl Schemas {
     }
 
     fn get_by_loc(&self, loc: &str) -> Option<&Schema> {
-        self.map.get(loc).and_then(|&i| self.list.get(i))
+        let mut loc = Cow::from(loc);
+        if loc.rfind('#').is_none() {
+            let mut s = loc.into_owned();
+            s.push('#');
+            loc = Cow::from(s);
+        }
+        self.map.get(loc.as_ref()).and_then(|&i| self.list.get(i))
+    }
+
+    /// Validates `v` with schema identified by `sch_index`
+    ///
+    /// # Panics
+    ///
+    /// Panics if `sch_index` does not exist. To avoid panic make sure that
+    /// `sch_index` is generated for this instance.
+    pub fn validate(&self, v: &Value, sch_index: SchemaIndex) -> Result<(), ValidationError> {
+        let Some(sch) = self.get(sch_index) else {
+            panic!("Schemas::validate: schema index out of bounds");
+        };
+        sch.validate(v, String::new())
     }
 }
 
-macro_rules! error {
-    ($kw_path:expr, $inst_path:expr, $kind:ident, $name:ident: $value:expr) => {
-        Err(ValidationError {
-            absolute_keyword_location: $kw_path.into(),
-            instance_location: $inst_path.clone(),
-            kind: ErrorKind::$kind { $name: $value },
-        })
+macro_rules! kind {
+    ($kind:ident, $name:ident: $value:expr) => {
+        ErrorKind::$kind { $name: $value }
     };
-    ($kw_path:expr, $inst_path:expr, $kind:ident, $got:expr, $want:expr) => {
-        Err(ValidationError {
-            absolute_keyword_location: $kw_path.into(),
-            instance_location: $inst_path.clone(),
-            kind: ErrorKind::$kind {
-                got: $got,
-                want: $want,
-            },
-        })
+    ($kind:ident, $got:expr, $want:expr) => {
+        ErrorKind::$kind {
+            got: $got,
+            want: $want,
+        }
     };
 }
 
@@ -119,19 +133,16 @@ struct Schema {
     multiple_of: Option<Number>,
 }
 
-//#[derive(Debug)]
 enum Items {
     SchemaRef(usize),
     SchemaRefs(Vec<usize>),
 }
 
-//#[derive(Debug)]
 enum AdditionalProperties {
     Bool(bool),
     SchemaRef(usize),
 }
 
-//#[derive(Debug)]
 enum Dependency {
     Props(Vec<String>),
     SchemaRef(usize),
@@ -149,7 +160,14 @@ impl Schema {
         todo!();
     }
 
-    pub(crate) fn validate(&self, v: &Value, vloc: String) -> Result<(), ValidationError> {
+    fn validate(&self, v: &Value, vloc: String) -> Result<(), ValidationError> {
+        let error = |kw_path, kind| {
+            Err(ValidationError {
+                absolute_keyword_location: format!("{}{kw_path}", self.loc),
+                instance_location: vloc.clone(),
+                kind,
+            })
+        };
         if !self.types.is_empty() {
             let v_type = Type::of(v);
             let matched = self.types.iter().any(|t| {
@@ -161,17 +179,17 @@ impl Schema {
                 *t == v_type
             });
             if !matched {
-                return error!("type", vloc, Type, v_type, self.types.clone());
+                return error("type", kind!(Type, v_type, self.types.clone()));
             }
         }
 
         if !self.enum_.is_empty() && !self.enum_.contains(v) {
-            return error!("enum", vloc, Enum, v.clone(), self.enum_.clone());
+            return error("enum", kind!(Enum, v.clone(), self.enum_.clone()));
         }
 
         if let Some(c) = &self.constant {
             if v != c {
-                return error!("const", vloc, Const, v.clone(), c.clone());
+                return error("const", kind!(Const, v.clone(), c.clone()));
             }
         }
 
@@ -179,12 +197,12 @@ impl Schema {
             Value::Object(obj) => {
                 if let Some(min) = self.min_properties {
                     if obj.len() < min {
-                        return error!("minProperties", vloc, MinProperties, obj.len(), min);
+                        return error("minProperties", kind!(MinProperties, obj.len(), min));
                     }
                 }
                 if let Some(max) = self.max_properties {
                     if obj.len() > max {
-                        return error!("maxProperties", vloc, MaxProperties, obj.len(), max);
+                        return error("maxProperties", kind!(MaxProperties, obj.len(), max));
                     }
                 }
                 let missing = self
@@ -194,7 +212,7 @@ impl Schema {
                     .cloned()
                     .collect::<Vec<String>>();
                 if !missing.is_empty() {
-                    return error!("required", vloc, Required, want: missing);
+                    return error("required", kind!(Required, want: missing));
                 }
 
                 for (pname, required) in &self.dependent_required {
@@ -205,12 +223,9 @@ impl Schema {
                             .cloned()
                             .collect::<Vec<String>>();
                         if !missing.is_empty() {
-                            return error!(
-                                format!("dependentRequired/{}", escape(pname)),
-                                vloc,
-                                DependentRequired,
-                                pname.clone(),
-                                missing
+                            return error(
+                                &format!("dependentRequired/{}", escape(pname)),
+                                kind!(DependentRequired, pname.clone(), missing),
                             );
                         }
                     }
@@ -219,19 +234,19 @@ impl Schema {
             Value::Array(arr) => {
                 if let Some(min) = self.min_items {
                     if arr.len() < min {
-                        return error!("minItems", vloc, MinItems, arr.len(), min);
+                        return error("minItems", kind!(MinItems, arr.len(), min));
                     }
                 }
                 if let Some(max) = self.max_items {
                     if arr.len() > max {
-                        return error!("maxItems", vloc, MaxItems, arr.len(), max);
+                        return error("maxItems", kind!(MaxItems, arr.len(), max));
                     }
                 }
                 if self.unique_items {
                     for i in 1..arr.len() {
                         for j in 0..i {
                             if arr[i] == arr[j] {
-                                return error!("uniqueItems", vloc, UniqueItems, got: [i, j]);
+                                return error("uniqueItems", kind!(UniqueItems, got: [i, j]));
                             }
                         }
                     }
@@ -242,23 +257,20 @@ impl Schema {
                 if let Some(min) = self.min_length {
                     let len = len.get_or_insert_with(|| s.chars().count());
                     if *len < min {
-                        return error!("minLength", vloc, MinLength, *len, min);
+                        return error("minLength", kind!(MinLength, *len, min));
                     }
                 }
                 if let Some(max) = self.max_length {
                     let len = len.get_or_insert_with(|| s.chars().count());
                     if *len > max {
-                        return error!("maxLength", vloc, MaxLength, *len, max);
+                        return error("maxLength", kind!(MaxLength, *len, max));
                     }
                 }
                 if let Some(regex) = &self.pattern {
                     if !regex.is_match(s) {
-                        return error!(
+                        return error(
                             "pattern",
-                            vloc,
-                            Pattern,
-                            s.clone(),
-                            regex.as_str().to_string()
+                            kind!(Pattern, s.clone(), regex.as_str().to_string()),
                         );
                     }
                 }
@@ -268,24 +280,26 @@ impl Schema {
                     match decode(s) {
                         Some(bytes) => decoded = Cow::from(bytes),
                         None => {
-                            return error!(
+                            return error(
                                 "contentEncoding",
-                                vloc,
-                                ContentEncoding,
-                                s.clone(),
-                                self.content_encoding.clone().unwrap()
+                                kind!(
+                                    ContentEncoding,
+                                    s.clone(),
+                                    self.content_encoding.clone().unwrap()
+                                ),
                             )
                         }
                     }
                 }
                 if let Some(media_type) = &self.media_type {
                     if !media_type(decoded.as_ref()) {
-                        return error!(
+                        return error(
                             "contentMediaType",
-                            vloc,
-                            ContentMediaType,
-                            decoded.into_owned(),
-                            self.content_media_type.clone().unwrap()
+                            kind!(
+                                ContentMediaType,
+                                decoded.into_owned(),
+                                self.content_media_type.clone().unwrap()
+                            ),
                         );
                     }
                 }
@@ -294,26 +308,23 @@ impl Schema {
                 if let Some(min) = &self.minimum {
                     if let (Some(minf), Some(vf)) = (min.as_f64(), n.as_f64()) {
                         if vf < minf {
-                            return error!("minimum", vloc, Minimum, n.clone(), min.clone());
+                            return error("minimum", kind!(Minimum, n.clone(), min.clone()));
                         }
                     }
                 }
                 if let Some(max) = &self.maximum {
                     if let (Some(maxf), Some(vf)) = (max.as_f64(), n.as_f64()) {
                         if vf > maxf {
-                            return error!("maximum", vloc, Maximum, n.clone(), max.clone());
+                            return error("maximum", kind!(Maximum, n.clone(), max.clone()));
                         }
                     }
                 }
                 if let Some(ex_min) = &self.exclusive_minimum {
                     if let (Some(ex_minf), Some(nf)) = (ex_min.as_f64(), n.as_f64()) {
                         if nf <= ex_minf {
-                            return error!(
+                            return error(
                                 "exclusiveMinimum",
-                                vloc,
-                                ExclusiveMinimum,
-                                n.clone(),
-                                ex_min.clone()
+                                kind!(ExclusiveMinimum, n.clone(), ex_min.clone()),
                             );
                         }
                     }
@@ -321,12 +332,9 @@ impl Schema {
                 if let Some(ex_max) = &self.exclusive_maximum {
                     if let (Some(ex_maxf), Some(nf)) = (ex_max.as_f64(), n.as_f64()) {
                         if nf >= ex_maxf {
-                            return error!(
+                            return error(
                                 "exclusiveMaximum",
-                                vloc,
-                                ExclusiveMaximum,
-                                n.clone(),
-                                ex_max.clone()
+                                kind!(ExclusiveMaximum, n.clone(), ex_max.clone()),
                             );
                         }
                     }
@@ -334,7 +342,7 @@ impl Schema {
                 if let Some(mul) = &self.multiple_of {
                     if let (Some(mulf), Some(nf)) = (mul.as_f64(), n.as_f64()) {
                         if (nf / mulf).fract() != 0.0 {
-                            return error!("multipleOf", vloc, MultipleOf, n.clone(), mul.clone());
+                            return error("multipleOf", kind!(MultipleOf, n.clone(), mul.clone()));
                         }
                     }
                 }
@@ -347,7 +355,7 @@ impl Schema {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Type {
+pub enum Type {
     Null,
     Bool,
     Number,
@@ -401,14 +409,26 @@ impl Display for Type {
 }
 
 #[derive(Debug)]
-struct ValidationError {
-    absolute_keyword_location: String,
-    instance_location: String,
-    kind: ErrorKind,
+pub struct ValidationError {
+    pub absolute_keyword_location: String,
+    pub instance_location: String,
+    pub kind: ErrorKind,
+}
+
+impl Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "jsonschema: {} does not validate with {}: {}",
+            quote(&self.instance_location),
+            self.absolute_keyword_location,
+            self.kind
+        )
+    }
 }
 
 #[derive(Debug)]
-enum ErrorKind {
+pub enum ErrorKind {
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },
     Const { got: Value, want: Value },

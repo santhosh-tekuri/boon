@@ -48,12 +48,14 @@ impl Roots {
         self.map.get(url)
     }
 
-    pub(crate) fn or_insert(&mut self, mut url: Url, doc: Value) -> Result<(), CompileError> {
+    pub(crate) fn or_insert(&mut self, mut url: Url, doc: Value) -> Result<bool, CompileError> {
         url.set_fragment(None);
         if !self.map.contains_key(&url) {
             self.add_root(HashSet::new(), url, doc)?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     pub(crate) fn or_load(&mut self, url: Url) -> Result<&Root, CompileError> {

@@ -13,14 +13,30 @@ use crate::util::*;
 use crate::*;
 
 #[derive(Default)]
-struct Compiler {
+pub struct Compiler {
     roots: Roots,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
 }
 
 impl Compiler {
-    fn compile(&mut self, target: &mut Schemas, loc: String) -> Result<SchemaIndex, CompileError> {
+    pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
+        let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
+            url: url.to_owned(),
+            src: e.into(),
+        })?;
+        self.roots.or_insert(url, json)
+    }
+
+    pub fn compile(
+        &mut self,
+        target: &mut Schemas,
+        mut loc: String,
+    ) -> Result<SchemaIndex, CompileError> {
+        if loc.rfind('#').is_none() {
+            loc.push('#');
+        }
+
         let mut queue = vec![];
         queue.push(loc);
         let mut sch_index = None;
@@ -327,10 +343,7 @@ mod tests {
         let loc = format!("{url}#");
         let mut schemas = Schemas::default();
         let sch_index = c.compile(&mut schemas, loc.clone()).unwrap();
-        let sch = schemas.get(sch_index).unwrap();
-        println!("{:?}", sch.types);
-        println!("{:?}", schemas.map);
         let inst: Value = Value::String("xx".into());
-        sch.validate(&inst, String::new()).unwrap();
+        schemas.validate(&inst, sch_index).unwrap();
     }
 }
