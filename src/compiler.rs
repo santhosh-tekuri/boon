@@ -17,11 +17,10 @@ struct Compiler {
     roots: Roots,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
-    schemas: Schemas,
 }
 
 impl Compiler {
-    fn compile(&mut self, loc: String) -> Result<(), CompileError> {
+    fn compile(&mut self, target: &mut Schemas, loc: String) -> Result<(), CompileError> {
         let mut queue = vec![];
         queue.push(loc);
         while let Some(loc) = queue.pop() {
@@ -39,14 +38,15 @@ impl Compiler {
                 return Err(CompileError::NotFound(loc));
             };
 
-            let sch = self.compile_one(v, loc.clone(), root, &mut queue)?;
-            self.schemas.insert(loc, sch);
+            let sch = self.compile_one(target, v, loc.clone(), root, &mut queue)?;
+            target.insert(loc, sch);
         }
         Ok(())
     }
 
     fn compile_one(
         &self,
+        schemas: &Schemas,
         v: &Value,
         loc: String,
         root: &Root,
@@ -89,10 +89,7 @@ impl Compiler {
         };
         let load_schema = |pname, queue: &mut Vec<String>| {
             if obj.contains_key(pname) {
-                Some(
-                    self.schemas
-                        .enqueue(queue, format!("{loc}/{}", escape(pname))),
-                )
+                Some(schemas.enqueue(queue, format!("{loc}/{}", escape(pname))))
             } else {
                 None
             }
@@ -100,7 +97,7 @@ impl Compiler {
         let load_schema_arr = |pname, queue: &mut Vec<String>| {
             if let Some(Value::Array(arr)) = obj.get(pname) {
                 (0..arr.len())
-                    .map(|i| self.schemas.enqueue(queue, format!("{loc}/{pname}/{i}")))
+                    .map(|i| schemas.enqueue(queue, format!("{loc}/{pname}/{i}")))
                     .collect()
             } else {
                 Vec::new()
@@ -112,8 +109,7 @@ impl Compiler {
                     .map(|k| {
                         (
                             k.clone(),
-                            self.schemas
-                                .enqueue(queue, format!("{loc}/{pname}/{}", escape(k))),
+                            schemas.enqueue(queue, format!("{loc}/{pname}/{}", escape(k))),
                         )
                     })
                     .collect()
@@ -213,8 +209,7 @@ impl Compiler {
                     let v = match v {
                         Value::Array(_) => Some(Dependency::Props(to_strings(v))),
                         Value::Object(_) => Some(Dependency::SchemaRef(
-                            self.schemas
-                                .enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
+                            schemas.enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
                         )),
                         _ => None,
                     };
@@ -328,10 +323,11 @@ mod tests {
         let url = Url::parse("http://a.com/schema.json").unwrap();
         c.roots.or_insert(url.clone(), sch).unwrap();
         let loc = format!("{url}#");
-        c.compile(loc.clone()).unwrap();
-        let sch = c.schemas.get(&loc).unwrap();
+        let mut schemas = Schemas::default();
+        c.compile(&mut schemas, loc.clone()).unwrap();
+        let sch = schemas.get(&loc).unwrap();
         println!("{:?}", sch.types);
-        println!("{:?}", c.schemas.map);
+        println!("{:?}", schemas.map);
         let inst: Value = Value::String("xx".into());
         sch.validate(&inst).unwrap();
     }

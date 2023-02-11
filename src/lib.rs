@@ -30,7 +30,7 @@ impl Schemas {
     }
 
     fn get(&self, loc: &str) -> Option<&Schema> {
-        self.map.get(loc).map_or(None, |&i| self.list.get(i))
+        self.map.get(loc).and_then(|&i| self.list.get(i))
     }
 }
 
