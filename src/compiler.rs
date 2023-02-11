@@ -330,6 +330,6 @@ mod tests {
         println!("{:?}", sch.types);
         println!("{:?}", schemas.map);
         let inst: Value = Value::String("xx".into());
-        sch.validate(&inst).unwrap();
+        sch.validate(&inst, String::new()).unwrap();
     }
 }
