@@ -12,6 +12,8 @@ use std::{borrow::Cow, collections::HashMap};
 use regex::Regex;
 use serde_json::{Number, Value};
 
+struct SchemaIndex(usize);
+
 #[derive(Default)]
 struct Schemas {
     list: Vec<Schema>,
@@ -24,12 +26,18 @@ impl Schemas {
         self.list.len() + queue.len() - 1
     }
 
-    fn insert(&mut self, loc: String, sch: Schema) {
+    fn insert(&mut self, loc: String, sch: Schema) -> SchemaIndex {
         self.list.push(sch);
-        self.map.insert(loc, self.list.len() - 1);
+        let index = self.list.len() - 1;
+        self.map.insert(loc, index);
+        SchemaIndex(index)
     }
 
-    fn get(&self, loc: &str) -> Option<&Schema> {
+    fn get(&self, index: SchemaIndex) -> Option<&Schema> {
+        self.list.get(index.0)
+    }
+
+    fn get_by_loc(&self, loc: &str) -> Option<&Schema> {
         self.map.get(loc).and_then(|&i| self.list.get(i))
     }
 }

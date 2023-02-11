@@ -20,9 +20,10 @@ struct Compiler {
 }
 
 impl Compiler {
-    fn compile(&mut self, target: &mut Schemas, loc: String) -> Result<(), CompileError> {
+    fn compile(&mut self, target: &mut Schemas, loc: String) -> Result<SchemaIndex, CompileError> {
         let mut queue = vec![];
         queue.push(loc);
+        let mut sch_index = None;
         while let Some(loc) = queue.pop() {
             let (url, ptr) = split(&loc);
             let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
@@ -39,9 +40,9 @@ impl Compiler {
             };
 
             let sch = self.compile_one(target, v, loc.clone(), root, &mut queue)?;
-            target.insert(loc, sch);
+            sch_index = sch_index.or(Some(target.insert(loc, sch)));
         }
-        Ok(())
+        sch_index.ok_or(CompileError::Bug("schema_index must exist".into()))
     }
 
     fn compile_one(
@@ -324,8 +325,8 @@ mod tests {
         c.roots.or_insert(url.clone(), sch).unwrap();
         let loc = format!("{url}#");
         let mut schemas = Schemas::default();
-        c.compile(&mut schemas, loc.clone()).unwrap();
-        let sch = schemas.get(&loc).unwrap();
+        let sch_index = c.compile(&mut schemas, loc.clone()).unwrap();
+        let sch = schemas.get(sch_index).unwrap();
         println!("{:?}", sch.types);
         println!("{:?}", schemas.map);
         let inst: Value = Value::String("xx".into());
