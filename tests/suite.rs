@@ -1,6 +1,6 @@
 use std::{fs::File, path::Path};
 
-use jsonschema::{Compiler, Schemas};
+use jsonschema::{Compiler, Draft, Schemas};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -20,11 +20,17 @@ struct Test {
 
 #[test]
 fn test_suite() {
-    run_file("draft4/type.json");
-    run_file("draft4/enum.json");
+    run_file("draft4/type.json", Draft::V4);
+    run_file("draft4/enum.json", Draft::V4);
+    run_file("draft4/minProperties.json", Draft::V4);
+    run_file("draft4/maxProperties.json", Draft::V4);
+    run_file("draft4/required.json", Draft::V4);
+    run_file("draft4/properties.json", Draft::V4);
+    run_file("draft4/minItems.json", Draft::V4);
+    run_file("draft4/maxItems.json", Draft::V4);
 }
 
-fn run_file(path: &str) {
+fn run_file(path: &str, draft: Draft) {
     let suite = Path::new("tests/JSON-Schema-Test-Suite/tests/");
     let file = File::open(suite.join(path)).unwrap();
 
@@ -34,6 +40,7 @@ fn run_file(path: &str) {
         println!("{}", group.description);
         let mut schemas = Schemas::default();
         let mut compiler = Compiler::default();
+        compiler.set_default_draft(draft);
         compiler.add_resource(url, group.schema).unwrap();
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         for test in group.tests {

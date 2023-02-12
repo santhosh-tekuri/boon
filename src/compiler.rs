@@ -7,10 +7,20 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
+use crate::draft::{DRAFT2019, DRAFT2020, DRAFT4, DRAFT6, DRAFT7};
 use crate::root::Root;
 use crate::roots::Roots;
 use crate::util::*;
 use crate::*;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Draft {
+    V4,
+    V6,
+    V7,
+    V2019_09,
+    V2020_12,
+}
 
 #[derive(Default)]
 pub struct Compiler {
@@ -20,6 +30,16 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    pub fn set_default_draft(&mut self, d: Draft) {
+        self.roots.default_draft = match d {
+            Draft::V4 => &DRAFT4,
+            Draft::V6 => &DRAFT6,
+            Draft::V7 => &DRAFT7,
+            Draft::V2019_09 => &DRAFT2019,
+            Draft::V2020_12 => &DRAFT2020,
+        }
+    }
+
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
         let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
             url: url.to_owned(),
@@ -218,16 +238,23 @@ impl Compiler {
             v
         };
 
+        s.additional_properties = {
+            if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
+                Some(Additional::Bool(*b))
+            } else {
+                load_schema("additionalProperties", queue).map(Additional::SchemaRef)
+            }
+        };
+
         if root.draft.version < 2020 {
             match obj.get("items") {
                 Some(Value::Array(_)) => {
                     s.items = Some(Items::SchemaRefs(load_schema_arr("items", queue)));
-                    s.additional_properties = {
-                        if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
-                            Some(AdditionalProperties::Bool(*b))
+                    s.additional_items = {
+                        if let Some(Value::Bool(b)) = obj.get("additionalItems") {
+                            Some(Additional::Bool(*b))
                         } else {
-                            load_schema("additionalProperties", queue)
-                                .map(AdditionalProperties::SchemaRef)
+                            load_schema("additionalProperties", queue).map(Additional::SchemaRef)
                         }
                     };
                 }
@@ -365,26 +392,28 @@ mod tests {
     #[test]
     fn test_debug() {
         run_single(
+            Draft::V4,
             r#"{
-                "type":"object",
                 "properties": {
-                    "foo": {"enum":["foo"]},
-                    "bar": {"enum":["bar"]}
+                    "foo": {"type": "array", "maxItems": 3},
+                    "bar": {"type": "array"}
                 },
-                "required": ["bar"]
+                "patternProperties": {"f.o": {"minItems": 2}},
+                "additionalProperties": {"type": "integer"}
             }"#,
-            r#"{"foo":"foo", "bar":"bar"}"#,
-            true,
+            r#"{"quux": "foo"}"#,
+            false,
         );
     }
 
-    fn run_single(schema: &str, data: &str, valid: bool) {
+    fn run_single(draft: Draft, schema: &str, data: &str, valid: bool) {
         let schema: Value = serde_json::from_str(schema).unwrap();
         let data: Value = serde_json::from_str(data).unwrap();
 
         let url = "http://testsuite.com/schema.json";
         let mut schemas = Schemas::default();
         let mut compiler = Compiler::default();
+        compiler.set_default_draft(draft);
         compiler.add_resource(url, schema).unwrap();
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         let result = schemas.validate(&data, sch_index);

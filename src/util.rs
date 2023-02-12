@@ -28,10 +28,7 @@ where
 }
 
 fn path_escape(s: &str) -> String {
-    let mut url = Url::parse("http://a.com").unwrap();
-    url.path_segments_mut().unwrap().push(s);
-    let s = url.as_str();
-    s[s.rfind('/').unwrap() + 1..].to_owned()
+    url_escape::encode_path(s).into_owned()
 }
 
 pub(crate) fn escape(token: &str) -> String {
@@ -120,10 +117,13 @@ mod tests {
 
     #[test]
     fn test_path_escape() {
-        assert_eq!(
-            path_escape("my/cool+blog&about,stuff"),
-            "my%2Fcool+blog&about,stuff",
-        );
+        let tests = [
+            ("my%2Fcool+blog&about,stuff", "my%2Fcool+blog&about,stuff"),
+            ("a\nb", "a%0Ab"),
+        ];
+        for (raw, want) in tests {
+            assert_eq!(path_escape(raw), want);
+        }
     }
 
     #[test]

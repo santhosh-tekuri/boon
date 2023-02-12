@@ -10,7 +10,7 @@ const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
 const POS_ITEM: u8 = 1 << 2;
 
-static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
+pub(crate) static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
     version: 4,
     id: "id",
     bool_schema: false,
@@ -33,7 +33,7 @@ static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
     vocab: vec![],
 });
 
-static DRAFT6: Lazy<Draft> = Lazy::new(|| {
+pub(crate) static DRAFT6: Lazy<Draft> = Lazy::new(|| {
     let mut subschemas = DRAFT4.subschemas.clone();
     subschemas.extend([("propertyNames", POS_SELF), ("contains", POS_SELF)]);
     Draft {
@@ -45,7 +45,7 @@ static DRAFT6: Lazy<Draft> = Lazy::new(|| {
     }
 });
 
-static DRAFT7: Lazy<Draft> = Lazy::new(|| {
+pub(crate) static DRAFT7: Lazy<Draft> = Lazy::new(|| {
     let mut subschemas = DRAFT6.subschemas.clone();
     subschemas.extend([("if", POS_SELF), ("then", POS_SELF), ("else", POS_SELF)]);
     Draft {
@@ -57,7 +57,7 @@ static DRAFT7: Lazy<Draft> = Lazy::new(|| {
     }
 });
 
-static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
+pub(crate) static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
     let mut subschemas = DRAFT7.subschemas.clone();
     subschemas.extend([
         ("$defs", POS_PROP),
@@ -81,7 +81,7 @@ static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
     }
 });
 
-static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
+pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
     let mut subschemas = DRAFT2019.subschemas.clone();
     subschemas.extend([("prefixItems", POS_ITEM)]);
     Draft {

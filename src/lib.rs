@@ -7,6 +7,7 @@ mod root;
 mod roots;
 mod util;
 
+pub use compiler::Draft;
 pub use compiler::*;
 
 use std::{
@@ -111,7 +112,7 @@ struct Schema {
     properties: HashMap<String, usize>,
     pattern_properties: Vec<(Regex, usize)>,
     property_names: Option<usize>,
-    additional_properties: Option<AdditionalProperties>,
+    additional_properties: Option<Additional>,
     dependent_required: HashMap<String, Vec<String>>,
     dependent_schemas: HashMap<String, usize>,
     dependencies: HashMap<String, Dependency>,
@@ -123,8 +124,9 @@ struct Schema {
     min_contains: Option<usize>,
     max_contains: Option<usize>,
     contains: Option<usize>,
-    prefix_items: Option<usize>,
     items: Option<Items>,
+    additional_items: Option<Additional>,
+    prefix_items: Option<usize>,
     items2020: Option<usize>,
 
     // string --
@@ -149,7 +151,7 @@ enum Items {
     SchemaRefs(Vec<usize>),
 }
 
-enum AdditionalProperties {
+enum Additional {
     Bool(bool),
     SchemaRef(usize),
 }
@@ -195,7 +197,7 @@ impl Schema {
     ) -> Result<Uneval<'v>, ValidationError> {
         let error = |kw_path, kind| {
             Err(ValidationError {
-                absolute_keyword_location: format!("{}{kw_path}", self.loc),
+                absolute_keyword_location: format!("{}/{kw_path}", self.loc),
                 instance_location: vloc.clone(),
                 kind,
             })
@@ -288,8 +290,36 @@ impl Schema {
                         )?;
                     }
                 }
+
+                if let Some(additional) = &self.additional_properties {
+                    match additional {
+                        Additional::Bool(allowed) => {
+                            if !allowed && !uneval.is_empty() {
+                                return error(
+                                    "additionalProperties",
+                                    kind!(AdditionalProperties, got: uneval.iter().cloned().cloned().collect()),
+                                );
+                            }
+                        }
+                        Additional::SchemaRef(sch) => {
+                            for &pname in uneval.iter() {
+                                if let Some(pvalue) = obj.get(pname) {
+                                    schemas.get(*sch).validate(
+                                        pvalue,
+                                        format!("{vloc}/{}", escape(pname)),
+                                        schemas,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+                    uneval.clear();
+                }
             }
             Value::Array(arr) => {
+                let Uneval::Items(uneval) = &mut uneval else {
+                    unreachable!("array must value Uneval::Items"); 
+                };
                 if let Some(min) = self.min_items {
                     if arr.len() < min {
                         return error("minItems", kind!(MinItems, arr.len(), min));

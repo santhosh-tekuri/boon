@@ -14,7 +14,7 @@ use url::Url;
 // --
 
 pub(crate) struct Roots {
-    default_draft: &'static Draft,
+    pub(crate) default_draft: &'static Draft,
     map: HashMap<Url, Root>,
     loader: Box<dyn UrlLoader>,
 }
