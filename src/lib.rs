@@ -11,7 +11,7 @@ pub use compiler::*;
 
 use std::{
     borrow::Cow,
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     fmt::Display,
 };
 
@@ -71,7 +71,7 @@ impl Schemas {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
-        sch.validate(v, String::new(), self)
+        sch.validate(v, String::new(), self).map(|_| ())
     }
 }
 
@@ -109,6 +109,7 @@ struct Schema {
     max_properties: Option<usize>,
     required: Vec<String>,
     properties: HashMap<String, usize>,
+    pattern_properties: Vec<(Regex, usize)>,
     property_names: Option<usize>,
     additional_properties: Option<AdditionalProperties>,
     dependent_required: HashMap<String, Vec<String>>,
@@ -158,6 +159,22 @@ enum Dependency {
     SchemaRef(usize),
 }
 
+enum Uneval<'v> {
+    Props(HashSet<&'v String>),
+    Items(HashSet<usize>),
+    None,
+}
+
+impl<'v> From<&'v Value> for Uneval<'v> {
+    fn from(v: &'v Value) -> Self {
+        match v {
+            Value::Object(obj) => Self::Props(obj.keys().collect()),
+            Value::Array(arr) => Self::Items((0..arr.len()).collect()),
+            _ => Self::None,
+        }
+    }
+}
+
 impl Schema {
     fn new(loc: String) -> Self {
         Self {
@@ -170,7 +187,12 @@ impl Schema {
         todo!();
     }
 
-    fn validate(&self, v: &Value, vloc: String, schemas: &Schemas) -> Result<(), ValidationError> {
+    fn validate<'v>(
+        &self,
+        v: &'v Value,
+        vloc: String,
+        schemas: &Schemas,
+    ) -> Result<Uneval<'v>, ValidationError> {
         let error = |kw_path, kind| {
             Err(ValidationError {
                 absolute_keyword_location: format!("{}{kw_path}", self.loc),
@@ -203,8 +225,12 @@ impl Schema {
             }
         }
 
+        let mut uneval = Uneval::from(v);
         match v {
             Value::Object(obj) => {
+                let Uneval::Props(uneval) = &mut uneval else {
+                    unreachable!("object must value Uneval::Props"); 
+                };
                 if let Some(min) = self.min_properties {
                     if obj.len() < min {
                         return error("minProperties", kind!(MinProperties, obj.len(), min));
@@ -243,7 +269,19 @@ impl Schema {
 
                 for (pname, &psch) in &self.properties {
                     if let Some(pvalue) = obj.get(pname) {
+                        uneval.remove(pname);
                         schemas.get(psch).validate(
+                            pvalue,
+                            format!("{vloc}/{}", escape(pname)),
+                            schemas,
+                        )?;
+                    }
+                }
+
+                for (regex, psch) in &self.pattern_properties {
+                    for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
+                        uneval.remove(pname);
+                        schemas.get(*psch).validate(
                             pvalue,
                             format!("{vloc}/{}", escape(pname)),
                             schemas,
@@ -370,7 +408,7 @@ impl Schema {
             _ => {}
         }
 
-        Ok(())
+        Ok(uneval)
     }
 }
 

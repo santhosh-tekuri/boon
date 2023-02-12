@@ -205,6 +205,18 @@ impl Compiler {
         s.any_of = load_schema_arr("anyOf", queue);
         s.one_of = load_schema_arr("oneOf", queue);
         s.properties = load_schema_map("properties", queue);
+        s.pattern_properties = {
+            let mut v = vec![];
+            if let Some(Value::Object(obj)) = obj.get("patternProperties") {
+                for pname in obj.keys() {
+                    let regex = Regex::new(pname).map_err(|e| CompileError::Bug(e.into()))?;
+                    let sch = schemas
+                        .enqueue(queue, format!("{loc}/patternProperties/{}", escape(pname)));
+                    v.push((regex, sch));
+                }
+            }
+            v
+        };
 
         if root.draft.version < 2020 {
             match obj.get("items") {
