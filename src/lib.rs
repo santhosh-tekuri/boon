@@ -276,6 +276,28 @@ impl Schema {
                     return error("required", kind!(Required, want: missing));
                 }
 
+                // dependencies --
+                for (pname, dependency) in &self.dependencies {
+                    if obj.contains_key(pname) {
+                        match dependency {
+                            Dependency::Props(required) => {
+                                let missing = required
+                                    .iter()
+                                    .filter(|p| !obj.contains_key(p.as_str()))
+                                    .cloned()
+                                    .collect::<Vec<String>>();
+                                if !missing.is_empty() {
+                                    return error(
+                                        &format!("dependencies/{}", escape(pname)),
+                                        kind!(DependentRequired, pname.clone(), missing),
+                                    );
+                                }
+                            }
+                            Dependency::SchemaRef(sch) => todo!(),
+                        }
+                    }
+                }
+
                 // dependentRequired --
                 for (pname, required) in &self.dependent_required {
                     if obj.contains_key(pname) {
@@ -609,36 +631,44 @@ impl Schema {
         }
 
         // allOf --
-        let failed: Vec<usize> = self
-            .all_of
-            .iter()
-            .enumerate()
-            .filter_map(|(i, sch)| validate_self(*sch).err().map(|_| i))
-            .collect();
-        if !failed.is_empty() {
-            return error("allOf", kind!(AllOf, got: failed));
+        if !self.all_of.is_empty() {
+            let failed: Vec<usize> = self
+                .all_of
+                .iter()
+                .enumerate()
+                .filter_map(|(i, sch)| validate_self(*sch).err().map(|_| i))
+                .collect();
+            if !failed.is_empty() {
+                return error("allOf", kind!(AllOf, got: failed));
+            }
         }
 
         // anyOf --
-        let matched = self
-            .any_of
-            .iter()
-            .filter(|sch| validate_self(**sch).is_err())
-            .count(); // NOTE: all schemas must be checked
-        if matched > 0 {
-            return error("anyOf", kind!(AnyOf));
+        if !self.any_of.is_empty() {
+            let matched = self
+                .any_of
+                .iter()
+                .filter(|sch| validate_self(**sch).is_ok())
+                .count(); // NOTE: all schemas must be checked
+            if matched == 0 {
+                return error("anyOf", kind!(AnyOf));
+            }
         }
 
         // oneOf --
-        let matched: Vec<usize> = self
-            .one_of
-            .iter()
-            .enumerate()
-            .filter_map(|(i, sch)| validate_self(*sch).ok().map(|_| i))
-            .take(2)
-            .collect();
-        if matched.len() > 1 {
-            return error("anyOf", kind!(OneOf, got: [matched[0], matched[1]]));
+        if !self.one_of.is_empty() {
+            let matched: Vec<usize> = self
+                .one_of
+                .iter()
+                .enumerate()
+                .filter_map(|(i, sch)| validate_self(*sch).ok().map(|_| i))
+                .take(2)
+                .collect();
+            if matched.is_empty() {
+                return error("anyOf", kind!(OneOf, got: vec![]));
+            } else if matched.len() > 1 {
+                return error("anyOf", kind!(OneOf, got: matched));
+            }
         }
 
         // if, then, else
@@ -760,7 +790,7 @@ pub enum ErrorKind {
     Not,
     AllOf { got: Vec<usize> },
     AnyOf,
-    OneOf { got: [usize; 2] },
+    OneOf { got: Vec<usize> },
 }
 
 impl Display for ErrorKind {
@@ -856,10 +886,17 @@ impl Display for ErrorKind {
             Self::Not => write!(f, "not failed"),
             Self::AllOf { got } => write!(f, "invalid against subschemas {}", join_iter(got, ", ")),
             Self::AnyOf => write!(f, "anyOf failed"),
-            Self::OneOf { got: [i, j] } => write!(
-                f,
-                "want valid against oneOf subschema, but valid against subschemas {i} and {j}, ",
-            ),
+            Self::OneOf { got } => {
+                if got.is_empty() {
+                    write!(f, "oneOf failed")
+                } else {
+                    write!(
+                        f,
+                        "want valid against oneOf subschema, but valid against subschemas {}",
+                        join_iter(got, " and "),
+                    )
+                }
+            }
         }
     }
 }

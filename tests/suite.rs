@@ -34,6 +34,10 @@ fn test_suite() {
     run_file("draft4/additionalProperties.json", Draft::V4);
     run_file("draft4/additionalItems.json", Draft::V4);
     run_file("draft4/not.json", Draft::V4);
+    run_file("draft4/allOf.json", Draft::V4);
+    run_file("draft4/anyOf.json", Draft::V4);
+    run_file("draft4/oneOf.json", Draft::V4);
+    run_file("draft4/dependencies.json", Draft::V4);
 }
 
 fn run_file(path: &str, draft: Draft) {
