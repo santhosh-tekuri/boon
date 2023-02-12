@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, path::Path};
 
 use jsonschema::{Compiler, Schemas};
 use serde::{Deserialize, Serialize};
@@ -19,8 +19,14 @@ struct Test {
 }
 
 #[test]
-fn run_file() {
-    let file = File::open("tests/JSON-Schema-Test-Suite/tests/draft4/type.json").unwrap();
+fn test_suite() {
+    run_file("draft4/type.json");
+    run_file("draft4/enum.json");
+}
+
+fn run_file(path: &str) {
+    let suite = Path::new("tests/JSON-Schema-Test-Suite/tests/");
+    let file = File::open(suite.join(path)).unwrap();
 
     let url = "http://testsuite.com/schema.json";
     let groups: Vec<Group> = serde_json::from_reader(file).unwrap();

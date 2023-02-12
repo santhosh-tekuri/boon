@@ -1,5 +1,5 @@
 use std::cell::BorrowMutError;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt::Display;
 
@@ -37,11 +37,11 @@ impl Compiler {
             loc.push('#');
         }
 
-        let mut queue = vec![];
-        queue.push(loc);
+        let mut queue = VecDeque::new();
+        queue.push_back(loc);
         let mut sch_index = None;
-        while let Some(loc) = queue.pop() {
-            let (url, ptr) = split(&loc);
+        while let Some(loc) = queue.front() {
+            let (url, ptr) = split(loc);
             let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
                 url: url.to_owned(),
                 src: e.into(),
@@ -52,10 +52,13 @@ impl Compiler {
                 .lookup_ptr(ptr)
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
             let Some(v) = v else {
-                return Err(CompileError::NotFound(loc));
+                return Err(CompileError::NotFound(loc.to_owned()));
             };
 
-            let sch = self.compile_one(target, v, loc.clone(), root, &mut queue)?;
+            let sch = self.compile_one(target, v, loc.to_owned(), root, &mut queue)?;
+            let loc = queue
+                .pop_front()
+                .ok_or(CompileError::Bug("queue must be non-empty".into()))?;
             let index = target.insert(loc, sch);
             sch_index = sch_index.or(Some(index));
         }
@@ -68,7 +71,7 @@ impl Compiler {
         v: &Value,
         loc: String,
         root: &Root,
-        queue: &mut Vec<String>,
+        queue: &mut VecDeque<String>,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.clone());
         let Value::Object(obj) = v else {
@@ -105,14 +108,14 @@ impl Compiler {
                 vec![]
             }
         };
-        let load_schema = |pname, queue: &mut Vec<String>| {
+        let load_schema = |pname, queue: &mut VecDeque<String>| {
             if obj.contains_key(pname) {
                 Some(schemas.enqueue(queue, format!("{loc}/{}", escape(pname))))
             } else {
                 None
             }
         };
-        let load_schema_arr = |pname, queue: &mut Vec<String>| {
+        let load_schema_arr = |pname, queue: &mut VecDeque<String>| {
             if let Some(Value::Array(arr)) = obj.get(pname) {
                 (0..arr.len())
                     .map(|i| schemas.enqueue(queue, format!("{loc}/{pname}/{i}")))
@@ -121,7 +124,7 @@ impl Compiler {
                 Vec::new()
             }
         };
-        let load_schema_map = |pname, queue: &mut Vec<String>| {
+        let load_schema_map = |pname, queue: &mut VecDeque<String>| {
             if let Some(Value::Object(obj)) = obj.get(pname) {
                 obj.keys()
                     .map(|k| {
@@ -345,5 +348,37 @@ mod tests {
         let sch_index = c.compile(&mut schemas, loc.clone()).unwrap();
         let inst: Value = Value::String("xx".into());
         schemas.validate(&inst, sch_index).unwrap();
+    }
+
+    #[test]
+    fn test_debug() {
+        run_single(
+            r#"{
+                "type":"object",
+                "properties": {
+                    "foo": {"enum":["foo"]},
+                    "bar": {"enum":["bar"]}
+                },
+                "required": ["bar"]
+            }"#,
+            r#"{"foo":"foo", "bar":"bar"}"#,
+            true,
+        );
+    }
+
+    fn run_single(schema: &str, data: &str, valid: bool) {
+        let schema: Value = serde_json::from_str(schema).unwrap();
+        let data: Value = serde_json::from_str(data).unwrap();
+
+        let url = "http://testsuite.com/schema.json";
+        let mut schemas = Schemas::default();
+        let mut compiler = Compiler::default();
+        compiler.add_resource(url, schema).unwrap();
+        let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
+        let result = schemas.validate(&data, sch_index);
+        if let Err(e) = &result {
+            println!("{e:#}");
+        }
+        assert_eq!(result.is_ok(), valid);
     }
 }

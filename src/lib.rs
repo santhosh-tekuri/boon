@@ -9,7 +9,11 @@ mod util;
 
 pub use compiler::*;
 
-use std::{borrow::Cow, collections::HashMap, fmt::Display};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, VecDeque},
+    fmt::Display,
+};
 
 use regex::Regex;
 use serde_json::{Number, Value};
@@ -25,8 +29,14 @@ pub struct Schemas {
 }
 
 impl Schemas {
-    fn enqueue(&self, queue: &mut Vec<String>, loc: String) -> usize {
-        queue.push(loc);
+    fn enqueue(&self, queue: &mut VecDeque<String>, loc: String) -> usize {
+        if let Some(&index) = self.map.get(&loc) {
+            return index;
+        }
+        if let Some(qindex) = queue.iter().position(|e| *e == loc) {
+            return self.list.len() + qindex;
+        }
+        queue.push_back(loc);
         self.list.len() + queue.len() - 1
     }
 
@@ -37,8 +47,8 @@ impl Schemas {
         SchemaIndex(index)
     }
 
-    fn get(&self, index: SchemaIndex) -> Option<&Schema> {
-        self.list.get(index.0)
+    fn get(&self, index: usize) -> &Schema {
+        &self.list[index] // todo: return bug
     }
 
     fn get_by_loc(&self, loc: &str) -> Option<&Schema> {
@@ -58,10 +68,10 @@ impl Schemas {
     /// Panics if `sch_index` does not exist. To avoid panic make sure that
     /// `sch_index` is generated for this instance.
     pub fn validate(&self, v: &Value, sch_index: SchemaIndex) -> Result<(), ValidationError> {
-        let Some(sch) = self.get(sch_index) else {
+        let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
-        sch.validate(v, String::new())
+        sch.validate(v, String::new(), self)
     }
 }
 
@@ -160,7 +170,7 @@ impl Schema {
         todo!();
     }
 
-    fn validate(&self, v: &Value, vloc: String) -> Result<(), ValidationError> {
+    fn validate(&self, v: &Value, vloc: String, schemas: &Schemas) -> Result<(), ValidationError> {
         let error = |kw_path, kind| {
             Err(ValidationError {
                 absolute_keyword_location: format!("{}{kw_path}", self.loc),
@@ -228,6 +238,16 @@ impl Schema {
                                 kind!(DependentRequired, pname.clone(), missing),
                             );
                         }
+                    }
+                }
+
+                for (pname, &psch) in &self.properties {
+                    if let Some(pvalue) = obj.get(pname) {
+                        schemas.get(psch).validate(
+                            pvalue,
+                            format!("{vloc}/{}", escape(pname)),
+                            schemas,
+                        )?;
                     }
                 }
             }
