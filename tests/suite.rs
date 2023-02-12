@@ -28,6 +28,12 @@ fn test_suite() {
     run_file("draft4/properties.json", Draft::V4);
     run_file("draft4/minItems.json", Draft::V4);
     run_file("draft4/maxItems.json", Draft::V4);
+    run_file("draft4/uniqueItems.json", Draft::V4);
+    run_file("draft4/minLength.json", Draft::V4);
+    run_file("draft4/maxLength.json", Draft::V4);
+    run_file("draft4/additionalProperties.json", Draft::V4);
+    run_file("draft4/additionalItems.json", Draft::V4);
+    run_file("draft4/not.json", Draft::V4);
 }
 
 fn run_file(path: &str, draft: Draft) {

@@ -86,6 +86,9 @@ macro_rules! kind {
             want: $want,
         }
     };
+    ($kind: ident) => {
+        ErrorKind::$kind
+    };
 }
 
 #[derive(Default)]
@@ -124,9 +127,10 @@ struct Schema {
     min_contains: Option<usize>,
     max_contains: Option<usize>,
     contains: Option<usize>,
+    contains_marks_evaluated: bool,
     items: Option<Items>,
     additional_items: Option<Additional>,
-    prefix_items: Option<usize>,
+    prefix_items: Vec<usize>,
     items2020: Option<usize>,
 
     // string --
@@ -167,6 +171,15 @@ enum Uneval<'v> {
     None,
 }
 
+impl<'v> Uneval<'v> {
+    fn merge(&mut self, other: &Uneval) {
+        match (self, other) {
+            (Uneval::Props(mine), Uneval::Props(other)) => mine.retain(|p| other.contains(p)),
+            (Uneval::Items(mine), Uneval::Items(other)) => mine.retain(|i| other.contains(i)),
+            _ => {}
+        }
+    }
+}
 impl<'v> From<&'v Value> for Uneval<'v> {
     fn from(v: &'v Value) -> Self {
         match v {
@@ -202,6 +215,8 @@ impl Schema {
                 kind,
             })
         };
+
+        // type --
         if !self.types.is_empty() {
             let v_type = Type::of(v);
             let matched = self.types.iter().any(|t| {
@@ -217,10 +232,12 @@ impl Schema {
             }
         }
 
+        // enum --
         if !self.enum_.is_empty() && !self.enum_.iter().any(|e| equals(e, v)) {
             return error("enum", kind!(Enum, v.clone(), self.enum_.clone()));
         }
 
+        // constant --
         if let Some(c) = &self.constant {
             if !equals(v, c) {
                 return error("const", kind!(Const, v.clone(), c.clone()));
@@ -233,16 +250,22 @@ impl Schema {
                 let Uneval::Props(uneval) = &mut uneval else {
                     unreachable!("object must value Uneval::Props"); 
                 };
+
+                // minProperties --
                 if let Some(min) = self.min_properties {
                     if obj.len() < min {
                         return error("minProperties", kind!(MinProperties, obj.len(), min));
                     }
                 }
+
+                // maxProperties --
                 if let Some(max) = self.max_properties {
                     if obj.len() > max {
                         return error("maxProperties", kind!(MaxProperties, obj.len(), max));
                     }
                 }
+
+                // required --
                 let missing = self
                     .required
                     .iter()
@@ -253,6 +276,7 @@ impl Schema {
                     return error("required", kind!(Required, want: missing));
                 }
 
+                // dependentRequired --
                 for (pname, required) in &self.dependent_required {
                     if obj.contains_key(pname) {
                         let missing = required
@@ -269,6 +293,7 @@ impl Schema {
                     }
                 }
 
+                // properties --
                 for (pname, &psch) in &self.properties {
                     if let Some(pvalue) = obj.get(pname) {
                         uneval.remove(pname);
@@ -280,6 +305,7 @@ impl Schema {
                     }
                 }
 
+                // patternProperties --
                 for (regex, psch) in &self.pattern_properties {
                     for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
                         uneval.remove(pname);
@@ -291,6 +317,7 @@ impl Schema {
                     }
                 }
 
+                // additionalProperties --
                 if let Some(additional) = &self.additional_properties {
                     match additional {
                         Additional::Bool(allowed) => {
@@ -320,16 +347,22 @@ impl Schema {
                 let Uneval::Items(uneval) = &mut uneval else {
                     unreachable!("array must value Uneval::Items"); 
                 };
+
+                // minItems --
                 if let Some(min) = self.min_items {
                     if arr.len() < min {
                         return error("minItems", kind!(MinItems, arr.len(), min));
                     }
                 }
+
+                // maxItems --
                 if let Some(max) = self.max_items {
                     if arr.len() > max {
                         return error("maxItems", kind!(MaxItems, arr.len(), max));
                     }
                 }
+
+                // uniqueItems --
                 if self.unique_items {
                     for i in 1..arr.len() {
                         for j in 0..i {
@@ -339,21 +372,131 @@ impl Schema {
                         }
                     }
                 }
+
+                // items --
+                if let Some(items) = &self.items {
+                    match items {
+                        Items::SchemaRef(sch) => {
+                            for (i, item) in arr.iter().enumerate() {
+                                let vloc = format!("{vloc}/{i}");
+                                schemas.get(*sch).validate(item, vloc, schemas)?;
+                            }
+                            uneval.clear();
+                        }
+                        Items::SchemaRefs(list) => {
+                            for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
+                                uneval.remove(&i);
+                                let vloc = format!("{vloc}/{i}");
+                                schemas.get(*sch).validate(item, vloc, schemas)?;
+                            }
+                        }
+                    }
+                }
+
+                // additionalItems --
+                if let Some(additional) = &self.additional_items {
+                    match additional {
+                        Additional::Bool(allowed) => {
+                            if !allowed && !uneval.is_empty() {
+                                return error(
+                                    "additionalItems",
+                                    kind!(AdditionalItems, arr.len(), uneval.len()),
+                                );
+                            }
+                        }
+                        Additional::SchemaRef(sch) => {
+                            for &index in uneval.iter() {
+                                if let Some(pvalue) = arr.get(index) {
+                                    schemas.get(*sch).validate(
+                                        pvalue,
+                                        format!("{vloc}/{index}"),
+                                        schemas,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+                    uneval.clear();
+                }
+
+                // prefixItems --
+                for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
+                    uneval.remove(&i);
+                    let vloc = format!("{vloc}/{i}");
+                    schemas.get(*sch).validate(item, vloc, schemas)?;
+                }
+
+                // items2020 --
+                if let Some(sch) = &self.items2020 {
+                    for &index in uneval.iter() {
+                        if let Some(pvalue) = arr.get(index) {
+                            schemas.get(*sch).validate(
+                                pvalue,
+                                format!("{vloc}/{index}"),
+                                schemas,
+                            )?;
+                        }
+                    }
+                    uneval.clear();
+                }
+
+                // contains --
+                let mut contains_matched = Vec::new();
+                if let Some(sch) = &self.contains {
+                    contains_matched = arr
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, item)| {
+                            let vloc = format!("{vloc}/{i}");
+                            schemas
+                                .get(*sch)
+                                .validate(item, vloc, schemas)
+                                .ok()
+                                .map(|_| i)
+                        })
+                        .collect();
+                }
+
+                // minContains --
+                if let Some(min) = &self.min_contains {
+                    if contains_matched.len() < *min {
+                        return error(
+                            "minContains",
+                            kind!(MinContains, contains_matched.clone(), *min),
+                        );
+                    }
+                }
+
+                // maxContains --
+                if let Some(max) = &self.max_contains {
+                    if contains_matched.len() > *max {
+                        return error(
+                            "maxContains",
+                            kind!(MinContains, contains_matched.clone(), *max),
+                        );
+                    }
+                }
             }
             Value::String(s) => {
                 let mut len = None;
+
+                // minLength --
                 if let Some(min) = self.min_length {
                     let len = len.get_or_insert_with(|| s.chars().count());
                     if *len < min {
                         return error("minLength", kind!(MinLength, *len, min));
                     }
                 }
+
+                // maxLength --
                 if let Some(max) = self.max_length {
                     let len = len.get_or_insert_with(|| s.chars().count());
                     if *len > max {
                         return error("maxLength", kind!(MaxLength, *len, max));
                     }
                 }
+
+                // pattern --
                 if let Some(regex) = &self.pattern {
                     if !regex.is_match(s) {
                         return error(
@@ -363,6 +506,7 @@ impl Schema {
                     }
                 }
 
+                // contentEncoding --
                 let mut decoded = Cow::from(s.as_bytes());
                 if let Some(decode) = &self.decoder {
                     match decode(s) {
@@ -379,6 +523,8 @@ impl Schema {
                         }
                     }
                 }
+
+                // contentMediaType --
                 if let Some(media_type) = &self.media_type {
                     if !media_type(decoded.as_ref()) {
                         return error(
@@ -393,6 +539,7 @@ impl Schema {
                 }
             }
             Value::Number(n) => {
+                // minimum --
                 if let Some(min) = &self.minimum {
                     if let (Some(minf), Some(vf)) = (min.as_f64(), n.as_f64()) {
                         if vf < minf {
@@ -400,6 +547,8 @@ impl Schema {
                         }
                     }
                 }
+
+                // maximum --
                 if let Some(max) = &self.maximum {
                     if let (Some(maxf), Some(vf)) = (max.as_f64(), n.as_f64()) {
                         if vf > maxf {
@@ -407,6 +556,8 @@ impl Schema {
                         }
                     }
                 }
+
+                // exclusiveMinimum --
                 if let Some(ex_min) = &self.exclusive_minimum {
                     if let (Some(ex_minf), Some(nf)) = (ex_min.as_f64(), n.as_f64()) {
                         if nf <= ex_minf {
@@ -417,6 +568,8 @@ impl Schema {
                         }
                     }
                 }
+
+                // exclusiveMaximum --
                 if let Some(ex_max) = &self.exclusive_maximum {
                     if let (Some(ex_maxf), Some(nf)) = (ex_max.as_f64(), n.as_f64()) {
                         if nf >= ex_maxf {
@@ -427,6 +580,8 @@ impl Schema {
                         }
                     }
                 }
+
+                // multipleOf --
                 if let Some(mul) = &self.multiple_of {
                     if let (Some(mulf), Some(nf)) = (mul.as_f64(), n.as_f64()) {
                         if (nf / mulf).fract() != 0.0 {
@@ -436,6 +591,67 @@ impl Schema {
                 }
             }
             _ => {}
+        }
+
+        let mut validate_self = |sch: usize| {
+            let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
+            if let Ok(reply) = &result {
+                uneval.merge(&reply);
+            }
+            result
+        };
+
+        // not --
+        if let Some(not) = self.not {
+            if validate_self(not).is_ok() {
+                return error("not", kind!(Not));
+            }
+        }
+
+        // allOf --
+        let failed: Vec<usize> = self
+            .all_of
+            .iter()
+            .enumerate()
+            .filter_map(|(i, sch)| validate_self(*sch).err().map(|_| i))
+            .collect();
+        if !failed.is_empty() {
+            return error("allOf", kind!(AllOf, got: failed));
+        }
+
+        // anyOf --
+        let matched = self
+            .any_of
+            .iter()
+            .filter(|sch| validate_self(**sch).is_err())
+            .count(); // NOTE: all schemas must be checked
+        if matched > 0 {
+            return error("anyOf", kind!(AnyOf));
+        }
+
+        // oneOf --
+        let matched: Vec<usize> = self
+            .one_of
+            .iter()
+            .enumerate()
+            .filter_map(|(i, sch)| validate_self(*sch).ok().map(|_| i))
+            .take(2)
+            .collect();
+        if matched.len() > 1 {
+            return error("anyOf", kind!(OneOf, got: [matched[0], matched[1]]));
+        }
+
+        // if, then, else
+        if let Some(if_) = self.if_ {
+            if validate_self(if_).is_ok() {
+                if let Some(then) = self.then {
+                    validate_self(then)?;
+                }
+            } else {
+                if let Some(else_) = self.else_ {
+                    validate_self(else_)?;
+                }
+            }
         }
 
         Ok(uneval)
@@ -527,7 +743,10 @@ pub enum ErrorKind {
     DependentRequired { got: String, want: Vec<String> },
     MinItems { got: usize, want: usize },
     MaxItems { got: usize, want: usize },
+    MinContains { got: Vec<usize>, want: usize },
+    MaxContains { got: Vec<usize>, want: usize },
     UniqueItems { got: [usize; 2] },
+    AdditionalItems { got: usize, want: usize },
     MinLength { got: usize, want: usize },
     MaxLength { got: usize, want: usize },
     Pattern { got: String, want: String },
@@ -538,6 +757,10 @@ pub enum ErrorKind {
     ExclusiveMinimum { got: Number, want: Number },
     ExclusiveMaximum { got: Number, want: Number },
     MultipleOf { got: Number, want: Number },
+    Not,
+    AllOf { got: Vec<usize> },
+    AnyOf,
+    OneOf { got: [usize; 2] },
 }
 
 impl Display for ErrorKind {
@@ -596,7 +819,26 @@ impl Display for ErrorKind {
             Self::MaxItems { got, want } => {
                 write!(f, "maximum {want} items allowed, but got {got} items")
             }
+            Self::MinContains { got, want } => {
+                write!(
+                    f,
+                    "minimum {want} valid items required, but found {} valid items at {}",
+                    got.len(),
+                    join_iter(got, ", ")
+                )
+            }
+            Self::MaxContains { got, want } => {
+                write!(
+                    f,
+                    "maximum {want} valid items required, but found {} valid items at {}",
+                    got.len(),
+                    join_iter(got, ", ")
+                )
+            }
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
+            Self::AdditionalItems { got, want } => {
+                write!(f, "only {want} items allowed, but got {got} items",)
+            }
             Self::MinLength { got, want } => write!(f, "length must be >={want}, but got {got}"),
             Self::MaxLength { got, want } => write!(f, "length must be <={want}, but got {got}"),
             Self::Pattern { got, want } => {
@@ -611,6 +853,13 @@ impl Display for ErrorKind {
             Self::ExclusiveMinimum { got, want } => write!(f, "must be > {want} but got {got}"),
             Self::ExclusiveMaximum { got, want } => write!(f, "must be < {want} but got {got}"),
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
+            Self::Not => write!(f, "not failed"),
+            Self::AllOf { got } => write!(f, "invalid against subschemas {}", join_iter(got, ", ")),
+            Self::AnyOf => write!(f, "anyOf failed"),
+            Self::OneOf { got: [i, j] } => write!(
+                f,
+                "want valid against oneOf subschema, but valid against subschemas {i} and {j}, ",
+            ),
         }
     }
 }

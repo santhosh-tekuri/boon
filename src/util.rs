@@ -2,7 +2,6 @@ use std::{borrow::Cow, fmt::Display, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use serde_json::Value;
-use url::Url;
 
 /// returns single-quoted string
 pub(crate) fn quote<T>(s: &T) -> String

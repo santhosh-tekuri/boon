@@ -214,7 +214,7 @@ impl Compiler {
         }
 
         s.min_length = load_usize("minLength");
-        s.max_length = load_usize("maxlength");
+        s.max_length = load_usize("maxLength");
 
         if let Some(Value::String(p)) = obj.get("pattern") {
             s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
@@ -254,7 +254,7 @@ impl Compiler {
                         if let Some(Value::Bool(b)) = obj.get("additionalItems") {
                             Some(Additional::Bool(*b))
                         } else {
-                            load_schema("additionalProperties", queue).map(Additional::SchemaRef)
+                            load_schema("additionalItems", queue).map(Additional::SchemaRef)
                         }
                     };
                 }
@@ -287,14 +287,18 @@ impl Compiler {
         // draft7 --
         if root.draft.version >= 7 {
             s.if_ = load_schema("if", queue);
-            s.then = load_schema("then", queue);
-            s.else_ = load_schema("else", queue);
+            if s.if_.is_some() {
+                s.then = load_schema("then", queue);
+                s.else_ = load_schema("else", queue);
+            }
         }
 
         // draft2019 --
         if root.draft.version >= 2019 {
-            s.min_contains = load_usize("minContains");
-            s.max_contains = load_usize("maxContains");
+            if s.contains.is_some() {
+                s.min_contains = load_usize("minContains");
+                s.max_contains = load_usize("maxContains");
+            }
             s.dependent_schemas = load_schema_map("dependentSchemas", queue);
 
             if let Some(Value::Object(deps)) = obj.get("dependentRequired") {
@@ -307,7 +311,8 @@ impl Compiler {
 
         // draft2020 --
         if root.draft.version >= 2020 {
-            s.prefix_items = load_schema("prefixItems", queue);
+            s.contains_marks_evaluated = true;
+            s.prefix_items = load_schema_arr("prefixItems", queue);
             s.items2020 = load_schema("items", queue);
         }
 
@@ -394,14 +399,9 @@ mod tests {
         run_single(
             Draft::V4,
             r#"{
-                "properties": {
-                    "foo": {"type": "array", "maxItems": 3},
-                    "bar": {"type": "array"}
-                },
-                "patternProperties": {"f.o": {"minItems": 2}},
-                "additionalProperties": {"type": "integer"}
+                "maxLength": 2
             }"#,
-            r#"{"quux": "foo"}"#,
+            r#""foo""#,
             false,
         );
     }
