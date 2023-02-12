@@ -1,6 +1,7 @@
 use std::{borrow::Cow, fmt::Display, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
+use serde_json::Value;
 use url::Url;
 
 /// returns single-quoted string
@@ -63,6 +64,49 @@ pub(crate) fn split(url: &str) -> (&str, &str) {
 
 pub(crate) fn ptr_tokens(ptr: &str) -> impl Iterator<Item = Result<String, Utf8Error>> + '_ {
     ptr.split('/').skip(1).map(unescape)
+}
+
+/// serde_json treats 0 and 0.0 not equal. so we cannot simply use v1==v2
+pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
+    match (v1, v2) {
+        (Value::Null, Value::Null) => true,
+        (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
+        (Value::Number(n1), Value::Number(n2)) => {
+            if let (Some(n1), Some(n2)) = (n1.as_u64(), n2.as_u64()) {
+                return n1 == n2;
+            }
+            if let (Some(n1), Some(n2)) = (n1.as_i64(), n2.as_i64()) {
+                return n1 == n2;
+            }
+            if let (Some(n1), Some(n2)) = (n1.as_f64(), n2.as_f64()) {
+                return n1 == n2;
+            }
+            false
+        }
+        (Value::String(s1), Value::String(s2)) => s1 == s2,
+        (Value::Array(arr1), Value::Array(arr2)) => {
+            if arr1.len() != arr2.len() {
+                return false;
+            }
+            arr1.iter().zip(arr2).all(|(e1, e2)| equals(e1, e2))
+        }
+        (Value::Object(obj1), Value::Object(obj2)) => {
+            if obj1.len() != obj2.len() {
+                return false;
+            }
+            for (k1, v1) in obj1 {
+                if let Some(v2) = obj2.get(k1) {
+                    if !equals(v1, v2) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            true
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]

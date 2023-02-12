@@ -17,7 +17,7 @@ use std::{
 
 use regex::Regex;
 use serde_json::{Number, Value};
-use util::{escape, join_iter, quote};
+use util::{equals, escape, join_iter, quote};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchemaIndex(usize);
@@ -193,12 +193,12 @@ impl Schema {
             }
         }
 
-        if !self.enum_.is_empty() && !self.enum_.contains(v) {
+        if !self.enum_.is_empty() && !self.enum_.iter().any(|e| equals(e, v)) {
             return error("enum", kind!(Enum, v.clone(), self.enum_.clone()));
         }
 
         if let Some(c) = &self.constant {
-            if v != c {
+            if !equals(v, c) {
                 return error("const", kind!(Const, v.clone(), c.clone()));
             }
         }
