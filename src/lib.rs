@@ -165,28 +165,28 @@ enum Dependency {
     SchemaRef(usize),
 }
 
-enum Uneval<'v> {
-    Props(HashSet<&'v String>),
-    Items(HashSet<usize>),
-    None,
+#[derive(Default)]
+struct Uneval<'v> {
+    props: HashSet<&'v String>,
+    items: HashSet<usize>,
 }
 
 impl<'v> Uneval<'v> {
     fn merge(&mut self, other: &Uneval) {
-        match (self, other) {
-            (Uneval::Props(mine), Uneval::Props(other)) => mine.retain(|p| other.contains(p)),
-            (Uneval::Items(mine), Uneval::Items(other)) => mine.retain(|i| other.contains(i)),
-            _ => {}
-        }
+        self.props.retain(|p| other.props.contains(p));
+        self.items.retain(|i| other.items.contains(i));
     }
 }
+
 impl<'v> From<&'v Value> for Uneval<'v> {
     fn from(v: &'v Value) -> Self {
+        let mut uneval = Self::default();
         match v {
-            Value::Object(obj) => Self::Props(obj.keys().collect()),
-            Value::Array(arr) => Self::Items((0..arr.len()).collect()),
-            _ => Self::None,
+            Value::Object(obj) => uneval.props = obj.keys().collect(),
+            Value::Array(arr) => uneval.items = (0..arr.len()).collect(),
+            _ => (),
         }
+        uneval
     }
 }
 
@@ -244,13 +244,18 @@ impl Schema {
             }
         }
 
-        let mut uneval = Uneval::from(v);
+        let mut _uneval = Uneval::from(v);
+        let uneval = &mut _uneval;
+        let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
+            let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
+            if let Ok(reply) = &result {
+                uneval.merge(&reply);
+            }
+            result
+        };
+
         match v {
             Value::Object(obj) => {
-                let Uneval::Props(uneval) = &mut uneval else {
-                    unreachable!("object must value Uneval::Props"); 
-                };
-
                 // minProperties --
                 if let Some(min) = self.min_properties {
                     if obj.len() < min {
@@ -293,7 +298,9 @@ impl Schema {
                                     );
                                 }
                             }
-                            Dependency::SchemaRef(sch) => todo!(),
+                            Dependency::SchemaRef(sch) => {
+                                validate_self(*sch, uneval)?;
+                            }
                         }
                     }
                 }
@@ -318,7 +325,7 @@ impl Schema {
                 // properties --
                 for (pname, &psch) in &self.properties {
                     if let Some(pvalue) = obj.get(pname) {
-                        uneval.remove(pname);
+                        uneval.props.remove(pname);
                         schemas.get(psch).validate(
                             pvalue,
                             format!("{vloc}/{}", escape(pname)),
@@ -330,7 +337,7 @@ impl Schema {
                 // patternProperties --
                 for (regex, psch) in &self.pattern_properties {
                     for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
-                        uneval.remove(pname);
+                        uneval.props.remove(pname);
                         schemas.get(*psch).validate(
                             pvalue,
                             format!("{vloc}/{}", escape(pname)),
@@ -343,15 +350,15 @@ impl Schema {
                 if let Some(additional) = &self.additional_properties {
                     match additional {
                         Additional::Bool(allowed) => {
-                            if !allowed && !uneval.is_empty() {
+                            if !allowed && !uneval.props.is_empty() {
                                 return error(
                                     "additionalProperties",
-                                    kind!(AdditionalProperties, got: uneval.iter().cloned().cloned().collect()),
+                                    kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect()),
                                 );
                             }
                         }
                         Additional::SchemaRef(sch) => {
-                            for &pname in uneval.iter() {
+                            for &pname in uneval.props.iter() {
                                 if let Some(pvalue) = obj.get(pname) {
                                     schemas.get(*sch).validate(
                                         pvalue,
@@ -362,14 +369,10 @@ impl Schema {
                             }
                         }
                     }
-                    uneval.clear();
+                    uneval.props.clear();
                 }
             }
             Value::Array(arr) => {
-                let Uneval::Items(uneval) = &mut uneval else {
-                    unreachable!("array must value Uneval::Items"); 
-                };
-
                 // minItems --
                 if let Some(min) = self.min_items {
                     if arr.len() < min {
@@ -403,11 +406,11 @@ impl Schema {
                                 let vloc = format!("{vloc}/{i}");
                                 schemas.get(*sch).validate(item, vloc, schemas)?;
                             }
-                            uneval.clear();
+                            uneval.items.clear();
                         }
                         Items::SchemaRefs(list) => {
                             for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
-                                uneval.remove(&i);
+                                uneval.items.remove(&i);
                                 let vloc = format!("{vloc}/{i}");
                                 schemas.get(*sch).validate(item, vloc, schemas)?;
                             }
@@ -419,15 +422,15 @@ impl Schema {
                 if let Some(additional) = &self.additional_items {
                     match additional {
                         Additional::Bool(allowed) => {
-                            if !allowed && !uneval.is_empty() {
+                            if !allowed && !uneval.items.is_empty() {
                                 return error(
                                     "additionalItems",
-                                    kind!(AdditionalItems, arr.len(), uneval.len()),
+                                    kind!(AdditionalItems, arr.len(), uneval.items.len()),
                                 );
                             }
                         }
                         Additional::SchemaRef(sch) => {
-                            for &index in uneval.iter() {
+                            for &index in uneval.items.iter() {
                                 if let Some(pvalue) = arr.get(index) {
                                     schemas.get(*sch).validate(
                                         pvalue,
@@ -438,19 +441,19 @@ impl Schema {
                             }
                         }
                     }
-                    uneval.clear();
+                    uneval.items.clear();
                 }
 
                 // prefixItems --
                 for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
-                    uneval.remove(&i);
+                    uneval.items.remove(&i);
                     let vloc = format!("{vloc}/{i}");
                     schemas.get(*sch).validate(item, vloc, schemas)?;
                 }
 
                 // items2020 --
                 if let Some(sch) = &self.items2020 {
-                    for &index in uneval.iter() {
+                    for &index in uneval.items.iter() {
                         if let Some(pvalue) = arr.get(index) {
                             schemas.get(*sch).validate(
                                 pvalue,
@@ -459,7 +462,7 @@ impl Schema {
                             )?;
                         }
                     }
-                    uneval.clear();
+                    uneval.items.clear();
                 }
 
                 // contains --
@@ -615,17 +618,9 @@ impl Schema {
             _ => {}
         }
 
-        let mut validate_self = |sch: usize| {
-            let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
-            if let Ok(reply) = &result {
-                uneval.merge(&reply);
-            }
-            result
-        };
-
         // not --
         if let Some(not) = self.not {
-            if validate_self(not).is_ok() {
+            if validate_self(not, uneval).is_ok() {
                 return error("not", kind!(Not));
             }
         }
@@ -636,7 +631,7 @@ impl Schema {
                 .all_of
                 .iter()
                 .enumerate()
-                .filter_map(|(i, sch)| validate_self(*sch).err().map(|_| i))
+                .filter_map(|(i, sch)| validate_self(*sch, uneval).err().map(|_| i))
                 .collect();
             if !failed.is_empty() {
                 return error("allOf", kind!(AllOf, got: failed));
@@ -648,7 +643,7 @@ impl Schema {
             let matched = self
                 .any_of
                 .iter()
-                .filter(|sch| validate_self(**sch).is_ok())
+                .filter(|sch| validate_self(**sch, uneval).is_ok())
                 .count(); // NOTE: all schemas must be checked
             if matched == 0 {
                 return error("anyOf", kind!(AnyOf));
@@ -661,7 +656,7 @@ impl Schema {
                 .one_of
                 .iter()
                 .enumerate()
-                .filter_map(|(i, sch)| validate_self(*sch).ok().map(|_| i))
+                .filter_map(|(i, sch)| validate_self(*sch, uneval).ok().map(|_| i))
                 .take(2)
                 .collect();
             if matched.is_empty() {
@@ -673,18 +668,18 @@ impl Schema {
 
         // if, then, else
         if let Some(if_) = self.if_ {
-            if validate_self(if_).is_ok() {
+            if validate_self(if_, uneval).is_ok() {
                 if let Some(then) = self.then {
-                    validate_self(then)?;
+                    validate_self(then, uneval)?;
                 }
             } else {
                 if let Some(else_) = self.else_ {
-                    validate_self(else_)?;
+                    validate_self(else_, uneval)?;
                 }
             }
         }
 
-        Ok(uneval)
+        Ok(_uneval)
     }
 }
 
