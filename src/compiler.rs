@@ -30,6 +30,10 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
+        self.roots.loader.register(scheme, url_loader);
+    }
+
     pub fn set_default_draft(&mut self, d: Draft) {
         self.roots.default_draft = match d {
             Draft::V4 => &DRAFT4,
@@ -160,6 +164,21 @@ impl Compiler {
         };
 
         // draft4 --
+        if let Some(Value::String(ref_)) = obj.get("$ref") {
+            let abs_ref =
+                root.base_url(ref_)
+                    .join(ref_)
+                    .map_err(|e| CompileError::LoadUrlError {
+                        url: ref_.clone(),
+                        src: e.into(),
+                    })?;
+            s.ref_ = Some(schemas.enqueue(queue, abs_ref.into()));
+            if root.draft.version < 2019 {
+                // All other properties in a "$ref" object MUST be ignored
+                return Ok(s);
+            }
+        }
+
         if let Some(t) = obj.get("type") {
             match t {
                 Value::String(t) => s.types.extend(Type::from_str(t)),

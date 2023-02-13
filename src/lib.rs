@@ -9,6 +9,7 @@ mod util;
 
 pub use compiler::Draft;
 pub use compiler::*;
+pub use loader::*;
 
 use std::{
     borrow::Cow,
@@ -97,6 +98,7 @@ struct Schema {
     vocab: Vec<String>,
 
     // type agnostic --
+    ref_: Option<usize>,
     types: Vec<Type>,
     enum_: Vec<Value>,
     constant: Option<Value>,
@@ -616,6 +618,11 @@ impl Schema {
                 }
             }
             _ => {}
+        }
+
+        // $ref --
+        if let Some(ref_) = self.ref_ {
+            validate_self(ref_, uneval)?;
         }
 
         // not --

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     compiler::CompileError::{self, *},
     draft::{latest, Draft},
-    loader::{DefaultUrlLoader, UrlLoader},
+    loader::DefaultUrlLoader,
     root::Root,
     util::*,
 };
@@ -16,7 +16,7 @@ use url::Url;
 pub(crate) struct Roots {
     pub(crate) default_draft: &'static Draft,
     map: HashMap<Url, Root>,
-    loader: Box<dyn UrlLoader>,
+    pub(crate) loader: DefaultUrlLoader,
 }
 
 impl Roots {
@@ -24,15 +24,7 @@ impl Roots {
         Self {
             default_draft: latest(),
             map: Default::default(),
-            loader: Box::new(DefaultUrlLoader::new()),
-        }
-    }
-
-    fn with_loader(loader: Box<dyn UrlLoader>) -> Self {
-        Self {
-            default_draft: latest(),
-            map: Default::default(),
-            loader,
+            loader: DefaultUrlLoader::new(),
         }
     }
 }
@@ -68,10 +60,7 @@ impl Roots {
             return Ok(self.map.get(&url).unwrap());
         }
 
-        let doc = match self.loader.load(&url) {
-            Ok(doc) => doc,
-            Err(e) => return Err(e.into_compile_error(&url)),
-        };
+        let doc = self.loader.load(&url)?;
         self.add_root(HashSet::new(), url, doc)
     }
 
@@ -101,10 +90,7 @@ impl Roots {
             if !cycle.insert(sch.clone()) {
                 return Err(MetaSchemaCycle { url: sch.into() });
             }
-            let doc = match self.loader.load(&url) {
-                Ok(doc) => doc,
-                Err(e) => return Err(e.into_compile_error(&url)),
-            };
+            let doc = self.loader.load(&url)?;
             Ok(self.add_root(cycle, sch, doc)?.draft)
         })()?;
 

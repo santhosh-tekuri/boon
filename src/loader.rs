@@ -6,34 +6,7 @@ use url::Url;
 use crate::compiler::CompileError;
 
 pub trait UrlLoader {
-    fn load(&self, url: &Url) -> Result<Value, UrlLoadError>;
-}
-
-// --
-
-#[derive(Debug)]
-pub enum UrlLoadError {
-    Loading(Box<dyn Error>),
-    Unsupported,
-}
-
-impl UrlLoadError {
-    pub(crate) fn into_compile_error(self, url: &Url) -> CompileError {
-        let url = url.as_str().to_owned();
-        match self {
-            Self::Loading(src) => CompileError::LoadUrlError { url, src },
-            Self::Unsupported => CompileError::UnsupportedUrl { url },
-        }
-    }
-}
-
-impl<E> From<E> for UrlLoadError
-where
-    E: Into<Box<dyn Error>>,
-{
-    fn from(value: E) -> Self {
-        UrlLoadError::Loading(value.into())
-    }
+    fn load(&self, url: &Url) -> Result<Value, Box<dyn Error>>;
 }
 
 // --
@@ -41,7 +14,7 @@ where
 struct FileLoader;
 
 impl UrlLoader for FileLoader {
-    fn load(&self, url: &Url) -> Result<Value, UrlLoadError> {
+    fn load(&self, url: &Url) -> Result<Value, Box<dyn Error>> {
         let path = url.to_file_path().map_err(|_| "invalid file path")?;
         let file = File::open(path)?;
         Ok(serde_json::from_reader(file)?)
@@ -50,7 +23,7 @@ impl UrlLoader for FileLoader {
 
 // --
 
-pub struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
+pub(crate) struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
 
 impl DefaultUrlLoader {
     pub fn new() -> Self {
@@ -62,13 +35,16 @@ impl DefaultUrlLoader {
     pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
         self.0.insert(schema, loader);
     }
-}
 
-impl UrlLoader for DefaultUrlLoader {
-    fn load(&self, url: &Url) -> Result<Value, UrlLoadError> {
+    pub(crate) fn load(&self, url: &Url) -> Result<Value, CompileError> {
         match self.0.get(url.scheme()) {
-            Some(rl) => rl.load(url),
-            None => Err(UrlLoadError::Unsupported),
+            Some(rl) => rl.load(url).map_err(|src| CompileError::LoadUrlError {
+                url: url.as_str().to_owned(),
+                src,
+            }),
+            None => Err(CompileError::UnsupportedUrl {
+                url: url.as_str().to_owned(),
+            }),
         }
     }
 }

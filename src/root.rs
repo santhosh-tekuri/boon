@@ -30,7 +30,7 @@ impl Root {
         Ok(())
     }
 
-    fn base_url(&self, mut ptr: &str) -> &Url {
+    pub(crate) fn base_url(&self, mut ptr: &str) -> &Url {
         loop {
             if let Some(Resource { id, .. }) = self.resources.get(ptr) {
                 return id;
