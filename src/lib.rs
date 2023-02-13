@@ -31,6 +31,10 @@ pub struct Schemas {
 }
 
 impl Schemas {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     fn enqueue(&self, queue: &mut VecDeque<String>, loc: String) -> usize {
         if let Some(&index) = self.map.get(&loc) {
             return index;
@@ -251,7 +255,7 @@ impl Schema {
         let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
             let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
             if let Ok(reply) = &result {
-                uneval.merge(&reply);
+                uneval.merge(reply);
             }
             result
         };
@@ -487,20 +491,14 @@ impl Schema {
                 // minContains --
                 if let Some(min) = &self.min_contains {
                     if contains_matched.len() < *min {
-                        return error(
-                            "minContains",
-                            kind!(MinContains, contains_matched.clone(), *min),
-                        );
+                        return error("minContains", kind!(MinContains, contains_matched, *min));
                     }
                 }
 
                 // maxContains --
                 if let Some(max) = &self.max_contains {
                     if contains_matched.len() > *max {
-                        return error(
-                            "maxContains",
-                            kind!(MinContains, contains_matched.clone(), *max),
-                        );
+                        return error("maxContains", kind!(MinContains, contains_matched, *max));
                     }
                 }
             }
@@ -679,10 +677,8 @@ impl Schema {
                 if let Some(then) = self.then {
                     validate_self(then, uneval)?;
                 }
-            } else {
-                if let Some(else_) = self.else_ {
-                    validate_self(else_, uneval)?;
-                }
+            } else if let Some(else_) = self.else_ {
+                validate_self(else_, uneval)?;
             }
         }
 

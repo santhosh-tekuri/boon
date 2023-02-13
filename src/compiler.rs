@@ -30,6 +30,10 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.register(scheme, url_loader);
     }
@@ -76,7 +80,7 @@ impl Compiler {
                 .lookup_ptr(ptr)
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
             let Some(v) = v else {
-                return Err(CompileError::NotFound(loc.to_owned()));
+                return Err(CompileError::JsonPointerNotFound(loc.to_owned()));
             };
 
             let sch = self.compile_one(target, v, loc.to_owned(), root, &mut queue)?;
@@ -165,14 +169,16 @@ impl Compiler {
 
         // draft4 --
         if let Some(Value::String(ref_)) = obj.get("$ref") {
+            let (_, ptr) = split(&loc);
             let abs_ref =
-                root.base_url(ref_)
+                root.base_url(ptr)
                     .join(ref_)
-                    .map_err(|e| CompileError::LoadUrlError {
+                    .map_err(|e| CompileError::ParseUrlError {
                         url: ref_.clone(),
                         src: e.into(),
                     })?;
-            s.ref_ = Some(schemas.enqueue(queue, abs_ref.into()));
+            let resolved_ref = root.resolve(abs_ref.as_str())?;
+            s.ref_ = Some(schemas.enqueue(queue, resolved_ref));
             if root.draft.version < 2019 {
                 // All other properties in a "$ref" object MUST be ignored
                 return Ok(s);
@@ -341,15 +347,36 @@ impl Compiler {
 
 #[derive(Debug)]
 pub enum CompileError {
-    ParseUrlError { url: String, src: Box<dyn Error> },
-    LoadUrlError { url: String, src: Box<dyn Error> },
-    UnsupportedUrl { url: String },
-    InvalidMetaSchema { url: String },
-    MetaSchemaCycle { url: String },
-    InvalidId { loc: String },
-    DuplicateId { url: String, id: String },
+    ParseUrlError {
+        url: String,
+        src: Box<dyn Error>,
+    },
+    LoadUrlError {
+        url: String,
+        src: Box<dyn Error>,
+    },
+    UnsupportedUrl {
+        url: String,
+    },
+    InvalidMetaSchema {
+        url: String,
+    },
+    MetaSchemaCycle {
+        url: String,
+    },
+    InvalidId {
+        loc: String,
+    },
+    DuplicateId {
+        url: String,
+        id: String,
+    },
     InvalidJsonPointer(String),
-    UrlFragmentNotFound(String),
+    JsonPointerNotFound(String),
+    AnchorNotFound {
+        schema_url: String,
+        anchor_url: String,
+    },
     Bug(Box<dyn Error>),
 }
 
@@ -386,8 +413,17 @@ impl Display for CompileError {
             }
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
             Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
-            Self::InvalidJsonPointer(loc) => write!(f, "invalid json pointer {loc}"),
-            Self::UrlFragmentNotFound(loc) => write!(f, "fragment in {loc} not found"),
+            Self::InvalidJsonPointer(loc) => write!(f, "invalid json-pointer {loc}"),
+            Self::JsonPointerNotFound(loc) => write!(f, "json-pointer in {loc} not found"),
+            Self::AnchorNotFound {
+                schema_url,
+                anchor_url,
+            } => {
+                write!(
+                    f,
+                    "anchor in {anchor_url} is not found in schema {schema_url}"
+                )
+            }
             Self::Bug(src) => {
                 write!(
                     f,

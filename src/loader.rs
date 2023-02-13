@@ -48,20 +48,3 @@ impl DefaultUrlLoader {
         }
     }
 }
-
-// --
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use super::*;
-
-    #[test]
-    fn test_default_url_loader() {
-        let path = fs::canonicalize("test.json").unwrap();
-        let url = Url::from_file_path(path).unwrap();
-        let doc = DefaultUrlLoader::new().load(&url).unwrap();
-        println!("{:?}", doc);
-    }
-}

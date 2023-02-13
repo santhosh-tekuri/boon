@@ -115,21 +115,3 @@ impl Roots {
         Ok(self.map.entry(url).or_insert(r))
     }
 }
-
-// --
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use super::*;
-
-    #[test]
-    fn test_load() {
-        let path = fs::canonicalize("test.json").unwrap();
-        let url = Url::from_file_path(path).unwrap();
-        let mut roots = Roots::new();
-        let root = roots.or_load(url).unwrap();
-        println!("{:?}", root.doc);
-    }
-}

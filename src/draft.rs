@@ -117,8 +117,8 @@ pub(crate) struct Draft {
 }
 
 impl Draft {
-    pub(crate) fn from_url(mut url: &str) -> Option<&'static Draft> {
-        let (_, fragment) = split(url);
+    pub(crate) fn from_url(url: &str) -> Option<&'static Draft> {
+        let (mut url, fragment) = split(url);
         if !fragment.is_empty() {
             return None;
         }
@@ -220,7 +220,13 @@ impl Draft {
         };
 
         let mut base = Cow::Borrowed(base);
-        if let Some(Value::String(obj_id)) = obj.get(self.id) {
+        let id = if self.version < 2019 && obj.contains_key("$ref") {
+            // All other properties in a "$ref" object MUST be ignored
+            None
+        } else {
+            obj.get(self.id)
+        };
+        if let Some(Value::String(obj_id)) = id {
             let (obj_id, _) = split(obj_id);
             let Ok(obj_id) = base.join(obj_id) else {
                 return Err(ptr);
@@ -272,7 +278,19 @@ impl Draft {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Compiler, Schemas};
+
     use super::*;
+
+    #[test]
+    fn test_meta() {
+        let mut schemas = Schemas::default();
+        let mut compiler = Compiler::default();
+        let v: Value = serde_json::from_str(include_str!("metaschemas/draft4.json")).unwrap();
+        let url = "https://json-schema.org/draft-04/schema";
+        compiler.add_resource(url, v).unwrap();
+        compiler.compile(&mut schemas, url.to_owned()).unwrap();
+    }
 
     #[test]
     fn test_from_url() {
@@ -280,6 +298,7 @@ mod tests {
             ("http://json-schema.org/draft/2020-12/schema", Some(2020)), // http url
             ("https://json-schema.org/draft/2020-12/schema", Some(2020)), // https url
             ("https://json-schema.org/schema", Some(latest().version)),  // latest
+            ("https://json-schema.org/draft-04/schema", Some(4)),
             ("https://json-schema.org/%64raft/2020-12/schema", Some(2020)), // percent-encoded
         ];
         for (url, version) in tests {

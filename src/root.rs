@@ -30,40 +30,38 @@ impl Root {
         Ok(())
     }
 
-    pub(crate) fn lookup(&self, loc: &str) -> Result<Option<&Value>, CompileError> {
+    // resolves `loc` to root-url#json-pointer
+    pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
         let (url, ptr) = split(loc);
+        if url == self.url.as_str() {
+            return Ok(loc.to_owned());
+        }
 
-        // look for subresource with id==url
+        // look for resource with id==url
         let entry = self
             .resources
             .iter()
-            .find(|(ptr, res)| res.id.as_str() == url);
+            .find(|(_ptr, res)| res.id.as_str() == url);
         let Some((res_ptr, res)) = entry else {
-            return Ok(None);
+            return Ok(loc.to_owned()); // external url
         };
 
         let anchor = fragment_to_anchor(ptr).map_err(|e| CompileError::ParseUrlError {
             url: loc.to_owned(),
             src: e.into(),
         })?;
-        if let Some(anchor) = anchor {
-            let Some(anchor_ptr) = res.anchors.get(anchor.as_ref()) else {
-                return Err(CompileError::UrlFragmentNotFound(loc.to_owned()))
-            };
-            return self
-                .lookup_ptr(anchor_ptr)
-                .map_err(|e| CompileError::Bug(e.into()));
-        }
 
-        let value =
-            self.lookup(&format!("{res_ptr}{ptr}"))
-                .map_err(|e| CompileError::ParseUrlError {
-                    url: loc.to_owned(),
-                    src: e.into(),
-                })?;
-        match value {
-            Some(value) => Ok(Some(value)),
-            None => Err(CompileError::UrlFragmentNotFound(loc.to_owned())),
+        if let Some(anchor) = anchor {
+            if let Some(anchor_ptr) = res.anchors.get(anchor.as_ref()) {
+                return Ok(format!("{}#{}", self.url, anchor_ptr));
+            } else {
+                return Err(CompileError::AnchorNotFound {
+                    schema_url: self.url.as_str().to_owned(),
+                    anchor_url: loc.to_owned(),
+                });
+            }
+        } else {
+            return Ok(format!("{}#{}{}", self.url, res_ptr, ptr));
         }
     }
 

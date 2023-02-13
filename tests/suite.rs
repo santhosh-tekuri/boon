@@ -3,6 +3,7 @@ use std::{fs::File, path::Path};
 use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use url::Host;
 
 const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
 
@@ -72,7 +73,14 @@ fn run_file(path: &str, draft: Draft) {
 struct HttpUrlLoader;
 impl UrlLoader for HttpUrlLoader {
     fn load(&self, url: &url::Url) -> Result<Value, Box<dyn std::error::Error>> {
-        // todo: check it is localhost:1234
+        // ensure that url has "localhost:1234"
+        if !matches!(url.host(), Some(Host::Domain("localhost"))) {
+            Err("no internet")?;
+        }
+        if !matches!(url.port(), Some(1234)) {
+            Err("no internet")?;
+        }
+
         let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
         let file = File::open(path)?;
         let json: Value = serde_json::from_reader(file)?;
