@@ -1,8 +1,10 @@
 use std::{fs::File, path::Path};
 
-use jsonschema::{Compiler, Draft, Schemas};
+use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Group {
@@ -38,11 +40,13 @@ fn test_suite() {
     run_file("draft4/anyOf.json", Draft::V4);
     run_file("draft4/oneOf.json", Draft::V4);
     run_file("draft4/dependencies.json", Draft::V4);
+    run_file("draft4/default.json", Draft::V4);
+    run_file("draft4/ref.json", Draft::V4);
 }
 
 fn run_file(path: &str, draft: Draft) {
-    let suite = Path::new("tests/JSON-Schema-Test-Suite/tests/");
-    let file = File::open(suite.join(path)).unwrap();
+    let path = Path::new(SUITE_DIR).join("tests").join(path);
+    let file = File::open(path).unwrap();
 
     let url = "http://testsuite.com/schema.json";
     let groups: Vec<Group> = serde_json::from_reader(file).unwrap();
@@ -52,6 +56,7 @@ fn run_file(path: &str, draft: Draft) {
         let mut compiler = Compiler::default();
         compiler.set_default_draft(draft);
         compiler.add_resource(url, group.schema).unwrap();
+        compiler.register_url_loader("http", Box::new(HttpUrlLoader));
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         for test in group.tests {
             println!("    {}", test.description);
@@ -61,5 +66,16 @@ fn run_file(path: &str, draft: Draft) {
             }
             assert_eq!(result.is_ok(), test.valid);
         }
+    }
+}
+
+struct HttpUrlLoader;
+impl UrlLoader for HttpUrlLoader {
+    fn load(&self, url: &url::Url) -> Result<Value, Box<dyn std::error::Error>> {
+        // todo: check it is localhost:1234
+        let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
+        let file = File::open(path)?;
+        let json: Value = serde_json::from_reader(file)?;
+        Ok(json)
     }
 }
