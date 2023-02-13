@@ -3,7 +3,6 @@ use std::{fs::File, path::Path};
 use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use url::Host;
 
 const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
 
@@ -57,7 +56,7 @@ fn run_file(path: &str, draft: Draft) {
         let mut compiler = Compiler::default();
         compiler.set_default_draft(draft);
         compiler.add_resource(url, group.schema).unwrap();
-        compiler.register_url_loader("http", Box::new(HttpUrlLoader));
+        compiler.register_url_loader("http", Box::new(RemotesLoader));
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         for test in group.tests {
             println!("    {}", test.description);
@@ -70,20 +69,30 @@ fn run_file(path: &str, draft: Draft) {
     }
 }
 
-struct HttpUrlLoader;
-impl UrlLoader for HttpUrlLoader {
+struct RemotesLoader;
+impl UrlLoader for RemotesLoader {
     fn load(&self, url: &url::Url) -> Result<Value, Box<dyn std::error::Error>> {
         // ensure that url has "localhost:1234"
-        if !matches!(url.host(), Some(Host::Domain("localhost"))) {
-            Err("no internet")?;
-        }
-        if !matches!(url.port(), Some(1234)) {
-            Err("no internet")?;
+        if url.as_str().starts_with("http://localhost:1234/") {
+            let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
+            let file = File::open(path)?;
+            let json: Value = serde_json::from_reader(file)?;
+            return Ok(json);
         }
 
-        let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
-        let file = File::open(path)?;
-        let json: Value = serde_json::from_reader(file)?;
-        Ok(json)
+        let url = url.as_str();
+        let meta = if let Some(suffix) = url.strip_prefix("http://json-schema.org/") {
+            Some(suffix)
+        } else if let Some(suffix) = url.strip_prefix("https://json-schema.org/") {
+            Some(suffix)
+        } else {
+            None
+        };
+        if let Some(meta) = meta {
+            let file = File::open(Path::new("src/metaschemas/").join(meta))?;
+            let json: Value = serde_json::from_reader(file)?;
+            return Ok(json);
+        }
+        Err("no internet")?
     }
 }

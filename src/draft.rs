@@ -286,7 +286,7 @@ mod tests {
     fn test_meta() {
         let mut schemas = Schemas::default();
         let mut compiler = Compiler::default();
-        let v: Value = serde_json::from_str(include_str!("metaschemas/draft4.json")).unwrap();
+        let v: Value = serde_json::from_str(include_str!("metaschemas/draft-04/schema")).unwrap();
         let url = "https://json-schema.org/draft-04/schema";
         compiler.add_resource(url, v).unwrap();
         compiler.compile(&mut schemas, url.to_owned()).unwrap();
