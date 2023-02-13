@@ -341,6 +341,7 @@ impl Compiler {
 
 #[derive(Debug)]
 pub enum CompileError {
+    ParseUrlError { url: String, src: Box<dyn Error> },
     LoadUrlError { url: String, src: Box<dyn Error> },
     UnsupportedUrl { url: String },
     InvalidMetaSchema { url: String },
@@ -348,7 +349,7 @@ pub enum CompileError {
     InvalidId { loc: String },
     DuplicateId { url: String, id: String },
     InvalidJsonPointer(String),
-    NotFound(String),
+    UrlFragmentNotFound(String),
     Bug(Box<dyn Error>),
 }
 
@@ -364,6 +365,13 @@ impl Error for CompileError {
 impl Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ParseUrlError { url, src } => {
+                if f.alternate() {
+                    write!(f, "error parsing url {url}: {src}")
+                } else {
+                    write!(f, "error parsing {url}")
+                }
+            }
             Self::LoadUrlError { url, src } => {
                 if f.alternate() {
                     write!(f, "error loading {url}: {src}")
@@ -379,7 +387,7 @@ impl Display for CompileError {
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
             Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
             Self::InvalidJsonPointer(loc) => write!(f, "invalid json pointer {loc}"),
-            Self::NotFound(loc) => write!(f, "{loc} not found"),
+            Self::UrlFragmentNotFound(loc) => write!(f, "fragment in {loc} not found"),
             Self::Bug(src) => {
                 write!(
                     f,
