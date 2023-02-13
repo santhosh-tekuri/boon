@@ -33,15 +33,12 @@ impl Root {
     // resolves `loc` to root-url#json-pointer
     pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
         let (url, ptr) = split(loc);
-        if url == self.url.as_str() {
-            return Ok(loc.to_owned());
-        }
 
         // look for resource with id==url
         let entry = self
             .resources
             .iter()
-            .find(|(_ptr, res)| res.id.as_str() == url);
+            .find(|(_res_ptr, res)| res.id.as_str() == url);
         let Some((res_ptr, res)) = entry else {
             return Ok(loc.to_owned()); // external url
         };

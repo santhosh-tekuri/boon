@@ -367,9 +367,16 @@ pub enum CompileError {
     InvalidId {
         loc: String,
     },
+    InvalidAnchor {
+        loc: String,
+    },
     DuplicateId {
         url: String,
         id: String,
+    },
+    DuplicateAnchor {
+        url: String,
+        anchor: String,
     },
     InvalidJsonPointer(String),
     JsonPointerNotFound(String),
@@ -412,7 +419,11 @@ impl Display for CompileError {
                 write!(f, "cycle in resolving $schema in {url}")
             }
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
+            Self::InvalidAnchor { loc } => write!(f, "invalid $anchor at {loc}"),
             Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
+            Self::DuplicateAnchor { url, anchor } => {
+                write!(f, "duplicate $anchor {anchor:?} in {url}")
+            }
             Self::InvalidJsonPointer(loc) => write!(f, "invalid json-pointer {loc}"),
             Self::JsonPointerNotFound(loc) => write!(f, "json-pointer in {loc} not found"),
             Self::AnchorNotFound {
@@ -461,11 +472,13 @@ mod tests {
     fn test_debug() {
         run_single(
             Draft::V4,
-            r#"{
-                "maxLength": 2
-            }"#,
-            r#""foo""#,
-            false,
+            r##"
+            {}            
+            "##,
+            r##"
+            1
+            "##,
+            true,
         );
     }
 

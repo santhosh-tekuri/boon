@@ -1,10 +1,14 @@
-use std::{borrow::Cow, collections::HashMap, str::Utf8Error};
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap},
+    str::Utf8Error,
+};
 
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use url::Url;
 
-use crate::{root::Resource, util::*};
+use crate::{root::Resource, util::*, CompileError};
 
 const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
@@ -177,31 +181,53 @@ impl Draft {
     fn collect_anchors(
         &self,
         json: &Value,
+        base: &Url,
         ptr: &str,
         res: &mut Resource,
-    ) -> Result<(), Utf8Error> {
+    ) -> Result<(), CompileError> {
         let Value::Object(obj) = json else {
             return Ok(());
         };
 
+        let mut add_anchor = |anchor: String| match res.anchors.entry(anchor) {
+            entry @ Entry::Occupied(_) => {
+                return Err(CompileError::DuplicateAnchor {
+                    url: base.as_str().to_owned(),
+                    anchor: entry.key().to_owned(),
+                });
+            }
+            entry => {
+                entry.or_insert(ptr.to_owned());
+                Ok(())
+            }
+        };
+
         if self.version < 2019 {
+            if obj.contains_key("$ref") {
+                return Ok(()); // All other properties in a "$ref" object MUST be ignored
+            }
             // anchor is specified in id
             if let Some(Value::String(id)) = obj.get(self.id) {
                 let (_, fragment) = split(id);
-                if let Some(anchor) = fragment_to_anchor(fragment)? {
-                    res.anchors.insert(anchor.into_owned(), ptr.to_owned());
+                let Ok(anchor) = fragment_to_anchor(fragment) else {
+                    let mut url = base.clone();
+                    url.set_fragment(Some(ptr));
+                    return Err(CompileError::InvalidAnchor { loc: url.into() });
+                };
+                if let Some(anchor) = anchor {
+                    add_anchor(anchor.into())?;
                 };
                 return Ok(());
             }
         }
         if self.version >= 2019 {
             if let Some(Value::String(anchor)) = obj.get("$anchor") {
-                res.anchors.insert(anchor.to_owned(), ptr.to_owned());
+                add_anchor(anchor.into())?;
             }
         }
         if self.version >= 2020 {
             if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
-                res.anchors.insert(anchor.to_owned(), ptr.to_owned());
+                add_anchor(anchor.into())?;
             }
         }
         Ok(())
@@ -214,22 +240,31 @@ impl Draft {
         base: &Url,  // base of json
         ptr: String, // ptr of json
         resources: &mut HashMap<String, Resource>,
-    ) -> Result<(), String> {
+    ) -> Result<(), CompileError> {
         let Value::Object(obj) = json else {
             return Ok(());
         };
 
-        let mut base = Cow::Borrowed(base);
-        let id = if self.version < 2019 && obj.contains_key("$ref") {
-            // All other properties in a "$ref" object MUST be ignored
-            None
+        let id = if self.version < 2019 {
+            if obj.contains_key("$ref") {
+                None // All other properties in a "$ref" object MUST be ignored
+            } else {
+                match obj.get(self.id) {
+                    Some(Value::String(id)) if id.starts_with('#') => None, // anchor only
+                    id => id,
+                }
+            }
         } else {
             obj.get(self.id)
         };
+
+        let mut base = Cow::Borrowed(base);
         if let Some(Value::String(obj_id)) = id {
             let (obj_id, _) = split(obj_id);
             let Ok(obj_id) = base.join(obj_id) else {
-                return Err(ptr);
+                let mut url = base.into_owned();
+                url.set_fragment(Some(&ptr));
+                return Err(CompileError::InvalidId { loc: url.into() });
             };
             resources.insert(ptr.clone(), Resource::new(obj_id.clone()));
             base = Cow::Owned(obj_id);
@@ -240,9 +275,7 @@ impl Draft {
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base.as_ref()) {
-            if self.collect_anchors(json, &ptr, res).is_err() {
-                return Err(ptr);
-            };
+            self.collect_anchors(json, &base, &ptr, res)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }

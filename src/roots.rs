@@ -96,11 +96,7 @@ impl Roots {
 
         let ids = {
             let mut ids = HashMap::default();
-            if let Err(ptr) = draft.collect_resources(&doc, &url, String::new(), &mut ids) {
-                let mut url = url;
-                url.set_fragment(Some(&ptr));
-                return Err(InvalidId { loc: url.into() });
-            }
+            draft.collect_resources(&doc, &url, String::new(), &mut ids)?;
             ids
         };
 
