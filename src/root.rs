@@ -30,6 +30,43 @@ impl Root {
         Ok(())
     }
 
+    pub(crate) fn lookup(&self, loc: &str) -> Result<Option<&Value>, CompileError> {
+        let (url, ptr) = split(loc);
+
+        // look for subresource with id==url
+        let entry = self
+            .resources
+            .iter()
+            .find(|(ptr, res)| res.id.as_str() == url);
+        let Some((res_ptr, res)) = entry else {
+            return Ok(None);
+        };
+
+        let anchor = fragment_to_anchor(ptr).map_err(|e| CompileError::ParseUrlError {
+            url: loc.to_owned(),
+            src: e.into(),
+        })?;
+        if let Some(anchor) = anchor {
+            let Some(anchor_ptr) = res.anchors.get(anchor.as_ref()) else {
+                return Err(CompileError::UrlFragmentNotFound(loc.to_owned()))
+            };
+            return self
+                .lookup_ptr(anchor_ptr)
+                .map_err(|e| CompileError::Bug(e.into()));
+        }
+
+        let value =
+            self.lookup(&format!("{res_ptr}{ptr}"))
+                .map_err(|e| CompileError::ParseUrlError {
+                    url: loc.to_owned(),
+                    src: e.into(),
+                })?;
+        match value {
+            Some(value) => Ok(Some(value)),
+            None => Err(CompileError::UrlFragmentNotFound(loc.to_owned())),
+        }
+    }
+
     pub(crate) fn base_url(&self, mut ptr: &str) -> &Url {
         loop {
             if let Some(Resource { id, .. }) = self.resources.get(ptr) {
