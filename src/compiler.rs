@@ -102,8 +102,14 @@ impl Compiler {
         queue: &mut VecDeque<String>,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.clone());
-        let Value::Object(obj) = v else {
-            return Ok(s);
+        let obj = match v {
+            Value::Object(obj) => obj,
+            Value::Bool(b) => {
+                // boolean schema
+                s.boolean = Some(*b);
+                return Ok(s);
+            }
+            _ => return Ok(s),
         };
 
         // helpers --
@@ -293,16 +299,15 @@ impl Compiler {
             }
         }
 
-        if let Some(Value::Object(obj)) = obj.get("dependencies") {
-            s.dependencies = obj
+        if let Some(Value::Object(deps)) = obj.get("dependencies") {
+            s.dependencies = deps
                 .iter()
                 .filter_map(|(k, v)| {
                     let v = match v {
                         Value::Array(_) => Some(Dependency::Props(to_strings(v))),
-                        Value::Object(_) => Some(Dependency::SchemaRef(
+                        _ => Some(Dependency::SchemaRef(
                             schemas.enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
                         )),
-                        _ => None,
                     };
                     v.map(|v| (k.clone(), v))
                 })
@@ -332,8 +337,8 @@ impl Compiler {
             }
             s.dependent_schemas = load_schema_map("dependentSchemas", queue);
 
-            if let Some(Value::Object(deps)) = obj.get("dependentRequired") {
-                for (pname, pvalue) in deps {
+            if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
+                for (pname, pvalue) in dep_req {
                     s.dependent_required
                         .insert(pname.clone(), to_strings(pvalue));
                 }
@@ -500,7 +505,7 @@ mod tests {
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         let result = schemas.validate(&data, sch_index);
         if let Err(e) = &result {
-            println!("{e:#}");
+            println!("validation failed: {e:#}");
         }
         assert_eq!(result.is_ok(), valid);
     }

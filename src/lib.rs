@@ -102,6 +102,7 @@ struct Schema {
     vocab: Vec<String>,
 
     // type agnostic --
+    boolean: Option<bool>, // boolean schema
     ref_: Option<usize>,
     types: Vec<Type>,
     enum_: Vec<Value>,
@@ -156,16 +157,19 @@ struct Schema {
     multiple_of: Option<Number>,
 }
 
+#[derive(Debug)]
 enum Items {
     SchemaRef(usize),
     SchemaRefs(Vec<usize>),
 }
 
+#[derive(Debug)]
 enum Additional {
     Bool(bool),
     SchemaRef(usize),
 }
 
+#[derive(Debug)]
 enum Dependency {
     Props(Vec<String>),
     SchemaRef(usize),
@@ -221,6 +225,13 @@ impl Schema {
                 kind,
             })
         };
+
+        // boolean --
+        if let Some(b) = self.boolean {
+            if !b {
+                return error("", kind!(FalseSchema));
+            }
+        }
 
         // type --
         if !self.types.is_empty() {
@@ -763,6 +774,7 @@ impl Display for ValidationError {
 
 #[derive(Debug)]
 pub enum ErrorKind {
+    FalseSchema,
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },
     Const { got: Value, want: Value },
@@ -797,6 +809,7 @@ impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: use single quote for strings
         match self {
+            Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
                 let want = join_iter(want, ", ");
