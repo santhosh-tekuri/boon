@@ -23,7 +23,10 @@ struct Test {
 
 #[test]
 fn test_suite() {
+    run_dir("draft4", Draft::V4);
     run_dir("draft6", Draft::V6);
+    run_dir("draft7", Draft::V7);
+    run_dir("draft2019-09", Draft::V2019_09);
     // run_file("draft4/refRemote.json", Draft::V4);
 }
 
@@ -60,6 +63,7 @@ fn run_file(path: &str, draft: Draft) {
         compiler.set_default_draft(draft);
         compiler.add_resource(url, group.schema).unwrap();
         compiler.register_url_loader("http", Box::new(RemotesLoader));
+        compiler.register_url_loader("https", Box::new(RemotesLoader));
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         for test in group.tests {
             println!("    {}", test.description);
