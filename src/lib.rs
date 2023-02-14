@@ -348,6 +348,13 @@ impl Schema {
                     }
                 }
 
+                // dependentSchemas --
+                for (pname, sch) in &self.dependent_schemas {
+                    if obj.contains_key(pname) {
+                        validate_self(*sch, uneval)?;
+                    }
+                }
+
                 // dependentRequired --
                 for (pname, required) in &self.dependent_required {
                     if obj.contains_key(pname) {
