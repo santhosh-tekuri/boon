@@ -22,6 +22,25 @@ pub enum Draft {
     V2020_12,
 }
 
+impl Draft {
+    pub(crate) fn internal(&self) -> &'static crate::draft::Draft {
+        match self {
+            Draft::V4 => &DRAFT4,
+            Draft::V6 => &DRAFT6,
+            Draft::V7 => &DRAFT7,
+            Draft::V2019_09 => &DRAFT2019,
+            Draft::V2020_12 => &DRAFT2020,
+        }
+    }
+}
+
+// returns latest draft supported
+impl Default for Draft {
+    fn default() -> Self {
+        Draft::V2020_12
+    }
+}
+
 #[derive(Default)]
 pub struct Compiler {
     roots: Roots,
@@ -39,13 +58,7 @@ impl Compiler {
     }
 
     pub fn set_default_draft(&mut self, d: Draft) {
-        self.roots.default_draft = match d {
-            Draft::V4 => &DRAFT4,
-            Draft::V6 => &DRAFT6,
-            Draft::V7 => &DRAFT7,
-            Draft::V2019_09 => &DRAFT2019,
-            Draft::V2020_12 => &DRAFT2020,
-        }
+        self.roots.default_draft = d.internal()
     }
 
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {

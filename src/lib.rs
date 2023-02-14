@@ -104,6 +104,7 @@ macro_rules! kind {
 struct Schema {
     index: usize,
     loc: String,
+    draft: Draft,
     vocab: Vec<String>,
 
     // type agnostic --

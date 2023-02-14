@@ -107,7 +107,7 @@ pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
 });
 
 pub(crate) fn latest() -> &'static Draft {
-    &DRAFT2020
+    crate::Draft::default().internal()
 }
 
 // --
