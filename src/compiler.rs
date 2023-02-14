@@ -109,7 +109,13 @@ impl Compiler {
         // helpers --
         let load_usize = |pname| {
             if let Some(Value::Number(n)) = obj.get(pname) {
-                n.as_u64().map(|n| n as usize)
+                if n.is_u64() {
+                    n.as_u64().map(|n| n as usize)
+                } else {
+                    n.as_f64()
+                        .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
+                        .map(|n| n as usize)
+                }
             } else {
                 None
             }
@@ -471,12 +477,12 @@ mod tests {
     #[test]
     fn test_debug() {
         run_single(
-            Draft::V4,
+            Draft::V6,
             r##"
-            {}            
+            {"type": "integer"}            
             "##,
             r##"
-            1
+            1.0
             "##,
             true,
         );

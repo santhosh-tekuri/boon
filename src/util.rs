@@ -143,4 +143,14 @@ mod tests {
             Ok(Some(Cow::from("abcd")))
         );
     }
+
+    #[test]
+    fn test_equals() {
+        let tests = [["1.0", "1"], ["-1.0", "-1"]];
+        for [a, b] in tests {
+            let a = serde_json::from_str(a).unwrap();
+            let b = serde_json::from_str(b).unwrap();
+            assert!(equals(&a, &b));
+        }
+    }
 }

@@ -228,7 +228,9 @@ impl Schema {
             let matched = self.types.iter().any(|t| {
                 if *t == Type::Integer && v_type == Type::Number {
                     if let Value::Number(n) = v {
-                        return n.is_i64() || n.is_u64();
+                        return n.is_i64()
+                            || n.is_u64()
+                            || n.as_f64().filter(|n| n.fract() == 0.0).is_some();
                     }
                 }
                 *t == v_type
