@@ -316,6 +316,9 @@ impl Compiler {
 
         // draft6 --
         if root.draft.version >= 6 {
+            if let Some(constant) = obj.get("const") {
+                s.constant = Some(constant.clone());
+            }
             s.property_names = load_schema("propertyNames", queue);
             s.contains = load_schema("contains", queue);
         }
