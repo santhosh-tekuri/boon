@@ -513,6 +513,9 @@ impl Schema {
                                 .map(|_| i)
                         })
                         .collect();
+                    if contains_matched.is_empty() {
+                        return error("contains", kind!(Contains));
+                    }
                 }
 
                 // minContains --
@@ -799,6 +802,7 @@ pub enum ErrorKind {
     DependentRequired { got: String, want: Vec<String> },
     MinItems { got: usize, want: usize },
     MaxItems { got: usize, want: usize },
+    Contains,
     MinContains { got: Vec<usize>, want: usize },
     MaxContains { got: Vec<usize>, want: usize },
     UniqueItems { got: [usize; 2] },
@@ -884,17 +888,21 @@ impl Display for ErrorKind {
                     join_iter(got, ", ")
                 )
             }
+            Self::Contains => write!(f, "no items match contains schema"),
             Self::MaxContains { got, want } => {
                 write!(
                     f,
-                    "maximum {want} valid items required, but found {} valid items at {}",
+                    "maximum {want} items allowed to match contains schema, but found {} items at {}",
                     got.len(),
                     join_iter(got, ", ")
                 )
             }
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
             Self::AdditionalItems { got, want } => {
-                write!(f, "only {want} items allowed, but got {got} items",)
+                write!(
+                    f,
+                    "only {want} items allowed to match contains schema, but got {got} items",
+                )
             }
             Self::MinLength { got, want } => write!(f, "length must be >={want}, but got {got}"),
             Self::MaxLength { got, want } => write!(f, "length must be <={want}, but got {got}"),
