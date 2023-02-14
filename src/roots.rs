@@ -90,7 +90,7 @@ impl Roots {
             if !cycle.insert(sch.clone()) {
                 return Err(MetaSchemaCycle { url: sch.into() });
             }
-            let doc = self.loader.load(&url)?;
+            let doc = self.loader.load(&sch)?;
             let meta_root = &self.add_root(cycle, sch, doc)?;
             Ok((meta_root.draft, meta_root.get_vocabs()?))
         })()?;

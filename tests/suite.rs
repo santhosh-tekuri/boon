@@ -61,9 +61,9 @@ fn run_file(path: &str, draft: Draft) {
         let mut schemas = Schemas::default();
         let mut compiler = Compiler::default();
         compiler.set_default_draft(draft);
-        compiler.add_resource(url, group.schema).unwrap();
         compiler.register_url_loader("http", Box::new(RemotesLoader));
         compiler.register_url_loader("https", Box::new(RemotesLoader));
+        compiler.add_resource(url, group.schema).unwrap();
         let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
         for test in group.tests {
             println!("    {}", test.description);
