@@ -14,9 +14,20 @@ pub(crate) struct Root {
     pub(crate) resources: HashMap<String, Resource>, // ptr => _
     pub(crate) url: Url,
     pub(crate) doc: Value,
+    pub(crate) meta_vocabs: Option<Vec<String>>,
 }
 
 impl Root {
+    pub(crate) fn has_vocab(&self, name: &str) -> bool {
+        if name == "core" {
+            return true;
+        }
+        if let Some(vocabs) = &self.meta_vocabs {
+            return vocabs.iter().any(|s| s == name);
+        }
+        self.draft.default_vocabs.contains(&name)
+    }
+
     pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
         let mut set = HashSet::new();
         for Resource { id, .. } in self.resources.values() {
@@ -99,6 +110,36 @@ impl Root {
             return Ok(None);
         }
         Ok(Some(v))
+    }
+
+    pub(crate) fn get_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
+        if self.draft.version < 2019 {
+            return Ok(None);
+        }
+        match &self.doc {
+            Value::Object(obj) => {
+                if let Some(Value::Object(obj)) = obj.get("$vocabulary") {
+                    let mut vocabs = vec![];
+                    for vocab in obj.keys() {
+                        let name = vocab
+                            .strip_prefix(self.draft.vocab_prefix)
+                            .filter(|name| self.draft.all_vocabs.contains(name));
+                        if let Some(name) = name {
+                            vocabs.push(name.to_owned()); // todo: avoid alloc
+                        } else {
+                            return Err(CompileError::UnsupprtedVocabulary {
+                                url: self.url.as_str().to_owned(),
+                                vocabulary: vocab.to_owned(),
+                            });
+                        }
+                    }
+                    Ok(Some(vocabs))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        }
     }
 }
 

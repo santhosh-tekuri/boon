@@ -70,28 +70,29 @@ impl Roots {
         url: Url,
         doc: Value,
     ) -> Result<&Root, CompileError> {
-        let draft = (|| {
+        let (draft, vocabs) = (|| {
             let Value::Object(obj) = &doc else {
-                return Ok(self.default_draft);
+                return Ok((self.default_draft, None));
             };
             let Some(Value::String(sch)) = obj.get("$schema") else {
-                return Ok(self.default_draft);
+                return Ok((self.default_draft, None));
             };
             if let Some(draft) = Draft::from_url(sch) {
-                return Ok(draft);
+                return Ok((draft, None));
             }
             let (sch, _) = split(sch);
             let Ok(sch) = Url::parse(sch) else {
                 return Err(InvalidMetaSchema { url: url.as_str().to_owned()});
             };
             if let Some(r) = self.map.get(&sch) {
-                return Ok(r.draft);
+                return Ok((r.draft, r.get_vocabs()?));
             }
             if !cycle.insert(sch.clone()) {
                 return Err(MetaSchemaCycle { url: sch.into() });
             }
             let doc = self.loader.load(&url)?;
-            Ok(self.add_root(cycle, sch, doc)?.draft)
+            let meta_root = &self.add_root(cycle, sch, doc)?;
+            Ok((meta_root.draft, meta_root.get_vocabs()?))
         })()?;
 
         let ids = {
@@ -105,6 +106,7 @@ impl Roots {
             resources: ids,
             url: url.clone(),
             doc,
+            meta_vocabs: vocabs,
         };
         r.check_duplicate_id()?;
 

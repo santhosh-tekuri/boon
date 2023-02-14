@@ -32,6 +32,15 @@ impl Draft {
             Draft::V2020_12 => &DRAFT2020,
         }
     }
+    fn from_version(version: usize) -> Draft {
+        match version {
+            4 => Self::V4,
+            6 => Self::V6,
+            7 => Self::V7,
+            2019 => Self::V2019_09,
+            _ => Self::V2020_12,
+        }
+    }
 }
 
 // returns latest draft supported
@@ -441,6 +450,10 @@ pub enum CompileError {
         schema_url: String,
         anchor_url: String,
     },
+    UnsupprtedVocabulary {
+        url: String,
+        vocabulary: String,
+    },
     Bug(Box<dyn Error>),
 }
 
@@ -491,6 +504,9 @@ impl Display for CompileError {
                     f,
                     "anchor in {anchor_url} is not found in schema {schema_url}"
                 )
+            }
+            Self::UnsupprtedVocabulary { url, vocabulary } => {
+                write!(f, "unsupported vocabulary {vocabulary} in {url}")
             }
             Self::Bug(src) => {
                 write!(

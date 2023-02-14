@@ -104,8 +104,6 @@ macro_rules! kind {
 struct Schema {
     index: usize,
     loc: String,
-    draft: Draft,
-    vocab: Vec<String>,
 
     // type agnostic --
     boolean: Option<bool>, // boolean schema
@@ -222,10 +220,6 @@ impl Schema {
             loc,
             ..Default::default()
         }
-    }
-
-    fn has_vocab(&self, _name: &str) -> bool {
-        todo!();
     }
 
     fn validate<'v>(
