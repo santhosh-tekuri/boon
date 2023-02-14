@@ -502,7 +502,7 @@ impl Schema {
                             validate(*sch, item, &i.to_string()).ok().map(|_| i)
                         })
                         .collect();
-                    if contains_matched.is_empty() {
+                    if contains_matched.is_empty() && self.min_contains.is_none() {
                         return error("contains", kind!(Contains));
                     }
                 }
