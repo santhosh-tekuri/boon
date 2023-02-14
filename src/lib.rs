@@ -35,7 +35,10 @@ impl Schemas {
         Self::default()
     }
 
-    fn enqueue(&self, queue: &mut VecDeque<String>, loc: String) -> usize {
+    fn enqueue(&self, queue: &mut VecDeque<String>, mut loc: String) -> usize {
+        if loc.rfind('#').is_none() {
+            loc.push('#');
+        }
         if let Some(&index) = self.map.get(&loc) {
             return index;
         }
