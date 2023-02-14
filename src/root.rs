@@ -19,7 +19,7 @@ pub(crate) struct Root {
 
 impl Root {
     pub(crate) fn has_vocab(&self, name: &str) -> bool {
-        if name == "core" {
+        if self.draft.version < 2019 || name == "core" {
             return true;
         }
         if let Some(vocabs) = &self.meta_vocabs {

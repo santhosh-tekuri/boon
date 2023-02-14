@@ -219,185 +219,189 @@ impl Compiler {
             };
 
         // draft4 --
-        s.ref_ = load_ref("$ref", queue)?;
-        if s.ref_.is_some() && root.draft.version < 2019 {
-            // All other properties in a "$ref" object MUST be ignored
-            return Ok(s);
-        }
-        // if let Some(Value::String(ref_)) = obj.get("$ref") {
-        //     let (_, ptr) = split(&loc);
-        //     let abs_ref =
-        //         root.base_url(ptr)
-        //             .join(ref_)
-        //             .map_err(|e| CompileError::ParseUrlError {
-        //                 url: ref_.clone(),
-        //                 src: e.into(),
-        //             })?;
-        //     let resolved_ref = root.resolve(abs_ref.as_str())?;
-        //     s.ref_ = Some(schemas.enqueue(queue, resolved_ref));
-        //     if root.draft.version < 2019 {
-        //         // All other properties in a "$ref" object MUST be ignored
-        //         return Ok(s);
-        //     }
-        // }
-
-        if let Some(t) = obj.get("type") {
-            match t {
-                Value::String(t) => s.types.extend(Type::from_str(t)),
-                Value::Array(tt) => {
-                    s.types.extend(tt.iter().filter_map(|t| {
-                        if let Value::String(t) = t {
-                            Type::from_str(t)
-                        } else {
-                            None
-                        }
-                    }));
-                }
-                _ => {}
+        if root.has_vocab("core") {
+            s.ref_ = load_ref("$ref", queue)?;
+            if s.ref_.is_some() && root.draft.version < 2019 {
+                // All other properties in a "$ref" object MUST be ignored
+                return Ok(s);
             }
         }
 
-        if let Some(Value::Array(e)) = obj.get("enum") {
-            s.enum_ = e.clone();
-        }
+        if root.has_vocab("applicator") {
+            s.all_of = load_schema_arr("allOf", queue);
+            s.any_of = load_schema_arr("anyOf", queue);
+            s.one_of = load_schema_arr("oneOf", queue);
+            s.not = load_schema("not", queue);
 
-        s.minimum = load_num("minimum");
-        if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMinimum") {
-            if *exclusive {
-                (s.minimum, s.exclusive_minimum) = (None, s.minimum);
-            }
-        } else {
-            s.exclusive_minimum = load_num("exclusiveMinimum");
-        }
-
-        s.maximum = load_num("maximum");
-        if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMaximum") {
-            if *exclusive {
-                (s.maximum, s.exclusive_maximum) = (None, s.maximum);
-            }
-        } else {
-            s.exclusive_maximum = load_num("exclusiveMaximum");
-        }
-
-        s.multiple_of = load_num("multipleOf");
-
-        s.min_properties = load_usize("minProperties");
-        s.max_properties = load_usize("maxProperties");
-
-        if let Some(req) = obj.get("required") {
-            s.required = to_strings(req);
-        }
-
-        s.min_items = load_usize("minItems");
-        s.max_items = load_usize("maxItems");
-        if let Some(Value::Bool(unique)) = obj.get("uniqueItems") {
-            s.unique_items = *unique;
-        }
-
-        s.min_length = load_usize("minLength");
-        s.max_length = load_usize("maxLength");
-
-        if let Some(Value::String(p)) = obj.get("pattern") {
-            s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
-        }
-
-        s.not = load_schema("not", queue);
-        s.all_of = load_schema_arr("allOf", queue);
-        s.any_of = load_schema_arr("anyOf", queue);
-        s.one_of = load_schema_arr("oneOf", queue);
-        s.properties = load_schema_map("properties", queue);
-        s.pattern_properties = {
-            let mut v = vec![];
-            if let Some(Value::Object(obj)) = obj.get("patternProperties") {
-                for pname in obj.keys() {
-                    let regex = Regex::new(pname).map_err(|e| CompileError::Bug(e.into()))?;
-                    let sch = schemas
-                        .enqueue(queue, format!("{loc}/patternProperties/{}", escape(pname)));
-                    v.push((regex, sch));
+            if root.draft.version < 2020 {
+                match obj.get("items") {
+                    Some(Value::Array(_)) => {
+                        s.items = Some(Items::SchemaRefs(load_schema_arr("items", queue)));
+                        s.additional_items = {
+                            if let Some(Value::Bool(b)) = obj.get("additionalItems") {
+                                Some(Additional::Bool(*b))
+                            } else {
+                                load_schema("additionalItems", queue).map(Additional::SchemaRef)
+                            }
+                        };
+                    }
+                    _ => s.items = load_schema("items", queue).map(Items::SchemaRef),
                 }
             }
-            v
-        };
 
-        s.additional_properties = {
-            if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
-                Some(Additional::Bool(*b))
+            s.properties = load_schema_map("properties", queue);
+            s.pattern_properties = {
+                let mut v = vec![];
+                if let Some(Value::Object(obj)) = obj.get("patternProperties") {
+                    for pname in obj.keys() {
+                        let regex = Regex::new(pname).map_err(|e| CompileError::Bug(e.into()))?;
+                        let sch = schemas
+                            .enqueue(queue, format!("{loc}/patternProperties/{}", escape(pname)));
+                        v.push((regex, sch));
+                    }
+                }
+                v
+            };
+
+            s.additional_properties = {
+                if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
+                    Some(Additional::Bool(*b))
+                } else {
+                    load_schema("additionalProperties", queue).map(Additional::SchemaRef)
+                }
+            };
+
+            if let Some(Value::Object(deps)) = obj.get("dependencies") {
+                s.dependencies = deps
+                    .iter()
+                    .filter_map(|(k, v)| {
+                        let v = match v {
+                            Value::Array(_) => Some(Dependency::Props(to_strings(v))),
+                            _ => Some(Dependency::SchemaRef(
+                                schemas.enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
+                            )),
+                        };
+                        v.map(|v| (k.clone(), v))
+                    })
+                    .collect();
+            }
+        }
+
+        if root.has_vocab("validation") {
+            if let Some(t) = obj.get("type") {
+                match t {
+                    Value::String(t) => s.types.extend(Type::from_str(t)),
+                    Value::Array(tt) => {
+                        s.types.extend(tt.iter().filter_map(|t| {
+                            if let Value::String(t) = t {
+                                Type::from_str(t)
+                            } else {
+                                None
+                            }
+                        }));
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(Value::Array(e)) = obj.get("enum") {
+                s.enum_ = e.clone();
+            }
+
+            s.multiple_of = load_num("multipleOf");
+
+            s.maximum = load_num("maximum");
+            if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMaximum") {
+                if *exclusive {
+                    (s.maximum, s.exclusive_maximum) = (None, s.maximum);
+                }
             } else {
-                load_schema("additionalProperties", queue).map(Additional::SchemaRef)
+                s.exclusive_maximum = load_num("exclusiveMaximum");
             }
-        };
 
-        if root.draft.version < 2020 {
-            match obj.get("items") {
-                Some(Value::Array(_)) => {
-                    s.items = Some(Items::SchemaRefs(load_schema_arr("items", queue)));
-                    s.additional_items = {
-                        if let Some(Value::Bool(b)) = obj.get("additionalItems") {
-                            Some(Additional::Bool(*b))
-                        } else {
-                            load_schema("additionalItems", queue).map(Additional::SchemaRef)
-                        }
-                    };
+            s.minimum = load_num("minimum");
+            if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMinimum") {
+                if *exclusive {
+                    (s.minimum, s.exclusive_minimum) = (None, s.minimum);
                 }
-                _ => s.items = load_schema("items", queue).map(Items::SchemaRef),
+            } else {
+                s.exclusive_minimum = load_num("exclusiveMinimum");
             }
-        }
 
-        if let Some(Value::Object(deps)) = obj.get("dependencies") {
-            s.dependencies = deps
-                .iter()
-                .filter_map(|(k, v)| {
-                    let v = match v {
-                        Value::Array(_) => Some(Dependency::Props(to_strings(v))),
-                        _ => Some(Dependency::SchemaRef(
-                            schemas.enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
-                        )),
-                    };
-                    v.map(|v| (k.clone(), v))
-                })
-                .collect();
+            s.max_length = load_usize("maxLength");
+            s.min_length = load_usize("minLength");
+
+            if let Some(Value::String(p)) = obj.get("pattern") {
+                s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
+            }
+
+            s.max_items = load_usize("maxItems");
+            s.min_items = load_usize("minItems");
+            if let Some(Value::Bool(unique)) = obj.get("uniqueItems") {
+                s.unique_items = *unique;
+            }
+
+            s.max_properties = load_usize("maxProperties");
+            s.min_properties = load_usize("minProperties");
+
+            if let Some(req) = obj.get("required") {
+                s.required = to_strings(req);
+            }
         }
 
         // draft6 --
         if root.draft.version >= 6 {
-            if let Some(constant) = obj.get("const") {
-                s.constant = Some(constant.clone());
+            if root.has_vocab("applicator") {
+                s.contains = load_schema("contains", queue);
+                s.property_names = load_schema("propertyNames", queue);
             }
-            s.property_names = load_schema("propertyNames", queue);
-            s.contains = load_schema("contains", queue);
+
+            if root.has_vocab("validation") {
+                if let Some(constant) = obj.get("const") {
+                    s.constant = Some(constant.clone());
+                }
+            }
         }
 
         // draft7 --
         if root.draft.version >= 7 {
-            s.if_ = load_schema("if", queue);
-            if s.if_.is_some() {
-                s.then = load_schema("then", queue);
-                s.else_ = load_schema("else", queue);
+            if root.has_vocab("applicator") {
+                s.if_ = load_schema("if", queue);
+                if s.if_.is_some() {
+                    s.then = load_schema("then", queue);
+                    s.else_ = load_schema("else", queue);
+                }
             }
         }
 
         // draft2019 --
         if root.draft.version >= 2019 {
-            if s.contains.is_some() {
-                s.min_contains = load_usize("minContains");
-                s.max_contains = load_usize("maxContains");
-            }
-            s.dependent_schemas = load_schema_map("dependentSchemas", queue);
-
-            if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
-                for (pname, pvalue) in dep_req {
-                    s.dependent_required
-                        .insert(pname.clone(), to_strings(pvalue));
+            if root.has_vocab("core") {
+                s.recursive_ref = load_ref("$recursiveRef", queue)?;
+                if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
+                    s.recursive_anchor = *b;
                 }
             }
 
-            s.recursive_ref = load_ref("$recursiveRef", queue)?;
-            if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
-                s.recursive_anchor = *b;
+            if root.has_vocab("validator") {
+                if s.contains.is_some() {
+                    s.max_contains = load_usize("maxContains");
+                    s.min_contains = load_usize("minContains");
+                }
+
+                if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
+                    for (pname, pvalue) in dep_req {
+                        s.dependent_required
+                            .insert(pname.clone(), to_strings(pvalue));
+                    }
+                }
             }
 
-            s.unevaluated_properties = load_schema("unevaluatedProperties", queue);
-            s.unevaluated_items = load_schema("unevaluatedItems", queue);
+            if root.has_vocab("applicator") {
+                s.dependent_schemas = load_schema_map("dependentSchemas", queue);
+                s.unevaluated_items = load_schema("unevaluatedItems", queue);
+                s.unevaluated_properties = load_schema("unevaluatedProperties", queue);
+            }
         }
 
         // draft2020 --
