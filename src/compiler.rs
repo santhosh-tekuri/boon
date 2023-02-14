@@ -369,10 +369,13 @@ impl Compiler {
                 }
             }
 
+            s.recursive_ref = load_ref("$recursiveRef", queue)?;
             if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
                 s.recursive_anchor = *b;
             }
-            s.recursive_ref = load_ref("$recursiveRef", queue)?;
+
+            s.unevaluated_properties = load_schema("unevaluatedProperties", queue);
+            s.unevaluated_items = load_schema("unevaluatedItems", queue);
         }
 
         // draft2020 --

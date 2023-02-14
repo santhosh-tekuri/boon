@@ -133,6 +133,7 @@ struct Schema {
     dependent_required: HashMap<String, Vec<String>>,
     dependent_schemas: HashMap<String, usize>,
     dependencies: HashMap<String, Dependency>,
+    unevaluated_properties: Option<usize>,
 
     // array --
     min_items: Option<usize>,
@@ -146,6 +147,7 @@ struct Schema {
     additional_items: Option<Additional>,
     prefix_items: Vec<usize>,
     items2020: Option<usize>,
+    unevaluated_items: Option<usize>,
 
     // string --
     min_length: Option<usize>,
@@ -711,7 +713,7 @@ impl Schema {
             }
         }
 
-        // if, then, else
+        // if, then, else --
         if let Some(if_) = self.if_ {
             if validate_self(if_, uneval).is_ok() {
                 if let Some(then) = self.then {
@@ -720,6 +722,26 @@ impl Schema {
             } else if let Some(else_) = self.else_ {
                 validate_self(else_, uneval)?;
             }
+        }
+
+        // unevaluatedProps --
+        if let (Some(uneval_props), Value::Object(obj)) = (self.unevaluated_properties, v) {
+            for pname in &uneval.props {
+                if let Some(pvalue) = obj.get(*pname) {
+                    validate(uneval_props, pvalue, &escape(pname))?;
+                }
+            }
+            uneval.props.clear();
+        }
+
+        // unevaluatedItems --
+        if let (Some(uneval_items), Value::Array(arr)) = (self.unevaluated_items, v) {
+            for i in &uneval.items {
+                if let Some(pvalue) = arr.get(*i) {
+                    validate(uneval_items, pvalue, &i.to_string())?;
+                }
+            }
+            uneval.items.clear();
         }
 
         Ok(_uneval)
