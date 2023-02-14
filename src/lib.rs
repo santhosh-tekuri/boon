@@ -107,6 +107,8 @@ struct Schema {
     // type agnostic --
     boolean: Option<bool>, // boolean schema
     ref_: Option<usize>,
+    recursive_ref: Option<usize>,
+    recursive_anchor: bool,
     types: Vec<Type>,
     enum_: Vec<Value>,
     constant: Option<Value>,
@@ -203,6 +205,11 @@ impl<'v> From<&'v Value> for Uneval<'v> {
     }
 }
 
+#[derive(Debug, Default)]
+struct Scope {
+    stack: Vec<usize>,
+}
+
 impl Schema {
     fn new(loc: String) -> Self {
         Self {
@@ -268,6 +275,12 @@ impl Schema {
 
         let mut _uneval = Uneval::from(v);
         let uneval = &mut _uneval;
+        let validate = |sch: usize, v: &Value, vpath: &str| {
+            schemas
+                .get(sch)
+                .validate(v, format!("{vloc}{vpath}"), schemas)
+                .map(|_| ())
+        };
         let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
             let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
             if let Ok(reply) = &result {
@@ -348,11 +361,7 @@ impl Schema {
                 for (pname, &psch) in &self.properties {
                     if let Some(pvalue) = obj.get(pname) {
                         uneval.props.remove(pname);
-                        schemas.get(psch).validate(
-                            pvalue,
-                            format!("{vloc}/{}", escape(pname)),
-                            schemas,
-                        )?;
+                        validate(psch, pvalue, &escape(pname))?;
                     }
                 }
 
@@ -360,22 +369,14 @@ impl Schema {
                 for (regex, psch) in &self.pattern_properties {
                     for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
                         uneval.props.remove(pname);
-                        schemas.get(*psch).validate(
-                            pvalue,
-                            format!("{vloc}/{}", escape(pname)),
-                            schemas,
-                        )?;
+                        validate(*psch, pvalue, &escape(pname))?;
                     }
                 }
 
                 // propertyNames --
                 if let Some(sch) = &self.property_names {
                     for pname in obj.keys() {
-                        schemas.get(*sch).validate(
-                            &Value::String(pname.to_owned()),
-                            format!("{vloc}/{}", escape(pname)),
-                            schemas,
-                        )?;
+                        validate(*sch, &Value::String(pname.to_owned()), &escape(pname))?;
                     }
                 }
 
@@ -393,11 +394,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             for &pname in uneval.props.iter() {
                                 if let Some(pvalue) = obj.get(pname) {
-                                    schemas.get(*sch).validate(
-                                        pvalue,
-                                        format!("{vloc}/{}", escape(pname)),
-                                        schemas,
-                                    )?;
+                                    validate(*sch, pvalue, &escape(pname))?;
                                 }
                             }
                         }
@@ -436,16 +433,14 @@ impl Schema {
                     match items {
                         Items::SchemaRef(sch) => {
                             for (i, item) in arr.iter().enumerate() {
-                                let vloc = format!("{vloc}/{i}");
-                                schemas.get(*sch).validate(item, vloc, schemas)?;
+                                validate(*sch, item, &i.to_string())?;
                             }
                             uneval.items.clear();
                         }
                         Items::SchemaRefs(list) => {
                             for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                                 uneval.items.remove(&i);
-                                let vloc = format!("{vloc}/{i}");
-                                schemas.get(*sch).validate(item, vloc, schemas)?;
+                                validate(*sch, item, &i.to_string())?;
                             }
                         }
                     }
@@ -465,11 +460,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             for &index in uneval.items.iter() {
                                 if let Some(pvalue) = arr.get(index) {
-                                    schemas.get(*sch).validate(
-                                        pvalue,
-                                        format!("{vloc}/{index}"),
-                                        schemas,
-                                    )?;
+                                    validate(*sch, pvalue, &index.to_string())?;
                                 }
                             }
                         }
@@ -480,19 +471,14 @@ impl Schema {
                 // prefixItems --
                 for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
                     uneval.items.remove(&i);
-                    let vloc = format!("{vloc}/{i}");
-                    schemas.get(*sch).validate(item, vloc, schemas)?;
+                    validate(*sch, item, &i.to_string())?;
                 }
 
                 // items2020 --
                 if let Some(sch) = &self.items2020 {
                     for &index in uneval.items.iter() {
                         if let Some(pvalue) = arr.get(index) {
-                            schemas.get(*sch).validate(
-                                pvalue,
-                                format!("{vloc}/{index}"),
-                                schemas,
-                            )?;
+                            validate(*sch, pvalue, &index.to_string())?;
                         }
                     }
                     uneval.items.clear();
@@ -505,12 +491,7 @@ impl Schema {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, item)| {
-                            let vloc = format!("{vloc}/{i}");
-                            schemas
-                                .get(*sch)
-                                .validate(item, vloc, schemas)
-                                .ok()
-                                .map(|_| i)
+                            validate(*sch, item, &i.to_string()).ok().map(|_| i)
                         })
                         .collect();
                     if contains_matched.is_empty() {

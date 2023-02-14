@@ -178,24 +178,46 @@ impl Compiler {
                 HashMap::new()
             }
         };
+        let load_ref =
+            |pname, queue: &mut VecDeque<String>| -> Result<Option<usize>, CompileError> {
+                if let Some(Value::String(ref_)) = obj.get(pname) {
+                    let (_, ptr) = split(&loc);
+                    let abs_ref =
+                        root.base_url(ptr)
+                            .join(ref_)
+                            .map_err(|e| CompileError::ParseUrlError {
+                                url: ref_.clone(),
+                                src: e.into(),
+                            })?;
+                    let resolved_ref = root.resolve(abs_ref.as_str())?;
+                    Ok(Some(schemas.enqueue(queue, resolved_ref)))
+                } else {
+                    Ok(None)
+                }
+            };
 
         // draft4 --
-        if let Some(Value::String(ref_)) = obj.get("$ref") {
-            let (_, ptr) = split(&loc);
-            let abs_ref =
-                root.base_url(ptr)
-                    .join(ref_)
-                    .map_err(|e| CompileError::ParseUrlError {
-                        url: ref_.clone(),
-                        src: e.into(),
-                    })?;
-            let resolved_ref = root.resolve(abs_ref.as_str())?;
-            s.ref_ = Some(schemas.enqueue(queue, resolved_ref));
-            if root.draft.version < 2019 {
-                // All other properties in a "$ref" object MUST be ignored
-                return Ok(s);
-            }
+        s.ref_ = load_ref("$ref", queue)?;
+        if s.ref_.is_some() && root.draft.version < 2019 {
+            // All other properties in a "$ref" object MUST be ignored
+            return Ok(s);
         }
+        // if let Some(Value::String(ref_)) = obj.get("$ref") {
+        //     let (_, ptr) = split(&loc);
+        //     let abs_ref =
+        //         root.base_url(ptr)
+        //             .join(ref_)
+        //             .map_err(|e| CompileError::ParseUrlError {
+        //                 url: ref_.clone(),
+        //                 src: e.into(),
+        //             })?;
+        //     let resolved_ref = root.resolve(abs_ref.as_str())?;
+        //     s.ref_ = Some(schemas.enqueue(queue, resolved_ref));
+        //     if root.draft.version < 2019 {
+        //         // All other properties in a "$ref" object MUST be ignored
+        //         return Ok(s);
+        //     }
+        // }
 
         if let Some(t) = obj.get("type") {
             match t {
@@ -346,6 +368,11 @@ impl Compiler {
                         .insert(pname.clone(), to_strings(pvalue));
                 }
             }
+
+            if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
+                s.recursive_anchor = *b;
+            }
+            s.recursive_ref = load_ref("$recursive_ref", queue)?;
         }
 
         // draft2020 --
