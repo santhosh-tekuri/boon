@@ -383,7 +383,7 @@ impl Compiler {
                 }
             }
 
-            if root.has_vocab("validator") {
+            if root.has_vocab("validation") {
                 if s.contains.is_some() {
                     s.max_contains = load_usize("maxContains");
                     s.min_contains = load_usize("minContains");
