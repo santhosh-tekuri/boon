@@ -49,9 +49,10 @@ impl Schemas {
         self.list.len() + queue.len() - 1
     }
 
-    fn insert(&mut self, loc: String, sch: Schema) -> SchemaIndex {
+    fn insert(&mut self, loc: String, mut sch: Schema) -> SchemaIndex {
+        let index = self.list.len();
+        sch.index = index;
         self.list.push(sch);
-        let index = self.list.len() - 1;
         self.map.insert(loc, index);
         SchemaIndex(index)
     }
@@ -80,7 +81,7 @@ impl Schemas {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
-        sch.validate(v, String::new(), self).map(|_| ())
+        sch.validate(v, String::new(), self, None).map(|_| ())
     }
 }
 
@@ -101,6 +102,7 @@ macro_rules! kind {
 
 #[derive(Default)]
 struct Schema {
+    index: usize,
     loc: String,
     vocab: Vec<String>,
 
@@ -206,8 +208,9 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 }
 
 #[derive(Debug, Default)]
-struct Scope {
-    stack: Vec<usize>,
+struct Scope<'a> {
+    sch: usize,
+    parent: Option<&'a Scope<'a>>,
 }
 
 impl Schema {
@@ -227,7 +230,13 @@ impl Schema {
         v: &'v Value,
         vloc: String,
         schemas: &Schemas,
+        parent_scope: Option<&Scope>,
     ) -> Result<Uneval<'v>, ValidationError> {
+        let scope = Scope {
+            sch: self.index,
+            parent: parent_scope,
+        };
+
         let error = |kw_path, kind| {
             Err(ValidationError {
                 absolute_keyword_location: format!("{}/{kw_path}", self.loc),
@@ -278,11 +287,13 @@ impl Schema {
         let validate = |sch: usize, v: &Value, vpath: &str| {
             schemas
                 .get(sch)
-                .validate(v, format!("{vloc}{vpath}"), schemas)
+                .validate(v, format!("{vloc}{vpath}"), schemas, Some(&scope))
                 .map(|_| ())
         };
         let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
-            let result = schemas.get(sch).validate(v, vloc.clone(), schemas);
+            let result = schemas
+                .get(sch)
+                .validate(v, vloc.clone(), schemas, Some(&scope));
             if let Ok(reply) = &result {
                 uneval.merge(reply);
             }
@@ -632,6 +643,24 @@ impl Schema {
         // $ref --
         if let Some(ref_) = self.ref_ {
             validate_self(ref_, uneval)?;
+        }
+
+        // $recursiveRef --
+        if let Some(mut recursive_ref) = self.recursive_ref {
+            if schemas.get(recursive_ref).recursive_anchor {
+                let mut scope = &scope;
+                loop {
+                    if schemas.get(scope.sch).recursive_anchor {
+                        recursive_ref = scope.sch;
+                    }
+                    if let Some(parent) = scope.parent {
+                        scope = parent;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            validate_self(recursive_ref, uneval)?;
         }
 
         // not --

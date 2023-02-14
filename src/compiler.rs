@@ -372,7 +372,7 @@ impl Compiler {
             if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
                 s.recursive_anchor = *b;
             }
-            s.recursive_ref = load_ref("$recursive_ref", queue)?;
+            s.recursive_ref = load_ref("$recursiveRef", queue)?;
         }
 
         // draft2020 --
