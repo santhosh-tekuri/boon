@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
+const TESTS_DIR: &str = "tests/JSON-Schema-Test-Suite/tests";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Group {
@@ -22,30 +23,32 @@ struct Test {
 
 #[test]
 fn test_suite() {
-    run_file("draft4/type.json", Draft::V4);
-    run_file("draft4/enum.json", Draft::V4);
-    run_file("draft4/minProperties.json", Draft::V4);
-    run_file("draft4/maxProperties.json", Draft::V4);
-    run_file("draft4/required.json", Draft::V4);
-    run_file("draft4/properties.json", Draft::V4);
-    run_file("draft4/minItems.json", Draft::V4);
-    run_file("draft4/maxItems.json", Draft::V4);
-    run_file("draft4/uniqueItems.json", Draft::V4);
-    run_file("draft4/minLength.json", Draft::V4);
-    run_file("draft4/maxLength.json", Draft::V4);
-    run_file("draft4/additionalProperties.json", Draft::V4);
-    run_file("draft4/additionalItems.json", Draft::V4);
-    run_file("draft4/not.json", Draft::V4);
-    run_file("draft4/allOf.json", Draft::V4);
-    run_file("draft4/anyOf.json", Draft::V4);
-    run_file("draft4/oneOf.json", Draft::V4);
-    run_file("draft4/dependencies.json", Draft::V4);
-    run_file("draft4/default.json", Draft::V4);
-    run_file("draft4/ref.json", Draft::V4);
+    run_dir("draft6", Draft::V6);
+    // run_file("draft4/refRemote.json", Draft::V4);
+}
+
+fn run_dir(path: &str, draft: Draft) {
+    let path = Path::new(TESTS_DIR).join(path);
+    for entry in path.read_dir().unwrap() {
+        let entry = entry.unwrap();
+        let file_type = entry.file_type().unwrap();
+        let entry_path = entry.path();
+        let entry_path = entry_path
+            .strip_prefix(TESTS_DIR)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        if file_type.is_file() {
+            run_file(entry_path, draft);
+        } else if file_type.is_dir() {
+            //run_dir(entry_path, draft);
+        }
+    }
 }
 
 fn run_file(path: &str, draft: Draft) {
-    let path = Path::new(SUITE_DIR).join("tests").join(path);
+    println!("FILE: {path}");
+    let path = Path::new(TESTS_DIR).join(path);
     let file = File::open(path).unwrap();
 
     let url = "http://testsuite.com/schema.json";
@@ -80,6 +83,7 @@ impl UrlLoader for RemotesLoader {
             return Ok(json);
         }
 
+        // Meta-Schemas --
         let url = url.as_str();
         let meta = if let Some(suffix) = url.strip_prefix("http://json-schema.org/") {
             Some(suffix)
@@ -93,6 +97,7 @@ impl UrlLoader for RemotesLoader {
             let json: Value = serde_json::from_reader(file)?;
             return Ok(json);
         }
+
         Err("no internet")?
     }
 }
