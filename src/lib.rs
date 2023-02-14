@@ -365,6 +365,17 @@ impl Schema {
                     }
                 }
 
+                // propertyNames --
+                if let Some(sch) = &self.property_names {
+                    for pname in obj.keys() {
+                        schemas.get(*sch).validate(
+                            &Value::String(pname.to_owned()),
+                            format!("{vloc}/{}", escape(pname)),
+                            schemas,
+                        )?;
+                    }
+                }
+
                 // additionalProperties --
                 if let Some(additional) = &self.additional_properties {
                     match additional {
