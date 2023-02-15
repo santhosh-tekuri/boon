@@ -399,6 +399,13 @@ impl Compiler {
 
             if root.has_vocab("applicator") {
                 s.dependent_schemas = load_schema_map("dependentSchemas", queue);
+            }
+
+            if root.has_vocab(if root.draft.version == 2019 {
+                "applicator"
+            } else {
+                "unevaluated"
+            }) {
                 s.unevaluated_items = load_schema("unevaluatedItems", queue);
                 s.unevaluated_properties = load_schema("unevaluatedProperties", queue);
             }
@@ -407,8 +414,17 @@ impl Compiler {
         // draft2020 --
         if root.draft.version >= 2020 {
             s.contains_marks_evaluated = true;
-            s.prefix_items = load_schema_arr("prefixItems", queue);
-            s.items2020 = load_schema("items", queue);
+            if root.has_vocab("core") {
+                s.dynamic_ref = load_ref("$dynamicRef", queue)?;
+                if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
+                    s.dynamic_anchor = Some(anchor.to_owned());
+                }
+            }
+
+            if root.has_vocab("applicator") {
+                s.prefix_items = load_schema_arr("prefixItems", queue);
+                s.items2020 = load_schema("items", queue);
+            }
         }
 
         Ok(s)
