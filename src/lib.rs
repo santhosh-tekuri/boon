@@ -106,6 +106,7 @@ macro_rules! kind {
 
 #[derive(Default)]
 struct Schema {
+    draft_version: usize,
     index: usize,
     loc: String,
     resource: usize,
@@ -265,7 +266,9 @@ impl Schema {
                     if let Value::Number(n) = v {
                         return n.is_i64()
                             || n.is_u64()
-                            || n.as_f64().filter(|n| n.fract() == 0.0).is_some();
+                            || n.as_f64()
+                                .filter(|n| self.draft_version >= 6 && n.fract() == 0.0)
+                                .is_some();
                     }
                 }
                 *t == v_type

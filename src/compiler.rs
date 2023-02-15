@@ -129,6 +129,7 @@ impl Compiler {
         queue: &mut VecDeque<String>,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.clone());
+        s.draft_version = root.draft.version;
 
         // we know it is already in queue, we just want to get its index
         s.index = schemas.enqueue(queue, loc.to_owned());
