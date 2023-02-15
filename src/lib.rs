@@ -110,6 +110,8 @@ struct Schema {
     ref_: Option<usize>,
     recursive_ref: Option<usize>,
     recursive_anchor: bool,
+    dynamic_ref: Option<usize>,
+    dynamic_anchor: Option<String>,
     types: Vec<Type>,
     enum_: Vec<Value>,
     constant: Option<Value>,
@@ -506,7 +508,12 @@ impl Schema {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, item)| {
-                            validate(*sch, item, &i.to_string()).ok().map(|_| i)
+                            validate(*sch, item, &i.to_string()).ok().map(|_| {
+                                if self.contains_marks_evaluated {
+                                    uneval.items.remove(&i);
+                                }
+                                i
+                            })
                         })
                         .collect();
                     if contains_matched.is_empty() && self.min_contains.is_none() {
@@ -665,6 +672,14 @@ impl Schema {
                 }
             }
             validate_self(recursive_ref, uneval)?;
+        }
+
+        // $dynamicRef --
+        if let Some(dynamic_ref) = self.dynamic_ref {
+            if let Some(_dynamic_anchor) = &schemas.get(dynamic_ref).dynamic_anchor {
+                todo!("$dynamicRef");
+            }
+            validate_self(dynamic_ref, uneval)?;
         }
 
         // not --
