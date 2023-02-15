@@ -129,6 +129,28 @@ impl Compiler {
         queue: &mut VecDeque<String>,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.clone());
+
+        // we know it is already in queue, we just want to get its index
+        s.index = schemas.enqueue(queue, loc.to_owned());
+        s.resource = {
+            let (_, ptr) = split(&loc);
+            let base = root.base_url(ptr);
+            let base_loc = root.resolve(base.as_str())?;
+            schemas.enqueue(queue, base_loc)
+        };
+
+        // enqueue dynamicAnchors for compilation
+        if s.index == s.resource && root.draft.version >= 2020 {
+            let (url, ptr) = split(&loc);
+            if let Some(res) = root.resource(ptr) {
+                for danchor in &res.dynamic_anchors {
+                    let danchor_ptr = res.anchors.get(danchor).unwrap();
+                    let danchor_sch = schemas.enqueue(queue, format!("{url}#{danchor_ptr}"));
+                    s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
+                }
+            }
+        }
+
         let obj = match v {
             Value::Object(obj) => obj,
             Value::Bool(b) => {

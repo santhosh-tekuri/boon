@@ -27,7 +27,7 @@ fn test_suite() {
     run_dir("draft6", Draft::V6);
     run_dir("draft7", Draft::V7);
     run_dir("draft2019-09", Draft::V2019_09);
-    // run_file("draft4/refRemote.json", Draft::V4);
+    run_dir("draft2020-12", Draft::V2020_12);
 }
 
 fn run_dir(path: &str, draft: Draft) {

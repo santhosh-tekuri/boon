@@ -257,6 +257,7 @@ impl Draft {
         let Value::Object(obj) = json else {
             return Ok(());
         };
+        //todo: shouldn't we add resource for root boolean schema?? think
 
         let id = if self.version < 2019 {
             if obj.contains_key("$ref") {

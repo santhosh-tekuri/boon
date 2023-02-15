@@ -73,6 +73,19 @@ impl Root {
         }
     }
 
+    pub(crate) fn resource(&self, mut ptr: &str) -> Option<&Resource> {
+        loop {
+            if let Some(res) = self.resources.get(ptr) {
+                return Some(res);
+            }
+            let Some(slash) = ptr.rfind('/') else {
+                break;
+            };
+            ptr = &ptr[..slash];
+        }
+        None
+    }
+
     pub(crate) fn base_url(&self, mut ptr: &str) -> &Url {
         loop {
             if let Some(Resource { id, .. }) = self.resources.get(ptr) {

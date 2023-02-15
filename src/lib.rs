@@ -54,9 +54,8 @@ impl Schemas {
         self.list.len() + queue.len() - 1
     }
 
-    fn insert(&mut self, loc: String, mut sch: Schema) -> SchemaIndex {
+    fn insert(&mut self, loc: String, sch: Schema) -> SchemaIndex {
         let index = self.list.len();
-        sch.index = index;
         self.list.push(sch);
         self.map.insert(loc, index);
         SchemaIndex(index)
@@ -109,6 +108,8 @@ macro_rules! kind {
 struct Schema {
     index: usize,
     loc: String,
+    resource: usize,
+    dynamic_anchors: HashMap<String, usize>,
 
     // type agnostic --
     boolean: Option<bool>, // boolean schema
@@ -666,7 +667,9 @@ impl Schema {
             if schemas.get(recursive_ref).recursive_anchor {
                 let mut scope = &scope;
                 loop {
-                    if schemas.get(scope.sch).recursive_anchor {
+                    let scope_sch = schemas.get(scope.sch);
+                    let base_sch = schemas.get(scope_sch.resource);
+                    if base_sch.recursive_anchor {
                         recursive_ref = scope.sch;
                     }
                     if let Some(parent) = scope.parent {
@@ -680,9 +683,22 @@ impl Schema {
         }
 
         // $dynamicRef --
-        if let Some(dynamic_ref) = self.dynamic_ref {
-            if let Some(_dynamic_anchor) = &schemas.get(dynamic_ref).dynamic_anchor {
-                todo!("$dynamicRef");
+        if let Some(mut dynamic_ref) = self.dynamic_ref {
+            if let Some(dynamic_anchor) = &schemas.get(dynamic_ref).dynamic_anchor {
+                let mut scope = &scope;
+                loop {
+                    let scope_sch = schemas.get(scope.sch);
+                    let base_sch = schemas.get(scope_sch.resource);
+                    debug_assert_eq!(base_sch.index, base_sch.resource);
+                    if let Some(sch) = base_sch.dynamic_anchors.get(dynamic_anchor) {
+                        dynamic_ref = *sch;
+                    }
+                    if let Some(parent) = scope.parent {
+                        scope = parent;
+                    } else {
+                        break;
+                    }
+                }
             }
             validate_self(dynamic_ref, uneval)?;
         }
