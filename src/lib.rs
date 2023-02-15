@@ -447,8 +447,8 @@ impl Schema {
                 if self.unique_items {
                     for i in 1..arr.len() {
                         for j in 0..i {
-                            if arr[i] == arr[j] {
-                                return error("uniqueItems", kind!(UniqueItems, got: [i, j]));
+                            if equals(&arr[i], &arr[j]) {
+                                return error("uniqueItems", kind!(UniqueItems, got: [j, i]));
                             }
                         }
                     }
