@@ -88,7 +88,12 @@ impl Compiler {
         }
 
         let mut queue = VecDeque::new();
-        queue.push_back(loc);
+        let index = target.enqueue(&mut queue, loc);
+        if queue.is_empty() {
+            // already got compiled
+            return Ok(SchemaIndex(index));
+        }
+
         let mut sch_index = None;
         while let Some(loc) = queue.front() {
             let (url, ptr) = split(loc);
