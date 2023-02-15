@@ -39,12 +39,17 @@ impl Schemas {
         if loc.rfind('#').is_none() {
             loc.push('#');
         }
+
         if let Some(&index) = self.map.get(&loc) {
+            // already got compiled
             return index;
         }
         if let Some(qindex) = queue.iter().position(|e| *e == loc) {
+            // already queued for compilation
             return self.list.len() + qindex;
         }
+
+        // new compilation request
         queue.push_back(loc);
         self.list.len() + queue.len() - 1
     }

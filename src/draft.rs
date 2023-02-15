@@ -239,7 +239,8 @@ impl Draft {
         }
         if self.version >= 2020 {
             if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
-                add_anchor(anchor.into())?;
+                add_anchor(anchor.clone())?;
+                res.dynamic_anchors.insert(anchor.clone());
             }
         }
         Ok(())

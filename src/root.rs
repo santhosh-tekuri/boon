@@ -147,6 +147,7 @@ impl Root {
 pub(crate) struct Resource {
     pub(crate) id: Url,
     pub(crate) anchors: HashMap<String, String>, // anchor => ptr
+    pub(crate) dynamic_anchors: HashSet<String>,
 }
 
 impl Resource {
@@ -154,6 +155,7 @@ impl Resource {
         Self {
             id,
             anchors: HashMap::new(),
+            dynamic_anchors: HashSet::new(),
         }
     }
 }
