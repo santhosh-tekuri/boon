@@ -150,7 +150,6 @@ struct Schema {
     min_contains: Option<usize>,
     max_contains: Option<usize>,
     contains: Option<usize>,
-    contains_marks_evaluated: bool,
     items: Option<Items>,
     additional_items: Option<Additional>,
     prefix_items: Vec<usize>,
@@ -518,7 +517,7 @@ impl Schema {
                         .enumerate()
                         .filter_map(|(i, item)| {
                             validate(*sch, item, &i.to_string()).ok().map(|_| {
-                                if self.contains_marks_evaluated {
+                                if self.draft_version >= 2020 {
                                     uneval.items.remove(&i);
                                 }
                                 i

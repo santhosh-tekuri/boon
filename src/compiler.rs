@@ -441,7 +441,6 @@ impl Compiler {
 
         // draft2020 --
         if root.draft.version >= 2020 {
-            s.contains_marks_evaluated = true;
             if root.has_vocab("core") {
                 s.dynamic_ref = load_ref("$dynamicRef", queue)?;
                 if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
