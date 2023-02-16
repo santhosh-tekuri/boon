@@ -40,6 +40,7 @@ fn test_suite() {
         "draft7/optional/format/relative-json-pointer.json",
         Draft::V7,
     );
+    run_file("draft2020-12/optional/format/uuid.json", Draft::V2020_12);
 }
 
 fn run_dir(path: &str, draft: Draft) {

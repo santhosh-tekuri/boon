@@ -18,6 +18,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("date", is_date);
     m.insert("json-pointer", is_json_pointer_value);
     m.insert("relative-json-pointer", is_relative_json_pointer);
+    m.insert("uuid", is_uuid);
     m
 });
 
@@ -52,7 +53,7 @@ fn is_hostname_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
-    return is_hostname(s);
+    is_hostname(s)
 }
 
 // see https://en.wikipedia.org/wiki/Hostname#Restrictions_on_valid_host_names
@@ -158,7 +159,7 @@ fn is_json_pointer_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
-    return is_json_pointer(s);
+    is_json_pointer(s)
 }
 
 // see https://www.rfc-editor.org/rfc/rfc6901#section-3
@@ -198,5 +199,25 @@ fn is_relative_json_pointer(v: &Value) -> bool {
     let s = &s[num_digits..];
 
     // followed by either json-pointer or '#'
-    return s == "#" || is_json_pointer(s);
+    s == "#" || is_json_pointer(s)
+}
+
+// see https://datatracker.ietf.org/doc/html/rfc4122#page-4
+fn is_uuid(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    static HEX_GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
+    let mut i = 0;
+    for group in s.split('-') {
+        if i > HEX_GROUPS.len()
+            || group.len() != HEX_GROUPS[i]
+            || !group.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return false;
+        }
+        i += 1;
+    }
+    i == HEX_GROUPS.len()
 }
