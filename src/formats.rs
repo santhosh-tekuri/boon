@@ -16,6 +16,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("hostname", is_hostname_value);
     m.insert("email", is_email);
     m.insert("date", is_date);
+    m.insert("duration", is_duration);
     m.insert("json-pointer", is_json_pointer_value);
     m.insert("relative-json-pointer", is_relative_json_pointer);
     m.insert("uuid", is_uuid);
@@ -47,6 +48,57 @@ fn is_date(v: &Value) -> bool {
 
     // to ensure zero padded
     &d.format("%Y-%m-%d").to_string() == s
+}
+
+// see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
+fn is_duration(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    // must start with 'P'
+    let Some(s) = s.strip_prefix('P') else {
+        return false;
+    };
+    if s.is_empty() {
+        return false;
+    }
+
+    // dur-week
+    if let Some(s) = s.strip_suffix('W') {
+        return s.chars().all(|c| c.is_ascii_digit());
+    }
+
+    static UNITS: [&str; 2] = ["YMD", "HMS"];
+    let mut i = 0;
+    for s in s.split('T') {
+        let mut s = s;
+        if i != 0 && s.is_empty() {
+            return false;
+        }
+        if i > UNITS.len() {
+            return false;
+        }
+        let mut units = UNITS[i];
+        i += 1;
+        while !s.is_empty() {
+            let digit_count = s.chars().take_while(|c| c.is_ascii_digit()).count();
+            if digit_count == 0 {
+                return false;
+            }
+            s = &s[digit_count..];
+            let Some(unit) = s.chars().next() else {
+                return false;
+            };
+            let Some(i) = units.find(unit) else {
+                return false;
+            };
+            units = &units[i + 1..];
+            s = &s[1..];
+        }
+    }
+
+    true
 }
 
 fn is_hostname_value(v: &Value) -> bool {
