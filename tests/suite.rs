@@ -29,37 +29,30 @@ fn test_suite() {
     run_dir("draft2019-09", Draft::V2019_09);
     run_dir("draft2020-12", Draft::V2020_12);
 
-    run_file("draft4/optional/format/unknown.json", Draft::V4);
-    run_file("draft4/optional/format/ipv4.json", Draft::V4);
-    run_file("draft4/optional/format/ipv6.json", Draft::V4);
-    run_file("draft4/optional/format/hostname.json", Draft::V4);
-    run_file("draft4/optional/format/email.json", Draft::V4);
-    run_file("draft7/optional/format/date.json", Draft::V7);
-    run_file("draft7/optional/format/json-pointer.json", Draft::V7);
-    run_file(
-        "draft7/optional/format/relative-json-pointer.json",
-        Draft::V7,
-    );
-    run_file("draft2020-12/optional/format/uuid.json", Draft::V2020_12);
-    run_file(
-        "draft2020-12/optional/format/duration.json",
-        Draft::V2020_12,
-    );
-    run_file("draft2020-12/optional/format/regex.json", Draft::V2020_12);
-    run_file("draft2020-12/optional/format/time.json", Draft::V2020_12);
-    run_file(
-        "draft2020-12/optional/format/date-time.json",
-        Draft::V2020_12,
-    );
-    run_file("draft2020-12/optional/format/uri.json", Draft::V2020_12);
-    run_file(
-        "draft2020-12/optional/format/uri-reference.json",
-        Draft::V2020_12,
-    );
-    run_file(
-        "draft2020-12/optional/format/iri-reference.json",
-        Draft::V2020_12,
-    );
+    let formats = [
+        "regex",
+        "ipv4",
+        "ipv6",
+        "hostname",
+        "email",
+        "date",
+        "time",
+        "date-time",
+        "duration",
+        "json-pointer",
+        "relative-json-pointer",
+        "uuid",
+        "uri",
+        "uri-reference",
+        "iri-reference",
+        "uri-template",
+    ];
+    for format in formats {
+        run_file(
+            &format!("draft2020-12/optional/format/{format}.json"),
+            Draft::V2020_12,
+        );
+    }
 }
 
 fn run_dir(path: &str, draft: Draft) {
