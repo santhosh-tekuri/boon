@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::{hash_map::Entry, HashMap},
-    str::Utf8Error,
 };
 
 use once_cell::sync::Lazy;
@@ -156,38 +155,6 @@ impl Draft {
             "json-schema.org/draft-04/schema" => Some(&DRAFT4),
             _ => None,
         }
-    }
-
-    fn has_anchor(&self, json: &Value, anchor: &str) -> Result<bool, Utf8Error> {
-        let Value::Object(obj) = json else {
-            return Ok(false);
-        };
-
-        if self.version < 2019 {
-            // anchor is specified in id
-            if let Some(Value::String(id)) = obj.get(self.id) {
-                let (_, fragment) = split(id);
-                let Some(got) = fragment_to_anchor(fragment)? else {
-                    return Ok(false);
-                };
-                return Ok(got.as_ref() == anchor);
-            }
-        }
-        if self.version >= 2019 {
-            if let Some(Value::String(s)) = obj.get("$anchor") {
-                if s == anchor {
-                    return Ok(true);
-                }
-            }
-        }
-        if self.version >= 2019 {
-            if let Some(Value::String(s)) = obj.get("$dynamicAnchor") {
-                if s == anchor {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
     }
 
     fn collect_anchors(
