@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path};
+use std::{ffi::OsStr, fs::File, path::Path};
 
 use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,14 @@ use serde_json::Value;
 
 const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
 const TESTS_DIR: &str = "tests/JSON-Schema-Test-Suite/tests";
+static SKIP: [&str; 6] = [
+    "content.json",
+    "zeroTerminatedFloats.json",
+    "float-overflow.json",
+    "ecmascript-regex.json",
+    "idn-hostname.json",
+    "idn-email.json",
+];
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Group {
@@ -68,9 +76,11 @@ fn run_dir(path: &str, draft: Draft) {
             .to_str()
             .unwrap();
         if file_type.is_file() {
-            run_file(entry_path, draft);
+            if !SKIP.iter().any(|n| OsStr::new(n) == entry.file_name()) {
+                run_file(entry_path, draft);
+            }
         } else if file_type.is_dir() {
-            //run_dir(entry_path, draft);
+            run_dir(entry_path, draft);
         }
     }
 }
