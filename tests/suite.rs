@@ -35,6 +35,7 @@ fn test_suite() {
     run_file("draft4/optional/format/hostname.json", Draft::V4);
     run_file("draft4/optional/format/email.json", Draft::V4);
     run_file("draft7/optional/format/date.json", Draft::V7);
+    run_file("draft7/optional/format/json-pointer.json", Draft::V7);
 }
 
 fn run_dir(path: &str, draft: Draft) {
