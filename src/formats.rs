@@ -17,6 +17,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("email", is_email);
     m.insert("date", is_date);
     m.insert("json-pointer", is_json_pointer_value);
+    m.insert("relative-json-pointer", is_relative_json_pointer);
     m
 });
 
@@ -181,4 +182,21 @@ fn is_json_pointer(s: &str) -> bool {
         }
     }
     true
+}
+
+// see https://tools.ietf.org/html/draft-handrews-relative-json-pointer-01#section-3
+fn is_relative_json_pointer(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    // start with non-negative-integer
+    let num_digits = s.chars().take_while(|c| matches!(c, '0'..='9')).count();
+    if num_digits == 0 || (num_digits > 1 && s.starts_with('0')) {
+        return false;
+    }
+    let s = &s[num_digits..];
+
+    // followed by either json-pointer or '#'
+    return s == "#" || is_json_pointer(s);
 }
