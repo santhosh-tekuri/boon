@@ -446,7 +446,7 @@ impl Compiler {
                     s.else_ = load_schema("else", queue);
                 }
             }
-            if root.has_vocab("content") {
+            if self.assert_content {
                 if let Some(Value::String(encoding)) = obj.get("contentEncoding") {
                     let func = self
                         .decoders
