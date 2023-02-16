@@ -27,6 +27,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("relative-json-pointer", is_relative_json_pointer);
     m.insert("uuid", is_uuid);
     m.insert("uri", is_uri);
+    m.insert("iri", is_uri);
     m.insert("uri-reference", is_uri_reference);
     m.insert("iri-reference", is_uri_reference);
     m.insert("uri-template", is_uri_template);

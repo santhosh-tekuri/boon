@@ -43,6 +43,7 @@ fn test_suite() {
         "relative-json-pointer",
         "uuid",
         "uri",
+        "iri",
         "uri-reference",
         "iri-reference",
         "uri-template",
