@@ -7,6 +7,7 @@ use chrono::NaiveDate;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
+use url::Url;
 
 use crate::Format;
 
@@ -24,6 +25,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("json-pointer", is_json_pointer_value);
     m.insert("relative-json-pointer", is_relative_json_pointer);
     m.insert("uuid", is_uuid);
+    m.insert("uri", is_uri);
     m
 });
 
@@ -375,4 +377,11 @@ fn is_uuid(v: &Value) -> bool {
         i += 1;
     }
     i == HEX_GROUPS.len()
+}
+
+fn is_uri(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+    Url::parse(s).is_ok()
 }

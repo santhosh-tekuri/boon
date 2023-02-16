@@ -51,6 +51,7 @@ fn test_suite() {
         "draft2020-12/optional/format/date-time.json",
         Draft::V2020_12,
     );
+    run_file("draft2020-12/optional/format/uri.json", Draft::V2020_12);
 }
 
 fn run_dir(path: &str, draft: Draft) {
