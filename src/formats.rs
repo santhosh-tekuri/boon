@@ -5,6 +5,7 @@ use std::{
 
 use chrono::NaiveDate;
 use once_cell::sync::Lazy;
+use percent_encoding::{percent_decode, percent_decode_str};
 use regex::Regex;
 use serde_json::Value;
 use url::Url;
@@ -28,6 +29,7 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("uri", is_uri);
     m.insert("uri-reference", is_uri_reference);
     m.insert("iri-reference", is_uri_reference);
+    m.insert("uri-template", is_uri_template);
     m
 });
 
@@ -388,15 +390,61 @@ fn is_uri(v: &Value) -> bool {
     Url::parse(s).is_ok()
 }
 
+fn parse_uri_reference(s: &str) -> Option<Url> {
+    match Url::parse(s) {
+        Ok(url) => Some(url),
+        Err(url::ParseError::RelativeUrlWithoutBase) => match Url::parse("http://temp.com") {
+            Ok(url) => {
+                if s.contains('\\') {
+                    return None;
+                }
+                Some(url)
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn is_uri_reference(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
-    match Url::parse(s) {
-        Ok(_) => true,
-        Err(url::ParseError::RelativeUrlWithoutBase) => {
-            Url::parse("http://temp.com").unwrap().join(s).is_ok() && !s.contains('\\')
+    parse_uri_reference(s).is_some()
+}
+
+fn is_uri_template(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    let Some(url) = parse_uri_reference(s) else {
+        return false;
+    };
+
+    let path = url.path();
+    // path we got has curly bases percent encoded
+    let Ok(path) = percent_decode_str(path).decode_utf8() else {
+        return false;
+    };
+
+    // ensure curly brackets are not nested and balanced
+    for part in path.as_ref().split('/') {
+        let mut want = true;
+        for got in part
+            .chars()
+            .filter(|c| matches!(c, '{' | '}'))
+            .map(|c| c == '{')
+        {
+            if got != want {
+                return false;
+            }
+            want = !want;
         }
-        _ => false,
+        if !want {
+            // no matching closing bracket
+            return false;
+        }
     }
+    true
 }
