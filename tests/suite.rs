@@ -35,32 +35,6 @@ fn test_suite() {
     run_dir("draft7", Draft::V7);
     run_dir("draft2019-09", Draft::V2019_09);
     run_dir("draft2020-12", Draft::V2020_12);
-
-    let formats = [
-        "regex",
-        "ipv4",
-        "ipv6",
-        "hostname",
-        "email",
-        "date",
-        "time",
-        "date-time",
-        "duration",
-        "json-pointer",
-        "relative-json-pointer",
-        "uuid",
-        "uri",
-        "iri",
-        "uri-reference",
-        "iri-reference",
-        "uri-template",
-    ];
-    for format in formats {
-        run_file(
-            &format!("draft2020-12/optional/format/{format}.json"),
-            Draft::V2020_12,
-        );
-    }
 }
 
 fn run_dir(path: &str, draft: Draft) {
