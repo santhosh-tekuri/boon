@@ -54,6 +54,8 @@ impl Default for Draft {
 #[derive(Default)]
 pub struct Compiler {
     roots: Roots,
+    assert_format: bool,
+    assert_content: bool,
     formats: HashMap<&'static str, Format>,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
@@ -64,16 +66,24 @@ impl Compiler {
         Self::default()
     }
 
+    pub fn set_default_draft(&mut self, d: Draft) {
+        self.roots.default_draft = d.internal()
+    }
+
+    pub fn enable_format_assertions(&mut self) {
+        self.assert_format = true;
+    }
+
+    pub fn enable_content_assertions(&mut self) {
+        self.assert_content = true;
+    }
+
     pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.register(scheme, url_loader);
     }
 
     pub fn register_format(&mut self, name: &'static str, format: Format) {
         self.formats.insert(name, format);
-    }
-
-    pub fn set_default_draft(&mut self, d: Draft) {
-        self.roots.default_draft = d.internal()
     }
 
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
@@ -381,22 +391,25 @@ impl Compiler {
             if let Some(req) = obj.get("required") {
                 s.required = to_strings(req);
             }
+        }
 
-            if root.has_vocab(if root.draft.version < 2019 {
+        // format --
+        if self.assert_format
+            || root.has_vocab(if root.draft.version < 2019 {
                 "core"
             } else if root.draft.version == 2019 {
                 "format"
             } else {
                 "format-assertion"
-            }) {
-                if let Some(Value::String(format)) = obj.get("format") {
-                    let func = self
-                        .formats
-                        .get(format.as_str())
-                        .or_else(|| FORMATS.get(format.as_str()));
-                    if let Some(func) = func {
-                        s.format = Some((format.to_owned(), func.clone()));
-                    }
+            })
+        {
+            if let Some(Value::String(format)) = obj.get("format") {
+                let func = self
+                    .formats
+                    .get(format.as_str())
+                    .or_else(|| FORMATS.get(format.as_str()));
+                if let Some(func) = func {
+                    s.format = Some((format.to_owned(), func.clone()));
                 }
             }
         }

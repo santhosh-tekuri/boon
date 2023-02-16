@@ -59,6 +59,7 @@ fn run_dir(path: &str, draft: Draft) {
 fn run_file(path: &str, draft: Draft) {
     println!("FILE: {path}");
     let path = Path::new(TESTS_DIR).join(path);
+    let optional = path.components().any(|comp| comp.as_os_str() == "optional");
     let file = File::open(path).unwrap();
 
     let url = "http://testsuite.com/schema.json";
@@ -68,6 +69,10 @@ fn run_file(path: &str, draft: Draft) {
         let mut schemas = Schemas::default();
         let mut compiler = Compiler::default();
         compiler.set_default_draft(draft);
+        if optional {
+            compiler.enable_format_assertions();
+            compiler.enable_content_assertions();
+        }
         compiler.register_url_loader("http", Box::new(RemotesLoader));
         compiler.register_url_loader("https", Box::new(RemotesLoader));
         compiler.add_resource(url, group.schema).unwrap();
