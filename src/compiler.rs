@@ -7,6 +7,7 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
+use crate::content::{DECODERS, MEDIA_TYPES};
 use crate::draft::{DRAFT2019, DRAFT2020, DRAFT4, DRAFT6, DRAFT7};
 use crate::formats::FORMATS;
 use crate::root::Root;
@@ -57,8 +58,8 @@ pub struct Compiler {
     assert_format: bool,
     assert_content: bool,
     formats: HashMap<&'static str, Format>,
-    decoders: HashMap<String, Decoder>,
-    media_types: HashMap<String, MediaType>,
+    decoders: HashMap<&'static str, Decoder>,
+    media_types: HashMap<&'static str, MediaType>,
 }
 
 impl Compiler {
@@ -435,6 +436,27 @@ impl Compiler {
                 if s.if_.is_some() {
                     s.then = load_schema("then", queue);
                     s.else_ = load_schema("else", queue);
+                }
+            }
+            if root.has_vocab("content") {
+                if let Some(Value::String(encoding)) = obj.get("contentEncoding") {
+                    let func = self
+                        .decoders
+                        .get(encoding.as_str())
+                        .or_else(|| DECODERS.get(encoding.as_str()));
+                    if let Some(func) = func {
+                        s.content_encoding = Some((encoding.to_owned(), func.clone()));
+                    }
+                }
+
+                if let Some(Value::String(media_type)) = obj.get("contentMediaType") {
+                    let func = self
+                        .media_types
+                        .get(media_type.as_str())
+                        .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
+                    if let Some(func) = func {
+                        s.content_media_type = Some((media_type.to_owned(), func.clone()));
+                    }
                 }
             }
         }

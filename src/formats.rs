@@ -10,7 +10,7 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
-use crate::Format;
+pub(crate) type Format = fn(&Value) -> bool;
 
 pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Format>::new();

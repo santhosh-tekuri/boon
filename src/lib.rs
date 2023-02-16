@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod compiler;
+mod content;
 mod draft;
 mod formats;
 mod loader;
@@ -10,6 +11,8 @@ mod util;
 
 pub use compiler::Draft;
 pub use compiler::*;
+use content::{Decoder, MediaType};
+use formats::Format;
 pub use loader::*;
 
 use std::{
@@ -162,10 +165,8 @@ struct Schema {
     min_length: Option<usize>,
     max_length: Option<usize>,
     pattern: Option<Regex>,
-    content_encoding: Option<String>,
-    decoder: Option<Decoder>,
-    content_media_type: Option<String>,
-    media_type: Option<MediaType>,
+    content_encoding: Option<(String, Decoder)>,
+    content_media_type: Option<(String, MediaType)>,
 
     // number --
     minimum: Option<Number>,
@@ -290,8 +291,8 @@ impl Schema {
         }
 
         // format --
-        if let Some((format, func)) = &self.format {
-            if !func(v) {
+        if let Some((format, check)) = &self.format {
+            if !check(v) {
                 return error("format", kind!(Format, v.clone(), format.clone()));
             }
         }
@@ -581,32 +582,24 @@ impl Schema {
 
                 // contentEncoding --
                 let mut decoded = Cow::from(s.as_bytes());
-                if let Some(decode) = &self.decoder {
+                if let Some((encoding, decode)) = &self.content_encoding {
                     match decode(s) {
                         Some(bytes) => decoded = Cow::from(bytes),
                         None => {
                             return error(
                                 "contentEncoding",
-                                kind!(
-                                    ContentEncoding,
-                                    s.clone(),
-                                    self.content_encoding.clone().unwrap()
-                                ),
+                                kind!(ContentEncoding, s.clone(), encoding.clone()),
                             )
                         }
                     }
                 }
 
                 // contentMediaType --
-                if let Some(media_type) = &self.media_type {
-                    if !media_type(decoded.as_ref()) {
+                if let Some((media_type, check)) = &self.content_media_type {
+                    if !check(decoded.as_ref()) {
                         return error(
                             "contentMediaType",
-                            kind!(
-                                ContentMediaType,
-                                decoded.into_owned(),
-                                self.content_media_type.clone().unwrap()
-                            ),
+                            kind!(ContentMediaType, decoded.into_owned(), media_type.clone()),
                         );
                     }
                 }
@@ -1016,7 +1009,3 @@ impl Display for ErrorKind {
         }
     }
 }
-
-type Decoder = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
-type MediaType = Box<dyn Fn(&[u8]) -> bool>;
-type Format = fn(&Value) -> bool;
