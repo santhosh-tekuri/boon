@@ -87,6 +87,14 @@ impl Compiler {
         self.formats.insert(name, format);
     }
 
+    pub fn register_decoder(&mut self, content_encoding: &'static str, decoder: Decoder) {
+        self.decoders.insert(content_encoding, decoder);
+    }
+
+    pub fn register_media_type(&mut self, media_type: &'static str, validator: MediaType) {
+        self.media_types.insert(media_type, validator);
+    }
+
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
         let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
             url: url.to_owned(),
