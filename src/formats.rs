@@ -17,8 +17,9 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("ipv6", is_ipv6);
     m.insert("hostname", is_hostname_value);
     m.insert("email", is_email);
-    m.insert("date", is_date);
+    m.insert("date", is_date_value);
     m.insert("time", is_time_value);
+    m.insert("date-time", is_date_time);
     m.insert("duration", is_duration);
     m.insert("json-pointer", is_json_pointer_value);
     m.insert("relative-json-pointer", is_relative_json_pointer);
@@ -47,11 +48,15 @@ fn is_ipv6(v: &Value) -> bool {
     s.parse::<Ipv6Addr>().is_ok()
 }
 
-// see https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
-fn is_date(v: &Value) -> bool {
+fn is_date_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
+    is_date(s)
+}
+
+// see https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
+fn is_date(s: &str) -> bool {
     let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") else {
         return false;
     };
@@ -68,6 +73,7 @@ fn is_time_value(v: &Value) -> bool {
 }
 
 fn is_time(mut str: &str) -> bool {
+    // min: hh:mm:ssZ
     if str.len() < 9 {
         return false;
     }
@@ -130,6 +136,21 @@ fn is_time(mut str: &str) -> bool {
 
     // check leapsecond
     return s < 60 || h == 23 && m == 59;
+}
+
+fn is_date_time(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    // min: yyyy-mm-ddThh:mm:ssZ
+    if s.len() < 20 {
+        return false;
+    }
+    if !s.is_char_boundary(10) || !s[10..].starts_with(|c| matches!(c, 't' | 'T')) {
+        return false;
+    }
+    is_date(&s[..10]) && is_time(&s[11..])
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A

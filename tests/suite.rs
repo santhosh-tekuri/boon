@@ -47,6 +47,10 @@ fn test_suite() {
     );
     run_file("draft2020-12/optional/format/regex.json", Draft::V2020_12);
     run_file("draft2020-12/optional/format/time.json", Draft::V2020_12);
+    run_file(
+        "draft2020-12/optional/format/date-time.json",
+        Draft::V2020_12,
+    );
 }
 
 fn run_dir(path: &str, draft: Draft) {
