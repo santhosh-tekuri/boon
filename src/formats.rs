@@ -5,12 +5,14 @@ use std::{
 
 use chrono::NaiveDate;
 use once_cell::sync::Lazy;
+use regex::Regex;
 use serde_json::Value;
 
 use crate::Format;
 
 pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Format>::new();
+    m.insert("regex", is_regex);
     m.insert("ipv4", is_ipv4);
     m.insert("ipv6", is_ipv6);
     m.insert("hostname", is_hostname_value);
@@ -22,6 +24,13 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("uuid", is_uuid);
     m
 });
+
+fn is_regex(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+    Regex::new(s).is_ok()
+}
 
 fn is_ipv4(v: &Value) -> bool {
     let Value::String(s) = v else {
