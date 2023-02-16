@@ -28,6 +28,13 @@ fn test_suite() {
     run_dir("draft7", Draft::V7);
     run_dir("draft2019-09", Draft::V2019_09);
     run_dir("draft2020-12", Draft::V2020_12);
+
+    run_file("draft4/optional/format/unknown.json", Draft::V4);
+    run_file("draft4/optional/format/ipv4.json", Draft::V4);
+    run_file("draft4/optional/format/ipv6.json", Draft::V4);
+    run_file("draft4/optional/format/hostname.json", Draft::V4);
+    run_file("draft4/optional/format/email.json", Draft::V4);
+    run_file("draft7/optional/format/date.json", Draft::V7);
 }
 
 fn run_dir(path: &str, draft: Draft) {

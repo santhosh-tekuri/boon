@@ -8,6 +8,7 @@ use serde_json::Value;
 use url::Url;
 
 use crate::draft::{DRAFT2019, DRAFT2020, DRAFT4, DRAFT6, DRAFT7};
+use crate::formats::FORMATS;
 use crate::root::Root;
 use crate::roots::Roots;
 use crate::util::*;
@@ -53,6 +54,7 @@ impl Default for Draft {
 #[derive(Default)]
 pub struct Compiler {
     roots: Roots,
+    formats: HashMap<&'static str, Format>,
     decoders: HashMap<String, Decoder>,
     media_types: HashMap<String, MediaType>,
 }
@@ -64,6 +66,10 @@ impl Compiler {
 
     pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.register(scheme, url_loader);
+    }
+
+    pub fn register_format(&mut self, name: &'static str, format: Format) {
+        self.formats.insert(name, format);
     }
 
     pub fn set_default_draft(&mut self, d: Draft) {
@@ -374,6 +380,24 @@ impl Compiler {
 
             if let Some(req) = obj.get("required") {
                 s.required = to_strings(req);
+            }
+
+            if root.has_vocab(if root.draft.version < 2019 {
+                "core"
+            } else if root.draft.version == 2019 {
+                "format"
+            } else {
+                "format-assertion"
+            }) {
+                if let Some(Value::String(format)) = obj.get("format") {
+                    let func = self
+                        .formats
+                        .get(format.as_str())
+                        .or_else(|| FORMATS.get(format.as_str()));
+                    if let Some(func) = func {
+                        s.format = Some((format.to_owned(), func.clone()));
+                    }
+                }
             }
         }
 

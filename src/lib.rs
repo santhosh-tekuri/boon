@@ -2,6 +2,7 @@
 
 mod compiler;
 mod draft;
+mod formats;
 mod loader;
 mod root;
 mod roots;
@@ -129,6 +130,7 @@ struct Schema {
     if_: Option<usize>,
     then: Option<usize>,
     else_: Option<usize>,
+    format: Option<(String, Format)>,
 
     // object --
     min_properties: Option<usize>,
@@ -286,6 +288,13 @@ impl Schema {
         if let Some(c) = &self.constant {
             if !equals(v, c) {
                 return error("const", kind!(Const, v.clone(), c.clone()));
+            }
+        }
+
+        // format --
+        if let Some((format, func)) = &self.format {
+            if !func(v) {
+                return error("format", kind!(Format, v.clone(), format.clone()));
             }
         }
 
@@ -867,6 +876,7 @@ pub enum ErrorKind {
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },
     Const { got: Value, want: Value },
+    Format { got: Value, want: String },
     MinProperties { got: usize, want: usize },
     MaxProperties { got: usize, want: usize },
     AdditionalProperties { got: Vec<String> },
@@ -924,6 +934,7 @@ impl Display for ErrorKind {
                     write!(f, "const failed")
                 }
             }
+            Self::Format { got, want } => write!(f, "{got} is not valid {want}"),
             Self::MinProperties { got, want } => write!(
                 f,
                 "minimum {want} properties allowed, but got {got} properties"
@@ -1010,3 +1021,4 @@ impl Display for ErrorKind {
 
 type Decoder = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
 type MediaType = Box<dyn Fn(&[u8]) -> bool>;
+type Format = fn(&Value) -> bool;
