@@ -26,6 +26,8 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("relative-json-pointer", is_relative_json_pointer);
     m.insert("uuid", is_uuid);
     m.insert("uri", is_uri);
+    m.insert("uri-reference", is_uri_reference);
+    m.insert("iri-reference", is_uri_reference);
     m
 });
 
@@ -384,4 +386,17 @@ fn is_uri(v: &Value) -> bool {
         return true;
     };
     Url::parse(s).is_ok()
+}
+
+fn is_uri_reference(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+    match Url::parse(s) {
+        Ok(_) => true,
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            Url::parse("http://temp.com").unwrap().join(s).is_ok() && !s.contains('\\')
+        }
+        _ => false,
+    }
 }
