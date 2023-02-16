@@ -5,7 +5,7 @@ use std::{
 
 use chrono::NaiveDate;
 use once_cell::sync::Lazy;
-use percent_encoding::{percent_decode, percent_decode_str};
+use percent_encoding::percent_decode_str;
 use regex::Regex;
 use serde_json::Value;
 use url::Url;
@@ -301,8 +301,8 @@ fn is_email(v: &Value) -> bool {
 
     // domain if enclosed in brackets, must match an IP address
     if domain.starts_with('[') && domain.ends_with(']') {
-        let ip = &domain[1..domain.len() - 1];
-        if let Some(s) = ip.strip_prefix("IPv6:") {
+        let s = &domain[1..domain.len() - 1];
+        if let Some(s) = s.strip_prefix("IPv6:") {
             return s.parse::<Ipv6Addr>().is_ok();
         }
         return s.parse::<Ipv4Addr>().is_ok();
