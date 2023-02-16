@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, fs::File, path::Path};
+use std::{error::Error, ffi::OsStr, fs::File, path::Path};
 
 use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
@@ -29,43 +29,41 @@ struct Test {
 }
 
 #[test]
-fn test_suite() {
-    run_dir("draft4", Draft::V4);
-    run_dir("draft6", Draft::V6);
-    run_dir("draft7", Draft::V7);
-    run_dir("draft2019-09", Draft::V2019_09);
-    run_dir("draft2020-12", Draft::V2020_12);
+fn test_suite() -> Result<(), Box<dyn Error>> {
+    run_dir("draft4", Draft::V4)?;
+    run_dir("draft6", Draft::V6)?;
+    run_dir("draft7", Draft::V7)?;
+    run_dir("draft2019-09", Draft::V2019_09)?;
+    run_dir("draft2020-12", Draft::V2020_12)?;
+    Ok(())
 }
 
-fn run_dir(path: &str, draft: Draft) {
+fn run_dir(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
     let path = Path::new(TESTS_DIR).join(path);
-    for entry in path.read_dir().unwrap() {
-        let entry = entry.unwrap();
-        let file_type = entry.file_type().unwrap();
+    for entry in path.read_dir()? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
         let entry_path = entry.path();
-        let entry_path = entry_path
-            .strip_prefix(TESTS_DIR)
-            .unwrap()
-            .to_str()
-            .unwrap();
+        let entry_path = entry_path.strip_prefix(TESTS_DIR)?.to_str().unwrap();
         if file_type.is_file() {
             if !SKIP.iter().any(|n| OsStr::new(n) == entry.file_name()) {
-                run_file(entry_path, draft);
+                run_file(entry_path, draft)?;
             }
         } else if file_type.is_dir() {
-            run_dir(entry_path, draft);
+            run_dir(entry_path, draft)?;
         }
     }
+    Ok(())
 }
 
-fn run_file(path: &str, draft: Draft) {
+fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
     println!("FILE: {path}");
     let path = Path::new(TESTS_DIR).join(path);
     let optional = path.components().any(|comp| comp.as_os_str() == "optional");
-    let file = File::open(path).unwrap();
+    let file = File::open(path)?;
 
     let url = "http://testsuite.com/schema.json";
-    let groups: Vec<Group> = serde_json::from_reader(file).unwrap();
+    let groups: Vec<Group> = serde_json::from_reader(file)?;
     for group in groups {
         println!("{}", group.description);
         let mut schemas = Schemas::default();
@@ -77,8 +75,8 @@ fn run_file(path: &str, draft: Draft) {
         }
         compiler.register_url_loader("http", Box::new(RemotesLoader));
         compiler.register_url_loader("https", Box::new(RemotesLoader));
-        compiler.add_resource(url, group.schema).unwrap();
-        let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
+        compiler.add_resource(url, group.schema)?;
+        let sch_index = compiler.compile(&mut schemas, url.into())?;
         for test in group.tests {
             println!("    {}", test.description);
             let result = schemas.validate(&test.data, sch_index);
@@ -88,6 +86,7 @@ fn run_file(path: &str, draft: Draft) {
             assert_eq!(result.is_ok(), test.valid);
         }
     }
+    Ok(())
 }
 
 struct RemotesLoader;
