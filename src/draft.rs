@@ -169,8 +169,7 @@ impl Draft {
             4 => Some("http://json-schema.org/draft-04/schema#"),
             _ => None,
         };
-        loc.map(|loc| STD_METASCHEMAS.get_by_loc(loc))
-            .flatten()
+        loc.and_then(|loc| STD_METASCHEMAS.get_by_loc(loc))
             .map(|s| s.index)
     }
 
@@ -389,7 +388,7 @@ mod tests {
     fn test_collect_ids() {
         let base = Url::parse("http://a.com/schema.json").unwrap();
         let json: Value = serde_json::from_str(
-            &r#"{
+            r#"{
                 "id": "http://a.com/schemas/schema.json",
                 "definitions": {
                     "s1": { "id": "http://a.com/definitions/s1" },
@@ -443,7 +442,7 @@ mod tests {
     fn test_collect_anchors() {
         let base = Url::parse("http://a.com/schema.json").unwrap();
         let json: Value = serde_json::from_str(
-            &r#"{
+            r#"{
                 "$defs": {
                     "s2": {
                         "$id": "http://b.com",

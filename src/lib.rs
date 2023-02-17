@@ -953,7 +953,7 @@ impl Display for ErrorKind {
             Self::Required { want } => write!(
                 f,
                 "missing properties {}",
-                join_iter(want.iter().map(|p| quote(p)), ", ")
+                join_iter(want.iter().map(quote), ", ")
             ),
             Self::DependentRequired { got, want } => write!(
                 f,

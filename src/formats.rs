@@ -69,7 +69,7 @@ fn is_date(s: &str) -> bool {
     };
 
     // to ensure zero padded
-    &d.format("%Y-%m-%d").to_string() == s
+    d.format("%Y-%m-%d").to_string() == s
 }
 
 fn is_time_value(v: &Value) -> bool {
@@ -89,10 +89,9 @@ fn is_time(mut str: &str) -> bool {
     if !str.is_char_boundary(8) {
         return false;
     }
-    let mut hms = (&str[..8])
+    let mut hms = (str[..8])
         .splitn(3, ':')
-        .map(|t| t.parse::<usize>().ok())
-        .flatten();
+        .filter_map(|t| t.parse::<usize>().ok());
     let (Some(mut h), Some(mut m), Some(s)) = (hms.next(), hms.next(), hms.next()) else {
         return false;
     };
@@ -122,8 +121,7 @@ fn is_time(mut str: &str) -> bool {
         };
         let mut zhm = str[1..]
             .splitn(2, ':')
-            .map(|t| t.parse::<usize>().ok())
-            .flatten();
+            .filter_map(|t| t.parse::<usize>().ok());
         let (Some(zh), Some(zm)) = (zhm.next(), zhm.next()) else {
             return false;
         };
@@ -142,7 +140,7 @@ fn is_time(mut str: &str) -> bool {
     }
 
     // check leapsecond
-    return s < 60 || h == 23 && m == 59;
+    s < 60 || h == 23 && m == 59
 }
 
 fn is_date_time(v: &Value) -> bool {
@@ -180,8 +178,7 @@ fn is_duration(v: &Value) -> bool {
     }
 
     static UNITS: [&str; 2] = ["YMD", "HMS"];
-    let mut i = 0;
-    for s in s.split('T') {
+    for (i, s) in s.split('T').enumerate() {
         let mut s = s;
         if i != 0 && s.is_empty() {
             return false;
@@ -190,7 +187,6 @@ fn is_duration(v: &Value) -> bool {
             return false;
         }
         let mut units = UNITS[i];
-        i += 1;
         while !s.is_empty() {
             let digit_count = s.chars().take_while(|c| c.is_ascii_digit()).count();
             if digit_count == 0 {
@@ -200,10 +196,10 @@ fn is_duration(v: &Value) -> bool {
             let Some(unit) = s.chars().next() else {
                 return false;
             };
-            let Some(i) = units.find(unit) else {
+            let Some(j) = units.find(unit) else {
                 return false;
             };
-            units = &units[i + 1..];
+            units = &units[j + 1..];
             s = &s[1..];
         }
     }
@@ -354,7 +350,7 @@ fn is_relative_json_pointer(v: &Value) -> bool {
     };
 
     // start with non-negative-integer
-    let num_digits = s.chars().take_while(|c| matches!(c, '0'..='9')).count();
+    let num_digits = s.chars().take_while(|c| c.is_ascii_digit()).count();
     if num_digits == 0 || (num_digits > 1 && s.starts_with('0')) {
         return false;
     }

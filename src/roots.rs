@@ -106,7 +106,7 @@ impl Roots {
             if let Some(std_sch) = draft.get_schema() {
                 STD_METASCHEMAS
                     .validate(&doc, SchemaIndex(std_sch))
-                    .map_err(|e| CompileError::NotValid(e))?;
+                    .map_err(CompileError::NotValid)?;
             } else {
                 return Err(CompileError::Bug(
                     format!("no metaschema preloaded for draft {}", draft.version).into(),

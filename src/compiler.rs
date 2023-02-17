@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt::Display;
@@ -356,12 +357,10 @@ impl Compiler {
 
         // format --
         if self.assert_format
-            || h.has_vocab(if h.draft_version() < 2019 {
-                "core"
-            } else if h.draft_version() == 2019 {
-                "format"
-            } else {
-                "format-assertion"
+            || h.has_vocab(match h.draft_version().cmp(&2019) {
+                Ordering::Less => "core",
+                Ordering::Equal => "format",
+                Ordering::Greater => "format-assertion",
             })
         {
             if let Some(Value::String(format)) = obj.get("format") {
@@ -370,7 +369,7 @@ impl Compiler {
                     .get(format.as_str())
                     .or_else(|| FORMATS.get(format.as_str()));
                 if let Some(func) = func {
-                    s.format = Some((format.to_owned(), func.clone()));
+                    s.format = Some((format.to_owned(), *func));
                 }
             }
         }
@@ -416,7 +415,7 @@ impl Compiler {
                     .get(encoding.as_str())
                     .or_else(|| DECODERS.get(encoding.as_str()));
                 if let Some(func) = func {
-                    s.content_encoding = Some((encoding.to_owned(), func.clone()));
+                    s.content_encoding = Some((encoding.to_owned(), *func));
                 }
             }
 
@@ -426,7 +425,7 @@ impl Compiler {
                     .get(media_type.as_str())
                     .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
                 if let Some(func) = func {
-                    s.content_media_type = Some((media_type.to_owned(), func.clone()));
+                    s.content_media_type = Some((media_type.to_owned(), *func));
                 }
             }
         }
@@ -577,7 +576,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
 
     fn enqueue_ref(&mut self, pname: &str) -> Result<Option<usize>, CompileError> {
         if let Some(Value::String(ref_)) = self.obj.get(pname) {
-            let (_, ptr) = split(&self.loc);
+            let (_, ptr) = split(self.loc);
             let abs_ref =
                 self.root
                     .base_url(ptr)
@@ -728,7 +727,7 @@ mod tests {
         c.roots.or_insert(url.clone(), sch).unwrap();
         let loc = format!("{url}#");
         let mut schemas = Schemas::default();
-        let sch_index = c.compile(&mut schemas, loc.clone()).unwrap();
+        let sch_index = c.compile(&mut schemas, loc).unwrap();
         let inst: Value = Value::String("xx".into());
         schemas.validate(&inst, sch_index).unwrap();
     }
