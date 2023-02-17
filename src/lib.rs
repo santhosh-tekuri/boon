@@ -920,7 +920,7 @@ impl Display for ErrorKind {
             }
             Self::Const { want, .. } => {
                 if Type::primitive(want) {
-                    write!(f, "value must be {want:?}")
+                    write!(f, "value must be {want}")
                 } else {
                     write!(f, "const failed")
                 }
@@ -941,7 +941,11 @@ impl Display for ErrorKind {
                     join_iter(got.iter().map(quote), ", ")
                 )
             }
-            Self::Required { want } => write!(f, "missing properties {}", want.join(", ")),
+            Self::Required { want } => write!(
+                f,
+                "missing properties {}",
+                join_iter(want.iter().map(|p| quote(p)), ", ")
+            ),
             Self::DependentRequired { got, want } => write!(
                 f,
                 "properties {} required, if {} property exists",

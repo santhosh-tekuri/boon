@@ -307,7 +307,10 @@ impl Compiler {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = obj.get("patternProperties") {
                     for pname in obj.keys() {
-                        let regex = Regex::new(pname).map_err(|e| CompileError::Bug(e.into()))?;
+                        let regex = Regex::new(pname).map_err(|_| CompileError::InvalidRegex {
+                            url: format!("{loc}/patternProperties"),
+                            regex: pname.clone(),
+                        })?;
                         let sch = schemas
                             .enqueue(queue, format!("{loc}/patternProperties/{}", escape(pname)));
                         v.push((regex, sch));
@@ -569,6 +572,10 @@ pub enum CompileError {
         url: String,
         vocabulary: String,
     },
+    InvalidRegex {
+        url: String,
+        regex: String,
+    },
     Bug(Box<dyn Error>),
 }
 
@@ -629,6 +636,9 @@ impl Display for CompileError {
             }
             Self::UnsupprtedVocabulary { url, vocabulary } => {
                 write!(f, "unsupported vocabulary {vocabulary} in {url}")
+            }
+            Self::InvalidRegex { url, regex } => {
+                write!(f, "invalid regex {} at {}", quote(regex), url)
             }
             Self::Bug(src) => {
                 write!(

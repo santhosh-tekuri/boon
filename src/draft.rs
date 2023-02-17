@@ -309,82 +309,36 @@ impl Draft {
 
 fn load_std_metaschemas() -> Result<Schemas, CompileError> {
     let mut files = HashMap::new();
-    files.insert(
-        "https://json-schema.org/draft/2020-12/schema",
-        include_str!("metaschemas/draft/2020-12/schema"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/schema",
-        include_str!("metaschemas/draft/2019-09/schema"),
-    );
-    files.insert(
-        "http://json-schema.org/draft-07/schema",
-        include_str!("metaschemas/draft-07/schema"),
-    );
-    files.insert(
-        "http://json-schema.org/draft-06/schema",
-        include_str!("metaschemas/draft-06/schema"),
-    );
-    files.insert(
-        "http://json-schema.org/draft-04/schema",
-        include_str!("metaschemas/draft-04/schema"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/core",
-        include_str!("metaschemas/draft/2019-09/meta/core"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/core",
-        include_str!("metaschemas/draft/2020-12/meta/core"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/applicator",
-        include_str!("metaschemas/draft/2019-09/meta/applicator"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/applicator",
-        include_str!("metaschemas/draft/2020-12/meta/applicator"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/unevaluated",
-        include_str!("metaschemas/draft/2020-12/meta/unevaluated"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/validation",
-        include_str!("metaschemas/draft/2020-12/meta/validation"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/meta-data",
-        include_str!("metaschemas/draft/2020-12/meta/meta-data"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/content",
-        include_str!("metaschemas/draft/2020-12/meta/content"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/format-annotation",
-        include_str!("metaschemas/draft/2020-12/meta/format-annotation"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2020-12/meta/format-assertion",
-        include_str!("metaschemas/draft/2020-12/meta/format-assertion"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/validation",
-        include_str!("metaschemas/draft/2019-09/meta/validation"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/meta-data",
-        include_str!("metaschemas/draft/2019-09/meta/meta-data"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/format",
-        include_str!("metaschemas/draft/2019-09/meta/format"),
-    );
-    files.insert(
-        "https://json-schema.org/draft/2019-09/meta/content",
-        include_str!("metaschemas/draft/2019-09/meta/content"),
-    );
+    macro_rules! add {
+        ($path:expr) => {
+            let scheme = $path.find("/draft/").map_or("http", |_| "https");
+            let url = format!(
+                "{scheme}://json-schema.org{}",
+                &$path["metaschemas".len()..]
+            );
+            files.insert(url.as_str(), include_str!($path));
+        };
+    }
+    add!("metaschemas/draft-04/schema");
+    add!("metaschemas/draft-06/schema");
+    add!("metaschemas/draft-07/schema");
+    add!("metaschemas/draft/2019-09/schema");
+    add!("metaschemas/draft/2019-09/meta/core");
+    add!("metaschemas/draft/2019-09/meta/applicator");
+    add!("metaschemas/draft/2019-09/meta/validation");
+    add!("metaschemas/draft/2019-09/meta/meta-data");
+    add!("metaschemas/draft/2019-09/meta/format");
+    add!("metaschemas/draft/2019-09/meta/content");
+    add!("metaschemas/draft/2020-12/schema");
+    add!("metaschemas/draft/2020-12/meta/core");
+    add!("metaschemas/draft/2020-12/meta/applicator");
+    add!("metaschemas/draft/2020-12/meta/unevaluated");
+    add!("metaschemas/draft/2020-12/meta/validation");
+    add!("metaschemas/draft/2020-12/meta/meta-data");
+    add!("metaschemas/draft/2020-12/meta/content");
+    add!("metaschemas/draft/2020-12/meta/format-annotation");
+    add!("metaschemas/draft/2020-12/meta/format-assertion");
+
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     for (url, content) in &files {
