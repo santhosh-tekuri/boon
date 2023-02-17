@@ -1,4 +1,3 @@
-use std::cell::BorrowMutError;
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt::Display;
@@ -649,12 +648,6 @@ impl Display for CompileError {
                 )
             }
         }
-    }
-}
-
-impl From<BorrowMutError> for CompileError {
-    fn from(value: BorrowMutError) -> Self {
-        Self::Bug(value.into())
     }
 }
 
