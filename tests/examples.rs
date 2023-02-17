@@ -40,6 +40,7 @@ fn example_from_strings() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+#[ignore]
 fn example_from_https() -> Result<(), Box<dyn Error>> {
     let schema_url = "https://json-schema.org/learn/examples/geographical-location.schema.json";
     let instance: Value =
