@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt::Display;
 
 use regex::Regex;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use url::Url;
 
 use crate::content::{DECODERS, MEDIA_TYPES};
@@ -134,7 +134,7 @@ impl Compiler {
                 return Err(CompileError::JsonPointerNotFound(loc.to_owned()));
             };
 
-            let sch = self.compile_one(target, v, loc.to_owned(), root, &mut queue)?;
+            let sch = self.compile_value(target, v, loc.to_owned(), root, &mut queue)?;
             let loc = queue
                 .pop_front()
                 .ok_or(CompileError::Bug("queue must be non-empty".into()))?;
@@ -144,7 +144,7 @@ impl Compiler {
         sch_index.ok_or(CompileError::Bug("schema_index must exist".into()))
     }
 
-    fn compile_one(
+    fn compile_value(
         &self,
         schemas: &Schemas,
         v: &Value,
@@ -176,143 +176,91 @@ impl Compiler {
             }
         }
 
-        let obj = match v {
-            Value::Object(obj) => obj,
-            Value::Bool(b) => {
-                // boolean schema
-                s.boolean = Some(*b);
-                return Ok(s);
+        match v {
+            Value::Object(obj) => {
+                let mut h = Helper {
+                    obj,
+                    loc: &loc,
+                    schemas,
+                    queue,
+                    root,
+                };
+                self.compile_obj(&mut s, obj, &mut h)?;
             }
-            _ => return Ok(s),
-        };
+            Value::Bool(b) => s.boolean = Some(*b),
+            _ => {}
+        }
+        Ok(s)
+    }
 
-        // helpers --
-        let load_usize = |pname| {
-            if let Some(Value::Number(n)) = obj.get(pname) {
-                if n.is_u64() {
-                    n.as_u64().map(|n| n as usize)
-                } else {
-                    n.as_f64()
-                        .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
-                        .map(|n| n as usize)
-                }
-            } else {
-                None
-            }
-        };
-        let load_num = |pname| {
-            if let Some(Value::Number(n)) = obj.get(pname) {
-                Some(n.clone())
-            } else {
-                None
-            }
-        };
-        let to_strings = |v: &Value| {
-            if let Value::Array(a) = v {
-                a.iter()
-                    .filter_map(|t| {
-                        if let Value::String(t) = t {
-                            Some(t.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            } else {
-                vec![]
-            }
-        };
-        let enqueue =
-            |path, queue: &mut VecDeque<String>| schemas.enqueue(queue, format!("{loc}/{path}"));
-        let enqueue_prop = |pname, queue: &mut VecDeque<String>| {
-            if obj.contains_key(pname) {
-                Some(schemas.enqueue(queue, format!("{loc}/{}", escape(pname))))
-            } else {
-                None
-            }
-        };
-        let enquue_arr = |pname, queue: &mut VecDeque<String>| {
-            if let Some(Value::Array(arr)) = obj.get(pname) {
-                (0..arr.len())
-                    .map(|i| schemas.enqueue(queue, format!("{loc}/{pname}/{i}")))
-                    .collect()
-            } else {
-                Vec::new()
-            }
-        };
-        let enqueue_map = |pname, queue: &mut VecDeque<String>| {
-            if let Some(Value::Object(obj)) = obj.get(pname) {
-                obj.keys()
-                    .map(|k| {
-                        (
-                            k.clone(),
-                            schemas.enqueue(queue, format!("{loc}/{pname}/{}", escape(k))),
-                        )
-                    })
-                    .collect()
-            } else {
-                HashMap::new()
-            }
-        };
-        let enqueue_ref =
-            |pname, queue: &mut VecDeque<String>| -> Result<Option<usize>, CompileError> {
-                if let Some(Value::String(ref_)) = obj.get(pname) {
-                    let (_, ptr) = split(&loc);
-                    let abs_ref =
-                        root.base_url(ptr)
-                            .join(ref_)
-                            .map_err(|e| CompileError::ParseUrlError {
-                                url: ref_.clone(),
-                                src: e.into(),
-                            })?;
-                    let resolved_ref = root.resolve(abs_ref.as_str())?;
-                    Ok(Some(schemas.enqueue(queue, resolved_ref)))
-                } else {
-                    Ok(None)
-                }
-            };
+    fn compile_obj(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        self.compile_draft4(s, obj, h)?;
+        if h.draft_version() >= 6 {
+            self.compile_draft6(s, obj, h)?;
+        }
+        if h.draft_version() >= 7 {
+            self.compile_draft7(s, obj, h)?;
+        }
+        if h.draft_version() >= 2019 {
+            self.compile_draft2019(s, obj, h)?;
+        }
+        if h.draft_version() >= 2020 {
+            self.compile_draft2020(s, obj, h)?;
+        }
+        Ok(())
+    }
 
-        // draft4 --
-        if root.has_vocab("core") {
-            s.ref_ = enqueue_ref("$ref", queue)?;
-            if s.ref_.is_some() && root.draft.version < 2019 {
+    fn compile_draft4(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        if h.has_vocab("core") {
+            s.ref_ = h.enqueue_ref("$ref")?;
+            if s.ref_.is_some() && h.draft_version() < 2019 {
                 // All other properties in a "$ref" object MUST be ignored
-                return Ok(s);
+                return Ok(());
             }
         }
 
-        if root.has_vocab("applicator") {
-            s.all_of = enquue_arr("allOf", queue);
-            s.any_of = enquue_arr("anyOf", queue);
-            s.one_of = enquue_arr("oneOf", queue);
-            s.not = enqueue_prop("not", queue);
+        if h.has_vocab("applicator") {
+            s.all_of = h.enqueue_arr("allOf");
+            s.any_of = h.enqueue_arr("anyOf");
+            s.one_of = h.enqueue_arr("oneOf");
+            s.not = h.enqueue_prop("not");
 
-            if root.draft.version < 2020 {
+            if h.draft_version() < 2020 {
                 match obj.get("items") {
                     Some(Value::Array(_)) => {
-                        s.items = Some(Items::SchemaRefs(enquue_arr("items", queue)));
+                        s.items = Some(Items::SchemaRefs(h.enqueue_arr("items")));
                         s.additional_items = {
                             if let Some(Value::Bool(b)) = obj.get("additionalItems") {
                                 Some(Additional::Bool(*b))
                             } else {
-                                enqueue_prop("additionalItems", queue).map(Additional::SchemaRef)
+                                h.enqueue_prop("additionalItems").map(Additional::SchemaRef)
                             }
                         };
                     }
-                    _ => s.items = enqueue_prop("items", queue).map(Items::SchemaRef),
+                    _ => s.items = h.enqueue_prop("items").map(Items::SchemaRef),
                 }
             }
 
-            s.properties = enqueue_map("properties", queue);
+            s.properties = h.enqueue_map("properties");
             s.pattern_properties = {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = obj.get("patternProperties") {
                     for pname in obj.keys() {
                         let regex = Regex::new(pname).map_err(|_| CompileError::InvalidRegex {
-                            url: format!("{loc}/patternProperties"),
+                            url: format!("{}/patternProperties", h.loc),
                             regex: pname.clone(),
                         })?;
-                        let sch = enqueue(format!("patternProperties/{}", escape(pname)), queue);
+                        let sch = h.enqueue_path(format!("patternProperties/{}", escape(pname)));
                         v.push((regex, sch));
                     }
                 }
@@ -323,7 +271,8 @@ impl Compiler {
                 if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
                     Some(Additional::Bool(*b))
                 } else {
-                    enqueue_prop("additionalProperties", queue).map(Additional::SchemaRef)
+                    h.enqueue_prop("additionalProperties")
+                        .map(Additional::SchemaRef)
                 }
             };
 
@@ -333,10 +282,9 @@ impl Compiler {
                     .filter_map(|(k, v)| {
                         let v = match v {
                             Value::Array(_) => Some(Dependency::Props(to_strings(v))),
-                            _ => Some(Dependency::SchemaRef(enqueue(
-                                format!("dependencies/{}", escape(k)),
-                                queue,
-                            ))),
+                            _ => Some(Dependency::SchemaRef(
+                                h.enqueue_path(format!("dependencies/{}", escape(k))),
+                            )),
                         };
                         v.map(|v| (k.clone(), v))
                     })
@@ -344,7 +292,7 @@ impl Compiler {
             }
         }
 
-        if root.has_vocab("validation") {
+        if h.has_vocab("validation") {
             if let Some(t) = obj.get("type") {
                 match t {
                     Value::String(t) => s.types.extend(Type::from_str(t)),
@@ -365,41 +313,41 @@ impl Compiler {
                 s.enum_ = e.clone();
             }
 
-            s.multiple_of = load_num("multipleOf");
+            s.multiple_of = h.load_num("multipleOf");
 
-            s.maximum = load_num("maximum");
+            s.maximum = h.load_num("maximum");
             if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMaximum") {
                 if *exclusive {
-                    (s.maximum, s.exclusive_maximum) = (None, s.maximum);
+                    s.exclusive_maximum = s.maximum.take();
                 }
             } else {
-                s.exclusive_maximum = load_num("exclusiveMaximum");
+                s.exclusive_maximum = h.load_num("exclusiveMaximum");
             }
 
-            s.minimum = load_num("minimum");
+            s.minimum = h.load_num("minimum");
             if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMinimum") {
                 if *exclusive {
-                    (s.minimum, s.exclusive_minimum) = (None, s.minimum);
+                    s.exclusive_minimum = s.minimum.take();
                 }
             } else {
-                s.exclusive_minimum = load_num("exclusiveMinimum");
+                s.exclusive_minimum = h.load_num("exclusiveMinimum");
             }
 
-            s.max_length = load_usize("maxLength");
-            s.min_length = load_usize("minLength");
+            s.max_length = h.load_usize("maxLength");
+            s.min_length = h.load_usize("minLength");
 
             if let Some(Value::String(p)) = obj.get("pattern") {
                 s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
-            s.max_items = load_usize("maxItems");
-            s.min_items = load_usize("minItems");
+            s.max_items = h.load_usize("maxItems");
+            s.min_items = h.load_usize("minItems");
             if let Some(Value::Bool(unique)) = obj.get("uniqueItems") {
                 s.unique_items = *unique;
             }
 
-            s.max_properties = load_usize("maxProperties");
-            s.min_properties = load_usize("minProperties");
+            s.max_properties = h.load_usize("maxProperties");
+            s.min_properties = h.load_usize("minProperties");
 
             if let Some(req) = obj.get("required") {
                 s.required = to_strings(req);
@@ -408,9 +356,9 @@ impl Compiler {
 
         // format --
         if self.assert_format
-            || root.has_vocab(if root.draft.version < 2019 {
+            || h.has_vocab(if h.draft_version() < 2019 {
                 "core"
-            } else if root.draft.version == 2019 {
+            } else if h.draft_version() == 2019 {
                 "format"
             } else {
                 "format-assertion"
@@ -426,106 +374,223 @@ impl Compiler {
                 }
             }
         }
+        Ok(())
+    }
 
-        // draft6 --
-        if root.draft.version >= 6 {
-            if root.has_vocab("applicator") {
-                s.contains = enqueue_prop("contains", queue);
-                s.property_names = enqueue_prop("propertyNames", queue);
+    fn compile_draft6(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        if h.has_vocab("applicator") {
+            s.contains = h.enqueue_prop("contains");
+            s.property_names = h.enqueue_prop("propertyNames");
+        }
+
+        if h.has_vocab("validation") {
+            if let Some(constant) = obj.get("const") {
+                s.constant = Some(constant.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_draft7(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        if h.has_vocab("applicator") {
+            s.if_ = h.enqueue_prop("if");
+            if s.if_.is_some() {
+                s.then = h.enqueue_prop("then");
+                s.else_ = h.enqueue_prop("else");
+            }
+        }
+        if self.assert_content {
+            if let Some(Value::String(encoding)) = obj.get("contentEncoding") {
+                let func = self
+                    .decoders
+                    .get(encoding.as_str())
+                    .or_else(|| DECODERS.get(encoding.as_str()));
+                if let Some(func) = func {
+                    s.content_encoding = Some((encoding.to_owned(), func.clone()));
+                }
             }
 
-            if root.has_vocab("validation") {
-                if let Some(constant) = obj.get("const") {
-                    s.constant = Some(constant.clone());
+            if let Some(Value::String(media_type)) = obj.get("contentMediaType") {
+                let func = self
+                    .media_types
+                    .get(media_type.as_str())
+                    .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
+                if let Some(func) = func {
+                    s.content_media_type = Some((media_type.to_owned(), func.clone()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_draft2019(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        if h.has_vocab("core") {
+            s.recursive_ref = h.enqueue_ref("$recursiveRef")?;
+            if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
+                s.recursive_anchor = *b;
+            }
+        }
+
+        if h.has_vocab("validation") {
+            if s.contains.is_some() {
+                s.max_contains = h.load_usize("maxContains");
+                s.min_contains = h.load_usize("minContains");
+            }
+
+            if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
+                for (pname, pvalue) in dep_req {
+                    s.dependent_required
+                        .insert(pname.clone(), to_strings(pvalue));
                 }
             }
         }
 
-        // draft7 --
-        if root.draft.version >= 7 {
-            if root.has_vocab("applicator") {
-                s.if_ = enqueue_prop("if", queue);
-                if s.if_.is_some() {
-                    s.then = enqueue_prop("then", queue);
-                    s.else_ = enqueue_prop("else", queue);
-                }
-            }
-            if self.assert_content {
-                if let Some(Value::String(encoding)) = obj.get("contentEncoding") {
-                    let func = self
-                        .decoders
-                        .get(encoding.as_str())
-                        .or_else(|| DECODERS.get(encoding.as_str()));
-                    if let Some(func) = func {
-                        s.content_encoding = Some((encoding.to_owned(), func.clone()));
-                    }
-                }
+        if h.has_vocab("applicator") {
+            s.dependent_schemas = h.enqueue_map("dependentSchemas");
+        }
 
-                if let Some(Value::String(media_type)) = obj.get("contentMediaType") {
-                    let func = self
-                        .media_types
-                        .get(media_type.as_str())
-                        .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
-                    if let Some(func) = func {
-                        s.content_media_type = Some((media_type.to_owned(), func.clone()));
-                    }
-                }
+        if h.has_vocab(if h.draft_version() == 2019 {
+            "applicator"
+        } else {
+            "unevaluated"
+        }) {
+            s.unevaluated_items = h.enqueue_prop("unevaluatedItems");
+            s.unevaluated_properties = h.enqueue_prop("unevaluatedProperties");
+        }
+        Ok(())
+    }
+
+    fn compile_draft2020(
+        &self,
+        s: &mut Schema,
+        obj: &Map<String, Value>,
+        h: &mut Helper,
+    ) -> Result<(), CompileError> {
+        if h.has_vocab("core") {
+            s.dynamic_ref = h.enqueue_ref("$dynamicRef")?;
+            if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
+                s.dynamic_anchor = Some(anchor.to_owned());
             }
         }
 
-        // draft2019 --
-        if root.draft.version >= 2019 {
-            if root.has_vocab("core") {
-                s.recursive_ref = enqueue_ref("$recursiveRef", queue)?;
-                if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
-                    s.recursive_anchor = *b;
-                }
-            }
+        if h.has_vocab("applicator") {
+            s.prefix_items = h.enqueue_arr("prefixItems");
+            s.items2020 = h.enqueue_prop("items");
+        }
+        Ok(())
+    }
+}
 
-            if root.has_vocab("validation") {
-                if s.contains.is_some() {
-                    s.max_contains = load_usize("maxContains");
-                    s.min_contains = load_usize("minContains");
-                }
+struct Helper<'a, 'b, 'c, 'd, 'e> {
+    obj: &'a Map<String, Value>,
+    loc: &'c str,
+    schemas: &'d Schemas,
+    queue: &'b mut VecDeque<String>,
+    root: &'e Root,
+}
 
-                if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
-                    for (pname, pvalue) in dep_req {
-                        s.dependent_required
-                            .insert(pname.clone(), to_strings(pvalue));
-                    }
-                }
-            }
+impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
+    fn draft_version(&self) -> usize {
+        self.root.draft.version
+    }
 
-            if root.has_vocab("applicator") {
-                s.dependent_schemas = enqueue_map("dependentSchemas", queue);
-            }
+    fn has_vocab(&self, name: &str) -> bool {
+        self.root.has_vocab(name)
+    }
 
-            if root.has_vocab(if root.draft.version == 2019 {
-                "applicator"
+    fn load_usize(&self, pname: &str) -> Option<usize> {
+        if let Some(Value::Number(n)) = self.obj.get(pname) {
+            if n.is_u64() {
+                n.as_u64().map(|n| n as usize)
             } else {
-                "unevaluated"
-            }) {
-                s.unevaluated_items = enqueue_prop("unevaluatedItems", queue);
-                s.unevaluated_properties = enqueue_prop("unevaluatedProperties", queue);
+                n.as_f64()
+                    .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
+                    .map(|n| n as usize)
             }
+        } else {
+            None
         }
+    }
 
-        // draft2020 --
-        if root.draft.version >= 2020 {
-            if root.has_vocab("core") {
-                s.dynamic_ref = enqueue_ref("$dynamicRef", queue)?;
-                if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
-                    s.dynamic_anchor = Some(anchor.to_owned());
-                }
-            }
-
-            if root.has_vocab("applicator") {
-                s.prefix_items = enquue_arr("prefixItems", queue);
-                s.items2020 = enqueue_prop("items", queue);
-            }
+    fn load_num(&self, pname: &str) -> Option<Number> {
+        if let Some(Value::Number(n)) = self.obj.get(pname) {
+            Some(n.clone())
+        } else {
+            None
         }
+    }
 
-        Ok(s)
+    fn enqueue_path(&mut self, path: String) -> usize {
+        let loc = format!("{}/{path}", self.loc);
+        self.schemas.enqueue(self.queue, loc)
+    }
+
+    fn enqueue_prop(&mut self, pname: &str) -> Option<usize> {
+        if self.obj.contains_key(pname) {
+            let loc = format!("{}/{}", self.loc, escape(pname));
+            Some(self.schemas.enqueue(self.queue, loc))
+        } else {
+            None
+        }
+    }
+
+    fn enqueue_arr(&mut self, pname: &str) -> Vec<usize> {
+        if let Some(Value::Array(arr)) = self.obj.get(pname) {
+            (0..arr.len())
+                .map(|i| {
+                    let loc = format!("{}/{pname}/{i}", self.loc);
+                    self.schemas.enqueue(self.queue, loc)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, usize> {
+        if let Some(Value::Object(obj)) = self.obj.get(pname) {
+            obj.keys()
+                .map(|k| {
+                    let loc = format!("{}/{pname}/{}", self.loc, escape(k));
+                    (k.clone(), self.schemas.enqueue(self.queue, loc))
+                })
+                .collect()
+        } else {
+            HashMap::new()
+        }
+    }
+
+    fn enqueue_ref(&mut self, pname: &str) -> Result<Option<usize>, CompileError> {
+        if let Some(Value::String(ref_)) = self.obj.get(pname) {
+            let (_, ptr) = split(&self.loc);
+            let abs_ref =
+                self.root
+                    .base_url(ptr)
+                    .join(ref_)
+                    .map_err(|e| CompileError::ParseUrlError {
+                        url: ref_.clone(),
+                        src: e.into(),
+                    })?;
+            let resolved_ref = self.root.resolve(abs_ref.as_str())?;
+            Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
+        } else {
+            Ok(None)
+        }
     }
 }
 
