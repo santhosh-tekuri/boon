@@ -223,14 +223,16 @@ impl Compiler {
                 vec![]
             }
         };
-        let load_schema = |pname, queue: &mut VecDeque<String>| {
+        let enqueue =
+            |path, queue: &mut VecDeque<String>| schemas.enqueue(queue, format!("{loc}/{path}"));
+        let enqueue_prop = |pname, queue: &mut VecDeque<String>| {
             if obj.contains_key(pname) {
                 Some(schemas.enqueue(queue, format!("{loc}/{}", escape(pname))))
             } else {
                 None
             }
         };
-        let load_schema_arr = |pname, queue: &mut VecDeque<String>| {
+        let enquue_arr = |pname, queue: &mut VecDeque<String>| {
             if let Some(Value::Array(arr)) = obj.get(pname) {
                 (0..arr.len())
                     .map(|i| schemas.enqueue(queue, format!("{loc}/{pname}/{i}")))
@@ -239,7 +241,7 @@ impl Compiler {
                 Vec::new()
             }
         };
-        let load_schema_map = |pname, queue: &mut VecDeque<String>| {
+        let enqueue_map = |pname, queue: &mut VecDeque<String>| {
             if let Some(Value::Object(obj)) = obj.get(pname) {
                 obj.keys()
                     .map(|k| {
@@ -253,7 +255,7 @@ impl Compiler {
                 HashMap::new()
             }
         };
-        let load_ref =
+        let enqueue_ref =
             |pname, queue: &mut VecDeque<String>| -> Result<Option<usize>, CompileError> {
                 if let Some(Value::String(ref_)) = obj.get(pname) {
                     let (_, ptr) = split(&loc);
@@ -273,7 +275,7 @@ impl Compiler {
 
         // draft4 --
         if root.has_vocab("core") {
-            s.ref_ = load_ref("$ref", queue)?;
+            s.ref_ = enqueue_ref("$ref", queue)?;
             if s.ref_.is_some() && root.draft.version < 2019 {
                 // All other properties in a "$ref" object MUST be ignored
                 return Ok(s);
@@ -281,28 +283,28 @@ impl Compiler {
         }
 
         if root.has_vocab("applicator") {
-            s.all_of = load_schema_arr("allOf", queue);
-            s.any_of = load_schema_arr("anyOf", queue);
-            s.one_of = load_schema_arr("oneOf", queue);
-            s.not = load_schema("not", queue);
+            s.all_of = enquue_arr("allOf", queue);
+            s.any_of = enquue_arr("anyOf", queue);
+            s.one_of = enquue_arr("oneOf", queue);
+            s.not = enqueue_prop("not", queue);
 
             if root.draft.version < 2020 {
                 match obj.get("items") {
                     Some(Value::Array(_)) => {
-                        s.items = Some(Items::SchemaRefs(load_schema_arr("items", queue)));
+                        s.items = Some(Items::SchemaRefs(enquue_arr("items", queue)));
                         s.additional_items = {
                             if let Some(Value::Bool(b)) = obj.get("additionalItems") {
                                 Some(Additional::Bool(*b))
                             } else {
-                                load_schema("additionalItems", queue).map(Additional::SchemaRef)
+                                enqueue_prop("additionalItems", queue).map(Additional::SchemaRef)
                             }
                         };
                     }
-                    _ => s.items = load_schema("items", queue).map(Items::SchemaRef),
+                    _ => s.items = enqueue_prop("items", queue).map(Items::SchemaRef),
                 }
             }
 
-            s.properties = load_schema_map("properties", queue);
+            s.properties = enqueue_map("properties", queue);
             s.pattern_properties = {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = obj.get("patternProperties") {
@@ -311,8 +313,7 @@ impl Compiler {
                             url: format!("{loc}/patternProperties"),
                             regex: pname.clone(),
                         })?;
-                        let sch = schemas
-                            .enqueue(queue, format!("{loc}/patternProperties/{}", escape(pname)));
+                        let sch = enqueue(format!("patternProperties/{}", escape(pname)), queue);
                         v.push((regex, sch));
                     }
                 }
@@ -323,7 +324,7 @@ impl Compiler {
                 if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
                     Some(Additional::Bool(*b))
                 } else {
-                    load_schema("additionalProperties", queue).map(Additional::SchemaRef)
+                    enqueue_prop("additionalProperties", queue).map(Additional::SchemaRef)
                 }
             };
 
@@ -333,9 +334,10 @@ impl Compiler {
                     .filter_map(|(k, v)| {
                         let v = match v {
                             Value::Array(_) => Some(Dependency::Props(to_strings(v))),
-                            _ => Some(Dependency::SchemaRef(
-                                schemas.enqueue(queue, format!("{loc}/dependencies/{}", escape(k))),
-                            )),
+                            _ => Some(Dependency::SchemaRef(enqueue(
+                                format!("dependencies/{}", escape(k)),
+                                queue,
+                            ))),
                         };
                         v.map(|v| (k.clone(), v))
                     })
@@ -429,8 +431,8 @@ impl Compiler {
         // draft6 --
         if root.draft.version >= 6 {
             if root.has_vocab("applicator") {
-                s.contains = load_schema("contains", queue);
-                s.property_names = load_schema("propertyNames", queue);
+                s.contains = enqueue_prop("contains", queue);
+                s.property_names = enqueue_prop("propertyNames", queue);
             }
 
             if root.has_vocab("validation") {
@@ -443,10 +445,10 @@ impl Compiler {
         // draft7 --
         if root.draft.version >= 7 {
             if root.has_vocab("applicator") {
-                s.if_ = load_schema("if", queue);
+                s.if_ = enqueue_prop("if", queue);
                 if s.if_.is_some() {
-                    s.then = load_schema("then", queue);
-                    s.else_ = load_schema("else", queue);
+                    s.then = enqueue_prop("then", queue);
+                    s.else_ = enqueue_prop("else", queue);
                 }
             }
             if self.assert_content {
@@ -475,7 +477,7 @@ impl Compiler {
         // draft2019 --
         if root.draft.version >= 2019 {
             if root.has_vocab("core") {
-                s.recursive_ref = load_ref("$recursiveRef", queue)?;
+                s.recursive_ref = enqueue_ref("$recursiveRef", queue)?;
                 if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
                     s.recursive_anchor = *b;
                 }
@@ -496,7 +498,7 @@ impl Compiler {
             }
 
             if root.has_vocab("applicator") {
-                s.dependent_schemas = load_schema_map("dependentSchemas", queue);
+                s.dependent_schemas = enqueue_map("dependentSchemas", queue);
             }
 
             if root.has_vocab(if root.draft.version == 2019 {
@@ -504,23 +506,23 @@ impl Compiler {
             } else {
                 "unevaluated"
             }) {
-                s.unevaluated_items = load_schema("unevaluatedItems", queue);
-                s.unevaluated_properties = load_schema("unevaluatedProperties", queue);
+                s.unevaluated_items = enqueue_prop("unevaluatedItems", queue);
+                s.unevaluated_properties = enqueue_prop("unevaluatedProperties", queue);
             }
         }
 
         // draft2020 --
         if root.draft.version >= 2020 {
             if root.has_vocab("core") {
-                s.dynamic_ref = load_ref("$dynamicRef", queue)?;
+                s.dynamic_ref = enqueue_ref("$dynamicRef", queue)?;
                 if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
                     s.dynamic_anchor = Some(anchor.to_owned());
                 }
             }
 
             if root.has_vocab("applicator") {
-                s.prefix_items = load_schema_arr("prefixItems", queue);
-                s.items2020 = load_schema("items", queue);
+                s.prefix_items = enquue_arr("prefixItems", queue);
+                s.items2020 = enqueue_prop("items", queue);
             }
         }
 
