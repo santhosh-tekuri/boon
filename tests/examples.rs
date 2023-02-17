@@ -85,7 +85,7 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    compiler.enable_format_assertions(); // in draft2020-12 format assertions are enabled by default
+    compiler.enable_format_assertions(); // in draft2020-12 format assertions are not enabled by default
     compiler.register_format("palindrome", is_palindrome);
     compiler.add_resource(schema_url, schema)?;
     let sch_index = compiler.compile(&mut schemas, schema_url.to_owned())?;
