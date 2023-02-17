@@ -544,6 +544,7 @@ pub enum CompileError {
     MetaSchemaCycle {
         url: String,
     },
+    NotValid(ValidationError),
     InvalidId {
         loc: String,
     },
@@ -601,6 +602,13 @@ impl Display for CompileError {
             Self::InvalidMetaSchema { url } => write!(f, "invalid $schema in {url}"),
             Self::MetaSchemaCycle { url } => {
                 write!(f, "cycle in resolving $schema in {url}")
+            }
+            Self::NotValid(ve) => {
+                if f.alternate() {
+                    write!(f, "not valid against metaschema: {ve:#}")
+                } else {
+                    write!(f, "not valid against metaschema")
+                }
             }
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
             Self::InvalidAnchor { loc } => write!(f, "invalid $anchor at {loc}"),

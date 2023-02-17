@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use url::Url;
 
-use crate::{root::Resource, util::*, CompileError};
+use crate::{root::Resource, util::*, CompileError, Compiler, Schemas};
 
 const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
@@ -115,6 +115,9 @@ pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
     }
 });
 
+pub(crate) static STD_METASCHEMAS: Lazy<Schemas> =
+    Lazy::new(|| load_std_metaschemas().expect("std metaschemas must be compilable"));
+
 pub(crate) fn latest() -> &'static Draft {
     crate::Draft::default().internal()
 }
@@ -155,6 +158,20 @@ impl Draft {
             "json-schema.org/draft-04/schema" => Some(&DRAFT4),
             _ => None,
         }
+    }
+
+    pub(crate) fn get_schema(&self) -> Option<usize> {
+        let loc = match self.version {
+            2020 => Some("https://json-schema.org/draft/2020-12/schema#"),
+            2019 => Some("https://json-schema.org/draft/2019-09/schema#"),
+            7 => Some("http://json-schema.org/draft-07/schema#"),
+            6 => Some("http://json-schema.org/draft-06/schema#"),
+            4 => Some("http://json-schema.org/draft-04/schema#"),
+            _ => None,
+        };
+        loc.map(|loc| STD_METASCHEMAS.get_by_loc(loc))
+            .flatten()
+            .map(|s| s.index)
     }
 
     fn collect_anchors(
@@ -288,6 +305,99 @@ impl Draft {
         }
         Ok(())
     }
+}
+
+fn load_std_metaschemas() -> Result<Schemas, CompileError> {
+    let mut files = HashMap::new();
+    files.insert(
+        "https://json-schema.org/draft/2020-12/schema",
+        include_str!("metaschemas/draft/2020-12/schema"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/schema",
+        include_str!("metaschemas/draft/2019-09/schema"),
+    );
+    files.insert(
+        "http://json-schema.org/draft-07/schema",
+        include_str!("metaschemas/draft-07/schema"),
+    );
+    files.insert(
+        "http://json-schema.org/draft-06/schema",
+        include_str!("metaschemas/draft-06/schema"),
+    );
+    files.insert(
+        "http://json-schema.org/draft-04/schema",
+        include_str!("metaschemas/draft-04/schema"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/core",
+        include_str!("metaschemas/draft/2019-09/meta/core"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/core",
+        include_str!("metaschemas/draft/2020-12/meta/core"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/applicator",
+        include_str!("metaschemas/draft/2019-09/meta/applicator"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/applicator",
+        include_str!("metaschemas/draft/2020-12/meta/applicator"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/unevaluated",
+        include_str!("metaschemas/draft/2020-12/meta/unevaluated"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/validation",
+        include_str!("metaschemas/draft/2020-12/meta/validation"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/meta-data",
+        include_str!("metaschemas/draft/2020-12/meta/meta-data"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/content",
+        include_str!("metaschemas/draft/2020-12/meta/content"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/format-annotation",
+        include_str!("metaschemas/draft/2020-12/meta/format-annotation"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2020-12/meta/format-assertion",
+        include_str!("metaschemas/draft/2020-12/meta/format-assertion"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/validation",
+        include_str!("metaschemas/draft/2019-09/meta/validation"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/meta-data",
+        include_str!("metaschemas/draft/2019-09/meta/meta-data"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/format",
+        include_str!("metaschemas/draft/2019-09/meta/format"),
+    );
+    files.insert(
+        "https://json-schema.org/draft/2019-09/meta/content",
+        include_str!("metaschemas/draft/2019-09/meta/content"),
+    );
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    for (url, content) in &files {
+        let v = serde_json::from_str::<Value>(content).map_err(|e| CompileError::LoadUrlError {
+            url: url.to_string(),
+            src: e.into(),
+        })?;
+        compiler.add_resource(url, v).unwrap();
+    }
+    for url in files.keys() {
+        compiler.compile(&mut schemas, url.to_string())?;
+    }
+    Ok(schemas)
 }
 
 #[cfg(test)]

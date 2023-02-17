@@ -31,7 +31,7 @@ pub struct SchemaIndex(usize);
 #[derive(Default)]
 pub struct Schemas {
     list: Vec<Schema>,
-    map: HashMap<String, usize>,
+    map: HashMap<String, usize>, // loc => schema-index
 }
 
 impl Schemas {

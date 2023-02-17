@@ -2,10 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     compiler::CompileError::{self, *},
-    draft::{latest, Draft},
+    draft::{latest, Draft, STD_METASCHEMAS},
     loader::DefaultUrlLoader,
     root::Root,
     util::*,
+    SchemaIndex,
 };
 
 use serde_json::Value;
@@ -95,15 +96,27 @@ impl Roots {
             Ok((meta_root.draft, meta_root.get_vocabs()?))
         })()?;
 
-        let ids = {
-            let mut ids = HashMap::default();
-            draft.collect_resources(&doc, &url, String::new(), &mut ids)?;
-            ids
+        let resources = {
+            let mut m = HashMap::default();
+            draft.collect_resources(&doc, &url, String::new(), &mut m)?;
+            m
         };
+
+        if !url.as_str().contains("//json-schema.org/") {
+            if let Some(std_sch) = draft.get_schema() {
+                STD_METASCHEMAS
+                    .validate(&doc, SchemaIndex(std_sch))
+                    .map_err(|e| CompileError::NotValid(e))?;
+            } else {
+                return Err(CompileError::Bug(
+                    format!("no metaschema preloaded for draft {}", draft.version).into(),
+                ));
+            }
+        }
 
         let r = Root {
             draft,
-            resources: ids,
+            resources,
             url: url.clone(),
             doc,
             meta_vocabs: vocabs,
