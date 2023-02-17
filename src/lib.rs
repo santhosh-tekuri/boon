@@ -91,6 +91,7 @@ impl Schemas {
         };
         let scope = Scope {
             sch: sch.index,
+            vid: 0,
             parent: None,
         };
         sch.validate(v, String::new(), self, scope).map(|_| ())
@@ -226,15 +227,33 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 #[derive(Debug, Default)]
 struct Scope<'a> {
     sch: usize,
+    /// unique id of value being validated
+    // if two scope validate same value, they will have same vid
+    vid: usize,
     parent: Option<&'a Scope<'a>>,
 }
 
 impl<'a> Scope<'a> {
-    fn child(sch: usize, parent: &'a Scope) -> Self {
+    fn child(sch: usize, vid: usize, parent: &'a Scope) -> Self {
         Self {
             sch,
+            vid,
             parent: Some(parent),
         }
+    }
+
+    fn has_cycle(&self) -> bool {
+        let mut scope = self.parent;
+        while let Some(scp) = scope {
+            if scp.vid != self.vid {
+                break;
+            }
+            if scp.sch == self.sch {
+                return true;
+            }
+            scope = scp.parent;
+        }
+        false
     }
 }
 
@@ -261,17 +280,21 @@ impl Schema {
             })
         };
 
+        if scope.has_cycle() {
+            return error("", kind!(CycleDetected));
+        }
+
         let mut _uneval = Uneval::from(v);
         let uneval = &mut _uneval;
         let validate = |sch: usize, v: &Value, vpath: &str| {
-            let scope = Scope::child(sch, &scope);
+            let scope = Scope::child(sch, scope.vid + 1, &scope);
             schemas
                 .get(sch)
                 .validate(v, format!("{vloc}{vpath}"), schemas, scope)
                 .map(|_| ())
         };
         let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
-            let scope = Scope::child(sch, &scope);
+            let scope = Scope::child(sch, scope.vid, &scope);
             let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
             if let Ok(reply) = &result {
                 uneval.merge(reply);
@@ -872,6 +895,7 @@ impl Display for ValidationError {
 
 #[derive(Debug)]
 pub enum ErrorKind {
+    CycleDetected,
     FalseSchema,
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },
@@ -909,6 +933,7 @@ impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: use single quote for strings
         match self {
+            Self::CycleDetected => write!(f, "cycle detected"),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
