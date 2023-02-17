@@ -9,6 +9,7 @@ authors = ["santhosh kumar tekuri <santhosh.tekuri@gmail.com>"]
 keywords = ["jsonschema", "validation"]
 license = "MIT OR Apache-2.0"
 categories = ["json", "web-programming"]
+exclude = [ "tests" ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
