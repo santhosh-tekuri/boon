@@ -202,16 +202,16 @@ impl Compiler {
     ) -> Result<(), CompileError> {
         self.compile_draft4(s, obj, h)?;
         if h.draft_version() >= 6 {
-            self.compile_draft6(s, obj, h)?;
+            self.compile_draft6(s, h)?;
         }
         if h.draft_version() >= 7 {
-            self.compile_draft7(s, obj, h)?;
+            self.compile_draft7(s, h)?;
         }
         if h.draft_version() >= 2019 {
-            self.compile_draft2019(s, obj, h)?;
+            self.compile_draft2019(s, h)?;
         }
         if h.draft_version() >= 2020 {
-            self.compile_draft2020(s, obj, h)?;
+            self.compile_draft2020(s, h)?;
         }
         Ok(())
     }
@@ -240,13 +240,7 @@ impl Compiler {
                 match obj.get("items") {
                     Some(Value::Array(_)) => {
                         s.items = Some(Items::SchemaRefs(h.enqueue_arr("items")));
-                        s.additional_items = {
-                            if let Some(Value::Bool(b)) = obj.get("additionalItems") {
-                                Some(Additional::Bool(*b))
-                            } else {
-                                h.enqueue_prop("additionalItems").map(Additional::SchemaRef)
-                            }
-                        };
+                        s.additional_items = h.enquue_additional("additionalItems");
                     }
                     _ => s.items = h.enqueue_prop("items").map(Items::SchemaRef),
                 }
@@ -268,14 +262,7 @@ impl Compiler {
                 v
             };
 
-            s.additional_properties = {
-                if let Some(Value::Bool(b)) = obj.get("additionalProperties") {
-                    Some(Additional::Bool(*b))
-                } else {
-                    h.enqueue_prop("additionalProperties")
-                        .map(Additional::SchemaRef)
-                }
-            };
+            s.additional_properties = h.enquue_additional("additionalProperties");
 
             if let Some(Value::Object(deps)) = obj.get("dependencies") {
                 s.dependencies = deps
@@ -294,63 +281,59 @@ impl Compiler {
         }
 
         if h.has_vocab("validation") {
-            if let Some(t) = obj.get("type") {
-                match t {
-                    Value::String(t) => s.types.extend(Type::from_str(t)),
-                    Value::Array(tt) => {
-                        s.types.extend(tt.iter().filter_map(|t| {
-                            if let Value::String(t) = t {
-                                Type::from_str(t)
-                            } else {
-                                None
-                            }
-                        }));
-                    }
-                    _ => {}
+            match h.value("type") {
+                Some(Value::String(t)) => s.types.extend(Type::from_str(t)),
+                Some(Value::Array(tt)) => {
+                    s.types.extend(tt.iter().filter_map(|t| {
+                        if let Value::String(t) = t {
+                            Type::from_str(t)
+                        } else {
+                            None
+                        }
+                    }));
                 }
+                _ => {}
             }
 
-            if let Some(Value::Array(e)) = obj.get("enum") {
+            if let Some(Value::Array(e)) = h.value("enum") {
                 s.enum_ = e.clone();
             }
 
-            s.multiple_of = h.load_num("multipleOf");
+            s.multiple_of = h.num("multipleOf");
 
-            s.maximum = h.load_num("maximum");
-            if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMaximum") {
+            s.maximum = h.num("maximum");
+            if let Some(Value::Bool(exclusive)) = h.value("exclusiveMaximum") {
                 if *exclusive {
                     s.exclusive_maximum = s.maximum.take();
                 }
             } else {
-                s.exclusive_maximum = h.load_num("exclusiveMaximum");
+                s.exclusive_maximum = h.num("exclusiveMaximum");
             }
 
-            s.minimum = h.load_num("minimum");
-            if let Some(Value::Bool(exclusive)) = obj.get("exclusiveMinimum") {
+            s.minimum = h.num("minimum");
+            if let Some(Value::Bool(exclusive)) = h.value("exclusiveMinimum") {
                 if *exclusive {
                     s.exclusive_minimum = s.minimum.take();
                 }
             } else {
-                s.exclusive_minimum = h.load_num("exclusiveMinimum");
+                s.exclusive_minimum = h.num("exclusiveMinimum");
             }
 
-            s.max_length = h.load_usize("maxLength");
-            s.min_length = h.load_usize("minLength");
+            s.max_length = h.usize("maxLength");
+            s.min_length = h.usize("minLength");
 
-            if let Some(Value::String(p)) = obj.get("pattern") {
+            if let Some(Value::String(p)) = h.value("pattern") {
                 s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
-            s.max_items = h.load_usize("maxItems");
-            s.min_items = h.load_usize("minItems");
-            if let Some(Value::Bool(unique)) = obj.get("uniqueItems") {
-                s.unique_items = *unique;
-            }
+            s.max_items = h.usize("maxItems");
+            s.min_items = h.usize("minItems");
+            s.unique_items = h.bool("uniqueItems");
 
-            s.max_properties = h.load_usize("maxProperties");
-            s.min_properties = h.load_usize("minProperties");
+            s.max_properties = h.usize("maxProperties");
+            s.min_properties = h.usize("minProperties");
 
-            if let Some(req) = obj.get("required") {
+            if let Some(req) = h.value("required") {
                 s.required = to_strings(req);
             }
         }
@@ -363,7 +346,7 @@ impl Compiler {
                 Ordering::Greater => "format-assertion",
             })
         {
-            if let Some(Value::String(format)) = obj.get("format") {
+            if let Some(Value::String(format)) = h.value("format") {
                 let func = self
                     .formats
                     .get(format.as_str())
@@ -373,34 +356,24 @@ impl Compiler {
                 }
             }
         }
+
         Ok(())
     }
 
-    fn compile_draft6(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
+    fn compile_draft6(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
         if h.has_vocab("applicator") {
             s.contains = h.enqueue_prop("contains");
             s.property_names = h.enqueue_prop("propertyNames");
         }
 
         if h.has_vocab("validation") {
-            if let Some(constant) = obj.get("const") {
-                s.constant = Some(constant.clone());
-            }
+            s.constant = h.value("const").cloned();
         }
+
         Ok(())
     }
 
-    fn compile_draft7(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
+    fn compile_draft7(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
         if h.has_vocab("applicator") {
             s.if_ = h.enqueue_prop("if");
             if s.if_.is_some() {
@@ -408,8 +381,9 @@ impl Compiler {
                 s.else_ = h.enqueue_prop("else");
             }
         }
+
         if self.assert_content {
-            if let Some(Value::String(encoding)) = obj.get("contentEncoding") {
+            if let Some(Value::String(encoding)) = h.value("contentEncoding") {
                 let func = self
                     .decoders
                     .get(encoding.as_str())
@@ -419,7 +393,7 @@ impl Compiler {
                 }
             }
 
-            if let Some(Value::String(media_type)) = obj.get("contentMediaType") {
+            if let Some(Value::String(media_type)) = h.value("contentMediaType") {
                 let func = self
                     .media_types
                     .get(media_type.as_str())
@@ -429,29 +403,23 @@ impl Compiler {
                 }
             }
         }
+
         Ok(())
     }
 
-    fn compile_draft2019(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
+    fn compile_draft2019(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
         if h.has_vocab("core") {
             s.recursive_ref = h.enqueue_ref("$recursiveRef")?;
-            if let Some(Value::Bool(b)) = obj.get("$recursiveAnchor") {
-                s.recursive_anchor = *b;
-            }
+            s.recursive_anchor = h.bool("$recursiveAnchor");
         }
 
         if h.has_vocab("validation") {
             if s.contains.is_some() {
-                s.max_contains = h.load_usize("maxContains");
-                s.min_contains = h.load_usize("minContains");
+                s.max_contains = h.usize("maxContains");
+                s.min_contains = h.usize("minContains");
             }
 
-            if let Some(Value::Object(dep_req)) = obj.get("dependentRequired") {
+            if let Some(Value::Object(dep_req)) = h.value("dependentRequired") {
                 for (pname, pvalue) in dep_req {
                     s.dependent_required
                         .insert(pname.clone(), to_strings(pvalue));
@@ -463,26 +431,21 @@ impl Compiler {
             s.dependent_schemas = h.enqueue_map("dependentSchemas");
         }
 
-        if h.has_vocab(if h.draft_version() == 2019 {
-            "applicator"
-        } else {
-            "unevaluated"
+        if h.has_vocab(match h.draft_version() {
+            2019 => "applicator",
+            _ => "unevaluated",
         }) {
             s.unevaluated_items = h.enqueue_prop("unevaluatedItems");
             s.unevaluated_properties = h.enqueue_prop("unevaluatedProperties");
         }
+
         Ok(())
     }
 
-    fn compile_draft2020(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
+    fn compile_draft2020(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
         if h.has_vocab("core") {
             s.dynamic_ref = h.enqueue_ref("$dynamicRef")?;
-            if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
+            if let Some(Value::String(anchor)) = h.value("$dynamicAnchor") {
                 s.dynamic_anchor = Some(anchor.to_owned());
             }
         }
@@ -491,6 +454,7 @@ impl Compiler {
             s.prefix_items = h.enqueue_arr("prefixItems");
             s.items2020 = h.enqueue_prop("items");
         }
+
         Ok(())
     }
 }
@@ -512,7 +476,15 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         self.root.has_vocab(name)
     }
 
-    fn load_usize(&self, pname: &str) -> Option<usize> {
+    fn value(&self, pname: &str) -> Option<&Value> {
+        self.obj.get(pname)
+    }
+
+    fn bool(&self, pname: &str) -> bool {
+        matches!(self.obj.get(pname), Some(Value::Bool(true)))
+    }
+
+    fn usize(&self, pname: &str) -> Option<usize> {
         if let Some(Value::Number(n)) = self.obj.get(pname) {
             if n.is_u64() {
                 n.as_u64().map(|n| n as usize)
@@ -526,7 +498,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn load_num(&self, pname: &str) -> Option<Number> {
+    fn num(&self, pname: &str) -> Option<Number> {
         if let Some(Value::Number(n)) = self.obj.get(pname) {
             Some(n.clone())
         } else {
@@ -589,6 +561,14 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
             Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
         } else {
             Ok(None)
+        }
+    }
+
+    fn enquue_additional(&mut self, pname: &str) -> Option<Additional> {
+        if let Some(Value::Bool(b)) = self.obj.get(pname) {
+            Some(Additional::Bool(*b))
+        } else {
+            self.enqueue_prop(pname).map(Additional::SchemaRef)
         }
     }
 }
