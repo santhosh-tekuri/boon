@@ -89,7 +89,11 @@ impl Schemas {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
-        sch.validate(v, String::new(), self, None).map(|_| ())
+        let scope = Scope {
+            sch: sch.index,
+            parent: None,
+        };
+        sch.validate(v, String::new(), self, scope).map(|_| ())
     }
 }
 
@@ -225,6 +229,15 @@ struct Scope<'a> {
     parent: Option<&'a Scope<'a>>,
 }
 
+impl<'a> Scope<'a> {
+    fn child(sch: usize, parent: &'a Scope) -> Self {
+        Self {
+            sch,
+            parent: Some(parent),
+        }
+    }
+}
+
 impl Schema {
     fn new(loc: String) -> Self {
         Self {
@@ -238,13 +251,8 @@ impl Schema {
         v: &'v Value,
         vloc: String,
         schemas: &Schemas,
-        parent_scope: Option<&Scope>,
+        scope: Scope,
     ) -> Result<Uneval<'v>, ValidationError> {
-        let scope = Scope {
-            sch: self.index,
-            parent: parent_scope,
-        };
-
         let error = |kw_path, kind| {
             Err(ValidationError {
                 absolute_keyword_location: format!("{}/{kw_path}", self.loc),
@@ -300,15 +308,15 @@ impl Schema {
         let mut _uneval = Uneval::from(v);
         let uneval = &mut _uneval;
         let validate = |sch: usize, v: &Value, vpath: &str| {
+            let scope = Scope::child(sch, &scope);
             schemas
                 .get(sch)
-                .validate(v, format!("{vloc}{vpath}"), schemas, Some(&scope))
+                .validate(v, format!("{vloc}{vpath}"), schemas, scope)
                 .map(|_| ())
         };
         let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
-            let result = schemas
-                .get(sch)
-                .validate(v, vloc.clone(), schemas, Some(&scope));
+            let scope = Scope::child(sch, &scope);
+            let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
             if let Ok(reply) = &result {
                 uneval.merge(reply);
             }
