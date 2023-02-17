@@ -261,11 +261,30 @@ impl Schema {
             })
         };
 
+        let mut _uneval = Uneval::from(v);
+        let uneval = &mut _uneval;
+        let validate = |sch: usize, v: &Value, vpath: &str| {
+            let scope = Scope::child(sch, &scope);
+            schemas
+                .get(sch)
+                .validate(v, format!("{vloc}{vpath}"), schemas, scope)
+                .map(|_| ())
+        };
+        let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
+            let scope = Scope::child(sch, &scope);
+            let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
+            if let Ok(reply) = &result {
+                uneval.merge(reply);
+            }
+            result
+        };
+
         // boolean --
         if let Some(b) = self.boolean {
             if !b {
                 return error("", kind!(FalseSchema));
             }
+            return Ok(_uneval);
         }
 
         // type --
@@ -304,24 +323,6 @@ impl Schema {
                 return error("format", kind!(Format, v.clone(), format.clone()));
             }
         }
-
-        let mut _uneval = Uneval::from(v);
-        let uneval = &mut _uneval;
-        let validate = |sch: usize, v: &Value, vpath: &str| {
-            let scope = Scope::child(sch, &scope);
-            schemas
-                .get(sch)
-                .validate(v, format!("{vloc}{vpath}"), schemas, scope)
-                .map(|_| ())
-        };
-        let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
-            let scope = Scope::child(sch, &scope);
-            let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
-            if let Ok(reply) = &result {
-                uneval.merge(reply);
-            }
-            result
-        };
 
         match v {
             Value::Object(obj) => {
