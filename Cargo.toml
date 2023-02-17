@@ -1,10 +1,10 @@
 [package]
-name = "jsonschema"
+name = "boon"
 version = "0.1.0"
 edition = "2021"
 description = "JSONSchema (draft 2020-12, draft 2019-09, draft-7, draft-6, draft-4) Validation"
 readme = "README.md"
-repository = "https://github.com/santhosh-tekuri/jsonschema-rs"
+repository = "https://github.com/santhosh-tekuri/boon"
 authors = ["santhosh kumar tekuri <santhosh.tekuri@gmail.com>"]
 keywords = ["jsonschema", "validation"]
 license = "MIT OR Apache-2.0"
