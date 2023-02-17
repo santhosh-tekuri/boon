@@ -1,6 +1,6 @@
 use std::{error::Error, ffi::OsStr, fs::File, path::Path};
 
-use jsonschema::{Compiler, Draft, Schemas, UrlLoader};
+use boon::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
