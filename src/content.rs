@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 
 // decoders --
-pub(crate) type Decoder = fn(&str) -> Option<Vec<u8>>;
+pub(crate) type Decoder = fn(s: &str) -> Option<Vec<u8>>;
 
 pub(crate) static DECODERS: Lazy<HashMap<&'static str, Decoder>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Decoder>::new();
@@ -18,7 +18,7 @@ fn decode_base64(s: &str) -> Option<Vec<u8>> {
 }
 
 // mediatypes --
-pub(crate) type MediaType = fn(&[u8]) -> bool;
+pub(crate) type MediaType = fn(bytes: &[u8]) -> bool;
 
 pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, MediaType>::new();
