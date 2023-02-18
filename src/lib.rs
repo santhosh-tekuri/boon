@@ -91,6 +91,7 @@ impl Schemas {
         };
         let scope = Scope {
             sch: sch.index,
+            kw_path: Cow::from(""),
             vid: 0,
             parent: None,
         };
@@ -227,6 +228,7 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 #[derive(Debug, Default)]
 struct Scope<'a> {
     sch: usize,
+    kw_path: Cow<'static, str>,
     /// unique id of value being validated
     // if two scope validate same value, they will have same vid
     vid: usize,
@@ -234,9 +236,10 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(sch: usize, vid: usize, parent: &'a Scope) -> Self {
+    fn child(sch: usize, kw_path: Cow<'static, str>, vid: usize, parent: &'a Scope) -> Self {
         Self {
             sch,
+            kw_path,
             vid,
             parent: Some(parent),
         }
@@ -286,15 +289,15 @@ impl Schema {
 
         let mut _uneval = Uneval::from(v);
         let uneval = &mut _uneval;
-        let validate = |sch: usize, v: &Value, vpath: &str| {
-            let scope = Scope::child(sch, scope.vid + 1, &scope);
+        let validate = |sch: usize, kw_path, v: &Value, vpath: &str| {
+            let scope = Scope::child(sch, kw_path, scope.vid + 1, &scope);
             schemas
                 .get(sch)
                 .validate(v, format!("{vloc}{vpath}"), schemas, scope)
                 .map(|_| ())
         };
-        let validate_self = |sch: usize, uneval: &mut Uneval<'_>| {
-            let scope = Scope::child(sch, scope.vid, &scope);
+        let validate_self = |sch: usize, kw_path, uneval: &mut Uneval<'_>| {
+            let scope = Scope::child(sch, kw_path, scope.vid, &scope);
             let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
             if let Ok(reply) = &result {
                 uneval.merge(reply);
@@ -377,6 +380,7 @@ impl Schema {
                 // dependencies --
                 for (pname, dependency) in &self.dependencies {
                     if obj.contains_key(pname) {
+                        let kw_path = format!("dependencies/{}", escape(pname));
                         match dependency {
                             Dependency::Props(required) => {
                                 let missing = required
@@ -386,13 +390,13 @@ impl Schema {
                                     .collect::<Vec<String>>();
                                 if !missing.is_empty() {
                                     return error(
-                                        &format!("dependencies/{}", escape(pname)),
+                                        &kw_path,
                                         kind!(DependentRequired, pname.clone(), missing),
                                     );
                                 }
                             }
                             Dependency::SchemaRef(sch) => {
-                                validate_self(*sch, uneval)?;
+                                validate_self(*sch, kw_path.into(), uneval)?;
                             }
                         }
                     }
@@ -401,7 +405,8 @@ impl Schema {
                 // dependentSchemas --
                 for (pname, sch) in &self.dependent_schemas {
                     if obj.contains_key(pname) {
-                        validate_self(*sch, uneval)?;
+                        let kw_path = format!("dependentSchemas/{}", escape(pname));
+                        validate_self(*sch, kw_path.into(), uneval)?;
                     }
                 }
 
@@ -426,7 +431,8 @@ impl Schema {
                 for (pname, &psch) in &self.properties {
                     if let Some(pvalue) = obj.get(pname) {
                         uneval.props.remove(pname);
-                        validate(psch, pvalue, &escape(pname))?;
+                        let kw_path = format!("properties/{}", escape(pname));
+                        validate(psch, kw_path.into(), pvalue, &escape(pname))?;
                     }
                 }
 
@@ -434,24 +440,27 @@ impl Schema {
                 for (regex, psch) in &self.pattern_properties {
                     for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
                         uneval.props.remove(pname);
-                        validate(*psch, pvalue, &escape(pname))?;
+                        let kw_path = format!("patternProperties/{}", escape(regex.as_str()));
+                        validate(*psch, kw_path.into(), pvalue, &escape(pname))?;
                     }
                 }
 
                 // propertyNames --
                 if let Some(sch) = &self.property_names {
                     for pname in obj.keys() {
-                        validate(*sch, &Value::String(pname.to_owned()), &escape(pname))?;
+                        let v = Value::String(pname.to_owned());
+                        validate(*sch, "propertyNames".into(), &v, &escape(pname))?;
                     }
                 }
 
                 // additionalProperties --
                 if let Some(additional) = &self.additional_properties {
+                    let kw_path = "additionalProperties";
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed && !uneval.props.is_empty() {
                                 return error(
-                                    "additionalProperties",
+                                    kw_path,
                                     kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect()),
                                 );
                             }
@@ -459,7 +468,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             for &pname in uneval.props.iter() {
                                 if let Some(pvalue) = obj.get(pname) {
-                                    validate(*sch, pvalue, &escape(pname))?;
+                                    validate(*sch, kw_path.into(), pvalue, &escape(pname))?;
                                 }
                             }
                         }
@@ -498,14 +507,15 @@ impl Schema {
                     match items {
                         Items::SchemaRef(sch) => {
                             for (i, item) in arr.iter().enumerate() {
-                                validate(*sch, item, &i.to_string())?;
+                                validate(*sch, "items".into(), item, &i.to_string())?;
                             }
                             uneval.items.clear();
                         }
                         Items::SchemaRefs(list) => {
                             for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                                 uneval.items.remove(&i);
-                                validate(*sch, item, &i.to_string())?;
+                                let kw_path = format!("items/{i}");
+                                validate(*sch, kw_path.into(), item, &i.to_string())?;
                             }
                         }
                     }
@@ -513,11 +523,12 @@ impl Schema {
 
                 // additionalItems --
                 if let Some(additional) = &self.additional_items {
+                    let kw_path = "additionalItems";
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed && !uneval.items.is_empty() {
                                 return error(
-                                    "additionalItems",
+                                    kw_path,
                                     kind!(AdditionalItems, arr.len(), uneval.items.len()),
                                 );
                             }
@@ -525,7 +536,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             for &index in uneval.items.iter() {
                                 if let Some(pvalue) = arr.get(index) {
-                                    validate(*sch, pvalue, &index.to_string())?;
+                                    validate(*sch, kw_path.into(), pvalue, &index.to_string())?;
                                 }
                             }
                         }
@@ -536,14 +547,15 @@ impl Schema {
                 // prefixItems --
                 for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
                     uneval.items.remove(&i);
-                    validate(*sch, item, &i.to_string())?;
+                    let kw_path = format!("prefixItems/{i}");
+                    validate(*sch, kw_path.into(), item, &i.to_string())?;
                 }
 
                 // items2020 --
                 if let Some(sch) = &self.items2020 {
                     for &index in uneval.items.iter() {
                         if let Some(pvalue) = arr.get(index) {
-                            validate(*sch, pvalue, &index.to_string())?;
+                            validate(*sch, "items".into(), pvalue, &index.to_string())?;
                         }
                     }
                     uneval.items.clear();
@@ -556,12 +568,14 @@ impl Schema {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, item)| {
-                            validate(*sch, item, &i.to_string()).ok().map(|_| {
-                                if self.draft_version >= 2020 {
-                                    uneval.items.remove(&i);
-                                }
-                                i
-                            })
+                            validate(*sch, "contains".into(), item, &i.to_string())
+                                .ok()
+                                .map(|_| {
+                                    if self.draft_version >= 2020 {
+                                        uneval.items.remove(&i);
+                                    }
+                                    i
+                                })
                         })
                         .collect();
                     if contains_matched.is_empty() && self.min_contains.is_none() {
@@ -693,7 +707,7 @@ impl Schema {
 
         // $ref --
         if let Some(ref_) = self.ref_ {
-            validate_self(ref_, uneval)?;
+            validate_self(ref_, "$ref".into(), uneval)?;
         }
 
         // $recursiveRef --
@@ -713,7 +727,7 @@ impl Schema {
                     }
                 }
             }
-            validate_self(recursive_ref, uneval)?;
+            validate_self(recursive_ref, "$recursiveRef".into(), uneval)?;
         }
 
         // $dynamicRef --
@@ -734,12 +748,12 @@ impl Schema {
                     }
                 }
             }
-            validate_self(dynamic_ref, uneval)?;
+            validate_self(dynamic_ref, "$dynamicRef".into(), uneval)?;
         }
 
         // not --
         if let Some(not) = self.not {
-            if validate_self(not, uneval).is_ok() {
+            if validate_self(not, "not".into(), uneval).is_ok() {
                 return error("not", kind!(Not));
             }
         }
@@ -750,7 +764,10 @@ impl Schema {
                 .all_of
                 .iter()
                 .enumerate()
-                .filter_map(|(i, sch)| validate_self(*sch, uneval).err().map(|_| i))
+                .filter_map(|(i, sch)| {
+                    let kw_path = format!("allOf/{i}");
+                    validate_self(*sch, kw_path.into(), uneval).err().map(|_| i)
+                })
                 .collect();
             if !failed.is_empty() {
                 return error("allOf", kind!(AllOf, got: failed));
@@ -762,7 +779,11 @@ impl Schema {
             let matched = self
                 .any_of
                 .iter()
-                .filter(|sch| validate_self(**sch, uneval).is_ok())
+                .enumerate()
+                .filter(|(i, sch)| {
+                    let kw_path = format!("anyOf/{i}");
+                    validate_self(**sch, kw_path.into(), uneval).is_ok()
+                })
                 .count(); // NOTE: all schemas must be checked
             if matched == 0 {
                 return error("anyOf", kind!(AnyOf));
@@ -775,7 +796,10 @@ impl Schema {
                 .one_of
                 .iter()
                 .enumerate()
-                .filter_map(|(i, sch)| validate_self(*sch, uneval).ok().map(|_| i))
+                .filter_map(|(i, sch)| {
+                    let kw_path = format!("oneOf/{i}");
+                    validate_self(*sch, kw_path.into(), uneval).ok().map(|_| i)
+                })
                 .take(2)
                 .collect();
             if matched.is_empty() {
@@ -787,12 +811,12 @@ impl Schema {
 
         // if, then, else --
         if let Some(if_) = self.if_ {
-            if validate_self(if_, uneval).is_ok() {
+            if validate_self(if_, "if".into(), uneval).is_ok() {
                 if let Some(then) = self.then {
-                    validate_self(then, uneval)?;
+                    validate_self(then, "then".into(), uneval)?;
                 }
             } else if let Some(else_) = self.else_ {
-                validate_self(else_, uneval)?;
+                validate_self(else_, "else".into(), uneval)?;
             }
         }
 
@@ -800,7 +824,8 @@ impl Schema {
         if let (Some(uneval_props), Value::Object(obj)) = (self.unevaluated_properties, v) {
             for pname in &uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
-                    validate(uneval_props, pvalue, &escape(pname))?;
+                    let kw_path = "unevaluatedProperties";
+                    validate(uneval_props, kw_path.into(), pvalue, &escape(pname))?;
                 }
             }
             uneval.props.clear();
@@ -810,7 +835,8 @@ impl Schema {
         if let (Some(uneval_items), Value::Array(arr)) = (self.unevaluated_items, v) {
             for i in &uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
-                    validate(uneval_items, pvalue, &i.to_string())?;
+                    let kw_path = "unevaluatedItems";
+                    validate(uneval_items, kw_path.into(), pvalue, &i.to_string())?;
                 }
             }
             uneval.items.clear();
