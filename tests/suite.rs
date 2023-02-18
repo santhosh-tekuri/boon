@@ -76,7 +76,7 @@ fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
         compiler.register_url_loader("http", Box::new(RemotesLoader));
         compiler.register_url_loader("https", Box::new(RemotesLoader));
         compiler.add_resource(url, group.schema)?;
-        let sch_index = compiler.compile(&mut schemas, url.into())?;
+        let sch_index = compiler.compile(url.into(), &mut schemas)?;
         for test in group.tests {
             println!("    {}", test.description);
             let result = schemas.validate(&test.data, sch_index);

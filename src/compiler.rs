@@ -96,8 +96,8 @@ impl Compiler {
 
     pub fn compile(
         &mut self,
-        target: &mut Schemas,
         mut loc: String,
+        target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
         if loc.rfind('#').is_none() {
             loc.push('#');
@@ -698,7 +698,7 @@ mod tests {
         c.roots.or_insert(url.clone(), sch).unwrap();
         let loc = format!("{url}#");
         let mut schemas = Schemas::default();
-        let sch_index = c.compile(&mut schemas, loc).unwrap();
+        let sch_index = c.compile(loc, &mut schemas).unwrap();
         let inst: Value = Value::String("xx".into());
         schemas.validate(&inst, sch_index).unwrap();
     }
@@ -726,7 +726,7 @@ mod tests {
         let mut compiler = Compiler::default();
         compiler.set_default_draft(draft);
         compiler.add_resource(url, schema).unwrap();
-        let sch_index = compiler.compile(&mut schemas, url.into()).unwrap();
+        let sch_index = compiler.compile(url.into(), &mut schemas).unwrap();
         let result = schemas.validate(&data, sch_index);
         if let Err(e) = &result {
             println!("validation failed: {e:#}");

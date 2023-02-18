@@ -342,7 +342,7 @@ fn load_std_metaschemas() -> Result<Schemas, CompileError> {
         compiler.add_resource(url, v).unwrap();
     }
     for url in files.keys() {
-        compiler.compile(&mut schemas, url.to_string())?;
+        compiler.compile(url.to_string(), &mut schemas)?;
     }
     Ok(schemas)
 }
@@ -360,7 +360,7 @@ mod tests {
         let v: Value = serde_json::from_str(include_str!("metaschemas/draft-04/schema")).unwrap();
         let url = "https://json-schema.org/draft-04/schema";
         compiler.add_resource(url, v).unwrap();
-        compiler.compile(&mut schemas, url.to_owned()).unwrap();
+        compiler.compile(url.to_owned(), &mut schemas).unwrap();
     }
 
     #[test]
