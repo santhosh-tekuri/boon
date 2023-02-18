@@ -77,12 +77,17 @@ impl Schemas {
         self.map.get(loc.as_ref()).and_then(|&i| self.list.get(i))
     }
 
+    /// Returns true if `sch_index` is generated for this instance.
+    pub fn contains(&self, sch_index: SchemaIndex) -> bool {
+        self.list.get(sch_index.0).is_some()
+    }
+
     /// Validates `v` with schema identified by `sch_index`
     ///
     /// # Panics
     ///
-    /// Panics if `sch_index` does not exist. To avoid panic make sure that
-    /// `sch_index` is generated for this instance.
+    /// Panics if `sch_index` is not generated for this instance.
+    /// [`Schemas::contains`] can be used too ensure that it does not panic.
     pub fn validate(&self, v: &Value, sch_index: SchemaIndex) -> Result<(), ValidationError> {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
