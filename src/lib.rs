@@ -305,7 +305,7 @@ impl Schema {
         };
 
         if scope.has_cycle() {
-            return error("", kind!(CycleDetected));
+            return error("", kind!(RefCycle));
         }
 
         let mut _uneval = Uneval::from(v);
@@ -943,7 +943,7 @@ impl Display for ValidationError {
 
 #[derive(Debug)]
 pub enum ErrorKind {
-    CycleDetected,
+    RefCycle,
     FalseSchema,
     Type { got: Type, want: Vec<Type> },
     Enum { got: Value, want: Vec<Value> },
@@ -981,7 +981,7 @@ impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: use single quote for strings
         match self {
-            Self::CycleDetected => write!(f, "cycle detected"),
+            Self::RefCycle => write!(f, "reference cycle detected"),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
