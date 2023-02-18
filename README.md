@@ -1,1 +1,43 @@
 see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/examples.rs)
+
+## Features
+
+- [x] pass [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) excluding optional
+  - [x] draft-04
+  - [x] draft-06
+  - [x] draft-07
+  - [x] draft/2019-10 
+  - [x] draft/2020-12
+- [x] detect infinite loop traps
+  - [x] `$schema` cycle
+  - [x] validation cycle
+- [x] custom `$schema` url
+- [x] vocabulary based validation
+- [x] format assertions
+  - [x] flag to enable in draft >= 2019-10
+  - [x] custom format registration
+  - [x] built-in formats
+    - [x] regex, uuid
+    - [x] ipv4, ipv6
+    - [x] hostname, email
+    - [x] date, time, date-time, duration
+    - [x] json-pointer, relative-json-pointer
+    - [x] uri, uri-reference, uri-template
+    - [x] iri, iri-reference
+    - [ ] period
+- [ ] content assertions
+  - [x] flag to enable in draft >= 2019-10
+  - [x] contentEncoding
+    - [x] base64
+  - [x] contentMediaType
+    - [x] application/json
+  - [ ] contentSchema
+- [ ] errors
+  - [x] introspectable
+  - [x] hierarchy
+    - [ ] alternative display with `#`
+  - [ ] output
+    - [ ] flag
+    - [ ] basic
+    - [ ] detailed
+- [ ] custom vocabulary
