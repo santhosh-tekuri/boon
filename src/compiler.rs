@@ -34,15 +34,6 @@ impl Draft {
             Draft::V2020_12 => &DRAFT2020,
         }
     }
-    fn from_version(version: usize) -> Draft {
-        match version {
-            4 => Self::V4,
-            6 => Self::V6,
-            7 => Self::V7,
-            2019 => Self::V2019_09,
-            _ => Self::V2020_12,
-        }
-    }
 }
 
 // returns latest draft supported

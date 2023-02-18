@@ -92,7 +92,7 @@ fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
 struct RemotesLoader;
 impl UrlLoader for RemotesLoader {
     fn load(&self, url: &url::Url) -> Result<Value, Box<dyn std::error::Error>> {
-        // ensure that url has "localhost:1234"
+        // remotes folder --
         if url.as_str().starts_with("http://localhost:1234/") {
             let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
             let file = File::open(path)?;
@@ -100,15 +100,11 @@ impl UrlLoader for RemotesLoader {
             return Ok(json);
         }
 
-        // Meta-Schemas --
+        // src/metaschemas --
         let url = url.as_str();
-        let meta = if let Some(suffix) = url.strip_prefix("http://json-schema.org/") {
-            Some(suffix)
-        } else if let Some(suffix) = url.strip_prefix("https://json-schema.org/") {
-            Some(suffix)
-        } else {
-            None
-        };
+        let meta = url
+            .strip_prefix("http://json-schema.org/")
+            .or_else(|| url.strip_prefix("https://json-schema.org/"));
         if let Some(meta) = meta {
             let file = File::open(Path::new("src/metaschemas/").join(meta))?;
             let json: Value = serde_json::from_reader(file)?;

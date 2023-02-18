@@ -16,7 +16,6 @@ const POS_ITEM: u8 = 1 << 2;
 pub(crate) static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
     version: 4,
     id: "id",
-    bool_schema: false,
     subschemas: HashMap::from([
         // type agnostic
         ("definitions", POS_PROP),
@@ -44,7 +43,6 @@ pub(crate) static DRAFT6: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 6,
         id: "$id",
-        bool_schema: true,
         subschemas,
         vocab_prefix: "",
         all_vocabs: vec![],
@@ -58,7 +56,6 @@ pub(crate) static DRAFT7: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 7,
         id: "$id",
-        bool_schema: true,
         subschemas,
         vocab_prefix: "",
         all_vocabs: vec![],
@@ -77,7 +74,6 @@ pub(crate) static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 2019,
         id: "$id",
-        bool_schema: true,
         subschemas,
         vocab_prefix: "https://json-schema.org/draft/2019-09/vocab/",
         all_vocabs: vec![
@@ -98,7 +94,6 @@ pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 2020,
         id: "$id",
-        bool_schema: true,
         subschemas,
         vocab_prefix: "https://json-schema.org/draft/2020-12/vocab/",
         all_vocabs: vec![
@@ -127,7 +122,6 @@ pub(crate) fn latest() -> &'static Draft {
 pub(crate) struct Draft {
     pub(crate) version: usize,
     id: &'static str,
-    bool_schema: bool,
     subschemas: HashMap<&'static str, u8>,
     pub(crate) vocab_prefix: &'static str,
     pub(crate) all_vocabs: Vec<&'static str>,

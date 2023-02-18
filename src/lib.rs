@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod compiler;
 mod content;
 mod draft;
