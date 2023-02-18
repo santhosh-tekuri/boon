@@ -245,6 +245,23 @@ impl<'a> Scope<'a> {
         }
     }
 
+    fn kw_loc(&self, kw_path: &str) -> String {
+        let mut loc = kw_path.to_string();
+        let mut scope = self;
+        loop {
+            if !loc.is_empty() {
+                loc.insert(0, '/');
+            }
+            loc.insert_str(0, scope.kw_path.as_ref());
+            if let Some(parent) = scope.parent {
+                scope = parent;
+            } else {
+                break;
+            }
+        }
+        loc
+    }
+
     fn has_cycle(&self) -> bool {
         let mut scope = self.parent;
         while let Some(scp) = scope {
@@ -277,7 +294,11 @@ impl Schema {
     ) -> Result<Uneval<'v>, ValidationError> {
         let error = |kw_path, kind| {
             Err(ValidationError {
-                absolute_keyword_location: format!("{}/{kw_path}", self.loc),
+                keyword_location: scope.kw_loc(kw_path),
+                absolute_keyword_location: match kw_path.is_empty() {
+                    true => self.loc.clone(),
+                    false => format!("{}/{kw_path}", self.loc),
+                },
                 instance_location: vloc.clone(),
                 kind,
             })
@@ -902,6 +923,7 @@ impl Display for Type {
 
 #[derive(Debug)]
 pub struct ValidationError {
+    pub keyword_location: String,
     pub absolute_keyword_location: String,
     pub instance_location: String,
     pub kind: ErrorKind,
