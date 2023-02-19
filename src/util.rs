@@ -121,6 +121,23 @@ pub(crate) fn to_strings(v: &Value) -> Vec<String> {
     }
 }
 
+pub(crate) fn make_loc_relative<'a>(from: &str, to: &'a str) -> Cow<'a, str> {
+    if let Some(path) = to.strip_prefix(from) {
+        return path.into();
+    }
+    let (_, path) = split(from);
+    if let Some(mut i) = path.rfind('/') {
+        i = from.len() - 1 - (path.len() - 1 - i);
+        let ptr = make_loc_relative(&from[..i], to);
+        if ptr.find('#').is_some() {
+            return ptr;
+        } else {
+            return format!("/..{ptr}").into();
+        }
+    }
+    to.into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

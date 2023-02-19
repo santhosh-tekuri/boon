@@ -101,7 +101,7 @@ impl Schemas {
         match sch.validate(v, String::new(), self, scope) {
             Err(e) => Err(ValidationError {
                 keyword_location: String::new(),
-                absolute_keyword_location: String::new(),
+                absolute_keyword_location: sch.loc.clone(),
                 instance_location: String::new(),
                 kind: ErrorKind::Schema {
                     url: sch.loc.clone(),
@@ -992,38 +992,56 @@ pub struct ValidationError {
 }
 
 impl ValidationError {
-    fn print_tree(&self, f: &mut std::fmt::Formatter, indent: usize) -> std::fmt::Result {
+    fn print_alternate<'a>(
+        &'a self,
+        f: &mut std::fmt::Formatter,
+        inst_loc: &'a str,
+        mut sch_loc: &'a str,
+        indent: usize,
+    ) -> std::fmt::Result {
         for _ in 0..indent {
             write!(f, "  ")?;
         }
-        let (_, ptr) = split(&self.absolute_keyword_location);
         if let ErrorKind::Schema { .. } = &self.kind {
             self.kind.fmt(f)?;
         } else {
-            write!(
-                f,
-                "[I#{}] [S#{}] {}",
-                self.instance_location, ptr, self.kind
-            )?;
+            let inst_ptr = self.instance_location.strip_prefix(inst_loc).unwrap();
+            let sch_ptr = make_loc_relative(sch_loc, &self.absolute_keyword_location);
+            write!(f, "[I{inst_ptr}] [S{sch_ptr}] {}", self.kind)?;
+            // NOTE: this code used to check relative path correctness
+            // let (_, ptr) = split(&self.absolute_keyword_location);
+            // write!(
+            //     f,
+            //     "[I{inst_ptr}] [I{}] [S{sch_ptr}] [S{}]{}",
+            //     self.instance_location, ptr, self.kind
+            // )?;
         }
+        sch_loc = if let ErrorKind::Reference { url } = &self.kind {
+            url
+        } else {
+            &self.absolute_keyword_location
+        };
         for cause in &self.causes {
             writeln!(f)?;
-            cause.print_tree(f, indent + 1)?;
+            cause.print_alternate(f, &self.instance_location, sch_loc, indent + 1)?;
         }
         Ok(())
     }
 }
+
 impl Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            self.print_tree(f, 0)
-        } else {
-            write!(
-                f,
-                "jsonschema: instance#{} does not validate with {}: {}",
-                &self.instance_location, self.absolute_keyword_location, self.kind
-            )
+            // NOTE: only root validationError supports altername display
+            if let ErrorKind::Schema { url } = &self.kind {
+                return self.print_alternate(f, "", url, 0);
+            }
         }
+        write!(
+            f,
+            "jsonschema: instance#{} does not validate with {}: {}",
+            &self.instance_location, &self.absolute_keyword_location, self.kind
+        )
     }
 }
 
