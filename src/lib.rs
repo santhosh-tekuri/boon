@@ -21,7 +21,7 @@ use std::{
 
 use regex::Regex;
 use serde_json::{Number, Value};
-use util::{equals, escape, join_iter, quote};
+use util::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchemaIndex(usize);
@@ -330,7 +330,7 @@ impl Schema {
             let scope = Scope::child(sch, kw_path, scope.vid + 1, &scope);
             schemas
                 .get(sch)
-                .validate(v, format!("{vloc}{vpath}"), schemas, scope)
+                .validate(v, format!("{vloc}/{vpath}"), schemas, scope)
                 .map(|_| ())
         };
         let validate_self = |sch: usize, kw_path, uneval: &mut Uneval<'_>| {
@@ -756,9 +756,22 @@ impl Schema {
             _ => {}
         }
 
+        let validate_ref = |sch, kw: &'static str, uneval: &mut Uneval<'_>| {
+            if let Err(ref_err) = validate_self(sch, kw.into(), uneval) {
+                let mut err = error(kw, kind!(Reference, want:schemas.get(sch).loc.clone()));
+                if let ErrorKind::Group = ref_err.kind {
+                    err.causes = ref_err.causes;
+                } else {
+                    err.causes.push(ref_err);
+                }
+                return Err(err);
+            }
+            Ok(())
+        };
+
         // $ref --
         if let Some(ref_) = self.ref_ {
-            add_err!(validate_self(ref_, "$ref".into(), uneval));
+            add_err!(validate_ref(ref_, "$ref", uneval));
         }
 
         // $recursiveRef --
@@ -778,7 +791,7 @@ impl Schema {
                     }
                 }
             }
-            add_err!(validate_self(recursive_ref, "$recursiveRef".into(), uneval));
+            add_err!(validate_ref(recursive_ref, "$recursiveRef", uneval));
         }
 
         // $dynamicRef --
@@ -799,7 +812,7 @@ impl Schema {
                     }
                 }
             }
-            add_err!(validate_self(dynamic_ref, "$dynamicRef".into(), uneval));
+            add_err!(validate_ref(dynamic_ref, "$dynamicRef", uneval));
         }
 
         // not --
@@ -962,21 +975,42 @@ pub struct ValidationError {
     pub causes: Vec<ValidationError>,
 }
 
-impl Display for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl ValidationError {
+    fn print_tree(&self, f: &mut std::fmt::Formatter, indent: usize) -> std::fmt::Result {
+        for _ in 0..indent {
+            write!(f, "  ")?;
+        }
+        let (_, ptr) = split(&self.absolute_keyword_location);
         write!(
             f,
-            "jsonschema: {} does not validate with {}: {}",
-            quote(&self.instance_location),
-            self.absolute_keyword_location,
-            self.kind
-        )
+            "[I#{}] [S#{}] {}",
+            self.instance_location, ptr, self.kind
+        )?;
+        for cause in &self.causes {
+            writeln!(f)?;
+            cause.print_tree(f, indent + 1)?;
+        }
+        Ok(())
+    }
+}
+impl Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            self.print_tree(f, 0)
+        } else {
+            write!(
+                f,
+                "jsonschema: instance#{} does not validate with {}: {}",
+                &self.instance_location, self.absolute_keyword_location, self.kind
+            )
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum ErrorKind {
     Group,
+    Reference { want: String },
     RefCycle,
     FalseSchema,
     Type { got: Type, want: Vec<Type> },
@@ -1016,6 +1050,7 @@ impl Display for ErrorKind {
         // todo: use single quote for strings
         match self {
             Self::Group => write!(f, ""),
+            Self::Reference { want } => write!(f, "fails to validate with {want}"),
             Self::RefCycle => write!(f, "reference cycle detected"),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {

@@ -81,7 +81,9 @@ fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
             println!("    {}", test.description);
             let result = schemas.validate(&test.data, sch_index);
             if let Err(e) = &result {
-                println!("        {e:#}");
+                for line in format!("{e:#}").lines() {
+                    println!("        {line}");
+                }
             }
             assert_eq!(result.is_ok(), test.valid);
         }
