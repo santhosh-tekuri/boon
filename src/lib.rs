@@ -1005,9 +1005,9 @@ impl ValidationError {
         if let ErrorKind::Schema { .. } = &self.kind {
             self.kind.fmt(f)?;
         } else {
-            let inst_ptr = self.instance_location.strip_prefix(inst_loc).unwrap();
-            let sch_ptr = make_loc_relative(sch_loc, &self.absolute_keyword_location);
-            write!(f, "[I{inst_ptr}] [S{sch_ptr}] {}", self.kind)?;
+            let inst_ptr = Loc::locate(inst_loc, &self.instance_location);
+            let sch_ptr = Loc::locate(sch_loc, &self.absolute_keyword_location);
+            write!(f, "I[{inst_ptr}] S[{sch_ptr}] {}", self.kind)?;
             // NOTE: this code used to check relative path correctness
             // let (_, ptr) = split(&self.absolute_keyword_location);
             // write!(

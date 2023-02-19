@@ -121,21 +121,37 @@ pub(crate) fn to_strings(v: &Value) -> Vec<String> {
     }
 }
 
-pub(crate) fn make_loc_relative<'a>(from: &str, to: &'a str) -> Cow<'a, str> {
-    if let Some(path) = to.strip_prefix(from) {
-        return path.into();
+// Loc --
+
+pub(crate) enum Loc<'a> {
+    Abs(&'a str),
+    Relative(usize, &'a str),
+}
+
+impl<'a> Loc<'a> {
+    pub(crate) fn locate(from: &str, to: &'a str) -> Loc<'a> {
+        if let Some(path) = to.strip_prefix(from) {
+            return Self::Relative(0, path);
+        }
+        let (_, path) = split(from);
+        if let Some(mut i) = path.rfind('/') {
+            i = from.len() - 1 - (path.len() - 1 - i);
+            return match Self::locate(&from[..i], to) {
+                Self::Relative(i, ptr) => Self::Relative(i + 1, ptr),
+                loc => loc,
+            };
+        }
+        Self::Abs(to)
     }
-    let (_, path) = split(from);
-    if let Some(mut i) = path.rfind('/') {
-        i = from.len() - 1 - (path.len() - 1 - i);
-        let ptr = make_loc_relative(&from[..i], to);
-        if ptr.find('#').is_some() {
-            return ptr;
-        } else {
-            return format!("/..{ptr}").into();
+}
+
+impl<'a> Display for Loc<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Abs(loc) => write!(f, "{loc}"),
+            Self::Relative(i, path) => write!(f, "{i}{path}"),
         }
     }
-    to.into()
 }
 
 #[cfg(test)]
