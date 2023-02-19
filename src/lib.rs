@@ -1133,21 +1133,35 @@ impl Display for ErrorKind {
                 write!(f, "maximum {want} items allowed, but got {got} items")
             }
             Self::MinContains { got, want } => {
-                write!(
-                    f,
-                    "minimum {want} items allowed to match contains schema, but found {} items at {}",
-                    got.len(),
-                    join_iter(got, ", ")
-                )
+                if got.is_empty() {
+                    write!(
+                        f,
+                        "minimum {want} items allowed to match contains schema, but found none",
+                    )
+                } else {
+                    write!(
+                        f,
+                        "minimum {want} items allowed to match contains schema, but found {} items at {}",
+                        got.len(),
+                        join_iter(got, ", ")
+                    )
+                }
             }
             Self::Contains => write!(f, "no items match contains schema"),
             Self::MaxContains { got, want } => {
-                write!(
-                    f,
-                    "maximum {want} items allowed to match contains schema, but found {} items at {}",
-                    got.len(),
-                    join_iter(got, ", ")
-                )
+                if got.is_empty() {
+                    write!(
+                        f,
+                        "maximum {want} items allowed to match contains schema, but found none",
+                    )
+                } else {
+                    write!(
+                        f,
+                        "maximum {want} items allowed to match contains schema, but found {} items at {}",
+                        got.len(),
+                        join_iter(got, ", ")
+                    )
+                }
             }
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
             Self::AdditionalItems { got } => write!(f, "got {got} additionalItems"),
