@@ -30,15 +30,15 @@ struct Test {
 
 #[test]
 fn test_suite() -> Result<(), Box<dyn Error>> {
-    run_dir("draft4", Draft::V4)?;
-    run_dir("draft6", Draft::V6)?;
-    run_dir("draft7", Draft::V7)?;
-    run_dir("draft2019-09", Draft::V2019_09)?;
-    run_dir("draft2020-12", Draft::V2020_12)?;
+    test_dir("draft4", Draft::V4)?;
+    test_dir("draft6", Draft::V6)?;
+    test_dir("draft7", Draft::V7)?;
+    test_dir("draft2019-09", Draft::V2019_09)?;
+    test_dir("draft2020-12", Draft::V2020_12)?;
     Ok(())
 }
 
-fn run_dir(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
+fn test_dir(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
     let path = Path::new(TESTS_DIR).join(path);
     for entry in path.read_dir()? {
         let entry = entry?;
@@ -47,16 +47,16 @@ fn run_dir(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
         let entry_path = entry_path.strip_prefix(TESTS_DIR)?.to_str().unwrap();
         if file_type.is_file() {
             if !SKIP.iter().any(|n| OsStr::new(n) == entry.file_name()) {
-                run_file(entry_path, draft)?;
+                test_file(entry_path, draft)?;
             }
         } else if file_type.is_dir() {
-            run_dir(entry_path, draft)?;
+            test_dir(entry_path, draft)?;
         }
     }
     Ok(())
 }
 
-fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
+fn test_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
     println!("FILE: {path}");
     let path = Path::new(TESTS_DIR).join(path);
     let optional = path.components().any(|comp| comp.as_os_str() == "optional");
@@ -81,6 +81,7 @@ fn run_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
             println!("    {}", test.description);
             let result = schemas.validate(&test.data, sch_index);
             if let Err(e) = &result {
+                println!("        {e}");
                 for line in format!("{e:#}").lines() {
                     println!("        {line}");
                 }

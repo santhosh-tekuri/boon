@@ -1003,7 +1003,7 @@ impl ValidationError {
             write!(f, "  ")?;
         }
         if let ErrorKind::Schema { .. } = &self.kind {
-            self.kind.fmt(f)?;
+            write!(f, "jsonschema: {}", self.kind)?;
         } else {
             let inst_ptr = Loc::locate(inst_loc, &self.instance_location);
             let sch_ptr = Loc::locate(sch_loc, &self.absolute_keyword_location);
@@ -1037,11 +1037,25 @@ impl Display for ValidationError {
                 return self.print_alternate(f, "", url, 0);
             }
         }
-        write!(
-            f,
-            "jsonschema: instance#{} does not validate with {}: {}",
-            &self.instance_location, &self.absolute_keyword_location, self.kind
-        )
+
+        // non-alternate --
+        let mut leaf = self;
+        while let [cause, ..] = leaf.causes.as_slice() {
+            leaf = cause;
+        }
+        if leaf.instance_location.is_empty() {
+            write!(
+                f,
+                "jsonschema: validation failed with {}",
+                &leaf.absolute_keyword_location
+            )
+        } else {
+            write!(
+                f,
+                "jsonschema: {} does not validate with {}: {}",
+                &leaf.instance_location, &leaf.absolute_keyword_location, &leaf.kind
+            )
+        }
     }
 }
 
@@ -1090,7 +1104,7 @@ impl Display for ErrorKind {
         match self {
             Self::Group => write!(f, ""),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
-            Self::Reference { url } => write!(f, "fails to validate with {url}"),
+            Self::Reference { url } => write!(f, "validation failed with {url}"),
             Self::RefCycle => write!(f, "reference cycle detected"),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
