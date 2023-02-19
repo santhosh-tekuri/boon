@@ -98,7 +98,18 @@ impl Schemas {
             vid: 0,
             parent: None,
         };
-        sch.validate(v, String::new(), self, scope).map(|_| ())
+        match sch.validate(v, String::new(), self, scope) {
+            Err(e) => Err(ValidationError {
+                keyword_location: String::new(),
+                absolute_keyword_location: String::new(),
+                instance_location: String::new(),
+                kind: ErrorKind::Schema {
+                    url: sch.loc.clone(),
+                },
+                causes: vec![e],
+            }),
+            Ok(_) => Ok(()),
+        }
     }
 }
 
@@ -758,7 +769,12 @@ impl Schema {
 
         let validate_ref = |sch, kw: &'static str, uneval: &mut Uneval<'_>| {
             if let Err(ref_err) = validate_self(sch, kw.into(), uneval) {
-                let mut err = error(kw, kind!(Reference, want:schemas.get(sch).loc.clone()));
+                let mut err = error(
+                    kw,
+                    ErrorKind::Reference {
+                        url: schemas.get(sch).loc.clone(),
+                    },
+                );
                 if let ErrorKind::Group = ref_err.kind {
                     err.causes = ref_err.causes;
                 } else {
@@ -981,11 +997,15 @@ impl ValidationError {
             write!(f, "  ")?;
         }
         let (_, ptr) = split(&self.absolute_keyword_location);
-        write!(
-            f,
-            "[I#{}] [S#{}] {}",
-            self.instance_location, ptr, self.kind
-        )?;
+        if let ErrorKind::Schema { .. } = &self.kind {
+            self.kind.fmt(f)?;
+        } else {
+            write!(
+                f,
+                "[I#{}] [S#{}] {}",
+                self.instance_location, ptr, self.kind
+            )?;
+        }
         for cause in &self.causes {
             writeln!(f)?;
             cause.print_tree(f, indent + 1)?;
@@ -1010,7 +1030,8 @@ impl Display for ValidationError {
 #[derive(Debug)]
 pub enum ErrorKind {
     Group,
-    Reference { want: String },
+    Schema { url: String },
+    Reference { url: String },
     RefCycle,
     FalseSchema,
     Type { got: Type, want: Vec<Type> },
@@ -1050,7 +1071,8 @@ impl Display for ErrorKind {
         // todo: use single quote for strings
         match self {
             Self::Group => write!(f, ""),
-            Self::Reference { want } => write!(f, "fails to validate with {want}"),
+            Self::Schema { url } => write!(f, "validation failed with {url}"),
+            Self::Reference { url } => write!(f, "fails to validate with {url}"),
             Self::RefCycle => write!(f, "reference cycle detected"),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
