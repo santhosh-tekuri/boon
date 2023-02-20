@@ -16,7 +16,7 @@ pub use loader::*;
 
 use std::{
     borrow::Cow,
-    cmp::min,
+    cmp::{min, Ordering},
     collections::{HashMap, HashSet, VecDeque},
     fmt::Display,
 };
@@ -843,9 +843,22 @@ impl Schema {
 
         // allOf --
         if !self.all_of.is_empty() {
+            let (mut failed, mut allof_errors) = (vec![], vec![]);
             for (i, sch) in self.all_of.iter().enumerate() {
                 let kw_path = format!("allOf/{i}");
-                add_err!(validate_self(*sch, kw_path.into(), uneval));
+                if let Err(e) = validate_self(*sch, kw_path.into(), uneval) {
+                    failed.push(i);
+                    allof_errors.push(e);
+                }
+            }
+            match failed.len().cmp(&1) {
+                Ordering::Equal => errors.extend(allof_errors),
+                Ordering::Greater => {
+                    let mut err = error("allOf", kind!(AllOf, got: failed));
+                    err.causes = allof_errors;
+                    errors.push(err);
+                }
+                _ => (),
             }
         }
 
@@ -861,7 +874,13 @@ impl Schema {
             }
             if anyof_errors.len() == self.any_of.len() {
                 // none matched
-                errors.extend(anyof_errors);
+                if anyof_errors.len() == 1 {
+                    errors.extend(anyof_errors);
+                } else {
+                    let mut err = error("anyOf", kind!(AnyOf));
+                    err.causes = anyof_errors;
+                    errors.push(err);
+                }
             }
         }
 
@@ -880,7 +899,14 @@ impl Schema {
                 }
             }
             if matched.is_empty() {
-                errors.extend(oneof_errors);
+                // none matched
+                if oneof_errors.len() == 1 {
+                    errors.extend(oneof_errors);
+                } else {
+                    let mut err = error("oneOf", kind!(OneOf, got: matched));
+                    err.causes = oneof_errors;
+                    errors.push(err);
+                }
             } else if matched.len() > 1 {
                 add_error!("oneOf", kind!(OneOf, got: matched));
             }
@@ -1257,11 +1283,15 @@ impl Display for ErrorKind {
             Self::ExclusiveMaximum { got, want } => write!(f, "must be < {want} but got {got}"),
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
             Self::Not => write!(f, "not failed"),
-            Self::AllOf { got } => write!(f, "invalid against subschemas {}", join_iter(got, ", ")),
-            Self::AnyOf => write!(f, "anyOf failed"),
+            Self::AllOf { got } => write!(
+                f,
+                "allOf failed, subschemas {} did not match",
+                join_iter(got, ", ")
+            ),
+            Self::AnyOf => write!(f, "anyOf failed, none matched"),
             Self::OneOf { got } => {
                 if got.is_empty() {
-                    write!(f, "oneOf failed")
+                    write!(f, "oneOf failed, none matched")
                 } else {
                     write!(
                         f,
