@@ -15,6 +15,7 @@ pub use loader::*;
 
 use std::{
     borrow::Cow,
+    cmp::min,
     collections::{HashMap, HashSet, VecDeque},
     fmt::Display,
 };
@@ -588,15 +589,9 @@ impl Schema {
                             }
                         }
                         Additional::SchemaRef(sch) => {
-                            for &index in uneval.items.iter() {
-                                if let Some(pvalue) = arr.get(index) {
-                                    add_err!(validate(
-                                        *sch,
-                                        kw_path.into(),
-                                        pvalue,
-                                        &index.to_string(),
-                                    ));
-                                }
+                            let from = arr.len() - uneval.items.len();
+                            for (i, item) in arr[from..].iter().enumerate() {
+                                add_err!(validate(*sch, kw_path.into(), item, &i.to_string(),));
                             }
                         }
                     }
@@ -612,10 +607,9 @@ impl Schema {
 
                 // items2020 --
                 if let Some(sch) = &self.items2020 {
-                    for &index in uneval.items.iter() {
-                        if let Some(pvalue) = arr.get(index) {
-                            add_err!(validate(*sch, "items".into(), pvalue, &index.to_string()));
-                        }
+                    let from = min(arr.len(), self.prefix_items.len());
+                    for (i, item) in arr[from..].iter().enumerate() {
+                        add_err!(validate(*sch, "items".into(), item, &i.to_string()));
                     }
                     uneval.items.clear();
                 }
