@@ -100,15 +100,23 @@ impl Schemas {
             parent: None,
         };
         match sch.validate(v, String::new(), self, scope) {
-            Err(e) => Err(ValidationError {
-                keyword_location: String::new(),
-                absolute_keyword_location: sch.loc.clone(),
-                instance_location: String::new(),
-                kind: ErrorKind::Schema {
-                    url: sch.loc.clone(),
-                },
-                causes: vec![e],
-            }),
+            Err(e) => {
+                let mut err = ValidationError {
+                    keyword_location: String::new(),
+                    absolute_keyword_location: sch.loc.clone(),
+                    instance_location: String::new(),
+                    kind: ErrorKind::Schema {
+                        url: sch.loc.clone(),
+                    },
+                    causes: vec![],
+                };
+                if let ErrorKind::Group = e.kind {
+                    err.causes = e.causes;
+                } else {
+                    err.causes.push(e);
+                }
+                Err(err)
+            }
             Ok(_) => Ok(()),
         }
     }
