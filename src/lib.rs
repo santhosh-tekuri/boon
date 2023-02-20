@@ -3,6 +3,7 @@ mod content;
 mod draft;
 mod formats;
 mod loader;
+mod output;
 mod root;
 mod roots;
 mod util;
