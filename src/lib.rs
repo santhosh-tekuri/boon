@@ -1006,11 +1006,28 @@ impl ValidationError {
             write!(f, "  ")?;
         }
         if let ErrorKind::Schema { .. } = &self.kind {
-            write!(f, "jsonschema: {}", self.kind)?;
+            write!(f, "jsonschema {}", self.kind)?;
         } else {
-            let inst_ptr = Loc::locate(inst_loc, &self.instance_location);
-            let sch_ptr = Loc::locate(sch_loc, &self.absolute_keyword_location);
-            write!(f, "I[{inst_ptr}] S[{sch_ptr}] {}", self.kind)?;
+            if f.sign_minus() {
+                let inst_ptr = Loc::locate(inst_loc, &self.instance_location);
+                let sch_ptr = Loc::locate(sch_loc, &self.absolute_keyword_location);
+                write!(f, "I[{inst_ptr}] S[{sch_ptr}] ")?;
+            } else {
+                let inst_ptr = &self.instance_location;
+                let (_, sch_ptr) = split(&self.absolute_keyword_location);
+                write!(f, "I[{inst_ptr}] S[{sch_ptr}] ")?;
+            }
+            if let ErrorKind::Reference { url } = &self.kind {
+                let (a, _) = split(sch_loc);
+                let (b, ptr) = split(url);
+                if a == b {
+                    write!(f, "validation failed with {ptr}")?;
+                } else {
+                    write!(f, "{}", self.kind)?;
+                }
+            } else {
+                write!(f, "{}", self.kind)?;
+            }
             // NOTE: this code used to check relative path correctness
             // let (_, ptr) = split(&self.absolute_keyword_location);
             // write!(
@@ -1042,23 +1059,48 @@ impl Display for ValidationError {
         }
 
         // non-alternate --
-        let mut leaf = self;
-        while let [cause, ..] = leaf.causes.as_slice() {
-            leaf = cause;
+        fn fmt_leaves(
+            e: &ValidationError,
+            f: &mut std::fmt::Formatter,
+            mut newline: bool,
+        ) -> Result<bool, std::fmt::Error> {
+            if e.causes.is_empty() {
+                if newline {
+                    writeln!(f)?;
+                }
+                write!(f, "  at {}: {}", quote(&e.instance_location), &e.kind)?;
+                newline = true;
+            } else {
+                for cause in &e.causes {
+                    newline = fmt_leaves(cause, f, newline)?;
+                }
+            }
+            Ok(newline)
         }
-        if leaf.instance_location.is_empty() {
-            write!(
-                f,
-                "jsonschema: validation failed with {}",
-                &leaf.absolute_keyword_location
-            )
-        } else {
-            write!(
-                f,
-                "jsonschema: {} does not validate with {}: {}",
-                &leaf.instance_location, &leaf.absolute_keyword_location, &leaf.kind
-            )
-        }
+        writeln!(
+            f,
+            "jsonschema validation failed with {}",
+            &self.absolute_keyword_location
+        )?;
+        fmt_leaves(self, f, false).map(|_| ())
+
+        // let mut leaf = self;
+        // while let [cause, ..] = leaf.causes.as_slice() {
+        //     leaf = cause;
+        // }
+        // if leaf.instance_location.is_empty() {
+        //     write!(
+        //         f,
+        //         "jsonschema: validation failed with {}",
+        //         &leaf.absolute_keyword_location
+        //     )
+        // } else {
+        //     write!(
+        //         f,
+        //         "jsonschema: {} does not validate with {}: {}",
+        //         &leaf.instance_location, &leaf.absolute_keyword_location, &leaf.kind
+        //     )
+        // }
     }
 }
 
