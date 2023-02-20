@@ -1104,7 +1104,7 @@ impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // todo: use single quote for strings
         match self {
-            Self::Group => write!(f, ""),
+            Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::Reference { url } => write!(f, "validation failed with {url}"),
             Self::RefCycle => write!(f, "reference cycle detected"),
@@ -1136,11 +1136,11 @@ impl Display for ErrorKind {
             Self::Format { got, want } => write!(f, "{got} is not valid {want}"),
             Self::MinProperties { got, want } => write!(
                 f,
-                "minimum {want} properties allowed, but got {got} properties"
+                "minimum {want} properties required, but got {got} properties"
             ),
             Self::MaxProperties { got, want } => write!(
                 f,
-                "maximum {want} properties allowed, but got {got} properties"
+                "maximum {want} properties required, but got {got} properties"
             ),
             Self::AdditionalProperties { got } => {
                 write!(
@@ -1161,21 +1161,21 @@ impl Display for ErrorKind {
                 quote(got)
             ),
             Self::MinItems { got, want } => {
-                write!(f, "minimum {want} items allowed, but got {got} items")
+                write!(f, "minimum {want} items required, but got {got} items")
             }
             Self::MaxItems { got, want } => {
-                write!(f, "maximum {want} items allowed, but got {got} items")
+                write!(f, "maximum {want} items required, but got {got} items")
             }
             Self::MinContains { got, want } => {
                 if got.is_empty() {
                     write!(
                         f,
-                        "minimum {want} items allowed to match contains schema, but found none",
+                        "minimum {want} items required to match contains schema, but found none",
                     )
                 } else {
                     write!(
                         f,
-                        "minimum {want} items allowed to match contains schema, but found {} items at {}",
+                        "minimum {want} items required to match contains schema, but found {} items at {}",
                         got.len(),
                         join_iter(got, ", ")
                     )
@@ -1186,12 +1186,12 @@ impl Display for ErrorKind {
                 if got.is_empty() {
                     write!(
                         f,
-                        "maximum {want} items allowed to match contains schema, but found none",
+                        "maximum {want} items required to match contains schema, but found none",
                     )
                 } else {
                     write!(
                         f,
-                        "maximum {want} items allowed to match contains schema, but found {} items at {}",
+                        "maximum {want} items required to match contains schema, but found {} items at {}",
                         got.len(),
                         join_iter(got, ", ")
                     )
