@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use serde::{
     ser::{SerializeMap, SerializeSeq},
     Serialize,
 };
 
-use crate::{ErrorKind, ValidationError};
+use crate::{util::write_json_to_fmt, ErrorKind, ValidationError};
 
 impl ValidationError {
     pub fn flag_output(&self) -> FlagOutput {
@@ -91,6 +93,12 @@ impl Serialize for FlagOutput {
     }
 }
 
+impl Display for FlagOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_json_to_fmt(f, self)
+    }
+}
+
 pub struct OutputUnit<'a> {
     pub valid: bool,
     pub keyword_location: &'a str,
@@ -118,6 +126,12 @@ impl<'a> Serialize for OutputUnit<'a> {
         };
         map.serialize_entry(pname, &self.error)?;
         map.end()
+    }
+}
+
+impl<'a> Display for OutputUnit<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write_json_to_fmt(f, self)
     }
 }
 
