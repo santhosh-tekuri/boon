@@ -81,7 +81,9 @@ fn test_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
             println!("    {}", test.description);
             let result = schemas.validate(&test.data, sch_index);
             if let Err(e) = &result {
-                println!("        {e}");
+                for line in format!("{e}").lines() {
+                    println!("        {line}");
+                }
                 for line in format!("{e:#}").lines() {
                     println!("        {line}");
                 }
