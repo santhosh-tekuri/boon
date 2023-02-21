@@ -316,57 +316,37 @@ impl Schema {
         schemas: &Schemas,
         scope: Scope,
     ) -> Result<Uneval<'v>, ValidationError> {
-        let error = |kw_path: &str, kind| ValidationError {
-            keyword_location: scope.kw_loc(kw_path),
-            absolute_keyword_location: match kw_path.is_empty() {
-                true => self.loc.clone(),
-                false => format!("{}/{kw_path}", self.loc),
-            },
-            instance_location: vloc.clone(),
-            kind,
-            causes: vec![],
+        let h = Helper {
+            v,
+            schemas,
+            scope,
+            sloc: &self.loc,
+            vloc,
         };
 
         let mut errors = vec![];
         macro_rules! add_error {
             ($kw_path:expr, $kind:expr) => {
-                errors.push(error($kw_path, $kind))
+                errors.push(h.error($kw_path, $kind))
             };
         }
         macro_rules! add_err {
             ($result:expr) => {
-                if let Err(e) = $result {
-                    errors.push(e);
-                }
+                errors.extend($result.err().into_iter());
             };
         }
 
-        if scope.has_cycle() {
-            return Err(error("", kind!(RefCycle)));
+        if h.scope.has_cycle() {
+            return Err(h.error("", kind!(RefCycle)));
         }
 
         let mut _uneval = Uneval::from(v);
         let uneval = &mut _uneval;
-        let validate = |sch: usize, kw_path, v: &Value, vpath: &str| {
-            let scope = Scope::child(sch, kw_path, scope.vid + 1, &scope);
-            schemas
-                .get(sch)
-                .validate(v, format!("{vloc}/{vpath}"), schemas, scope)
-                .map(|_| ())
-        };
-        let validate_self = |sch: usize, kw_path, uneval: &mut Uneval<'_>| {
-            let scope = Scope::child(sch, kw_path, scope.vid, &scope);
-            let result = schemas.get(sch).validate(v, vloc.clone(), schemas, scope);
-            if let Ok(reply) = &result {
-                uneval.merge(reply);
-            }
-            result.map(|_| ())
-        };
 
         // boolean --
         if let Some(b) = self.boolean {
             if !b {
-                return Err(error("", kind!(FalseSchema)));
+                return Err(h.error("", kind!(FalseSchema)));
             }
             return Ok(_uneval);
         }
@@ -454,7 +434,7 @@ impl Schema {
                                 }
                             }
                             Dependency::SchemaRef(sch) => {
-                                add_err!(validate_self(*sch, kw_path.into(), uneval));
+                                add_err!(h.validate_self(*sch, kw_path.into(), uneval));
                             }
                         }
                     }
@@ -464,7 +444,7 @@ impl Schema {
                 for (pname, sch) in &self.dependent_schemas {
                     if obj.contains_key(pname) {
                         let kw_path = format!("dependentSchemas/{}", escape(pname));
-                        add_err!(validate_self(*sch, kw_path.into(), uneval));
+                        add_err!(h.validate_self(*sch, kw_path.into(), uneval));
                     }
                 }
 
@@ -490,7 +470,7 @@ impl Schema {
                     if let Some(pvalue) = obj.get(pname) {
                         uneval.props.remove(pname);
                         let kw_path = format!("properties/{}", escape(pname));
-                        add_err!(validate(psch, kw_path.into(), pvalue, &escape(pname)));
+                        add_err!(h.validate(psch, kw_path.into(), pvalue, &escape(pname)));
                     }
                 }
 
@@ -499,7 +479,7 @@ impl Schema {
                     for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
                         uneval.props.remove(pname);
                         let kw_path = format!("patternProperties/{}", escape(regex.as_str()));
-                        add_err!(validate(*psch, kw_path.into(), pvalue, &escape(pname)));
+                        add_err!(h.validate(*psch, kw_path.into(), pvalue, &escape(pname)));
                     }
                 }
 
@@ -507,7 +487,7 @@ impl Schema {
                 if let Some(sch) = &self.property_names {
                     for pname in obj.keys() {
                         let v = Value::String(pname.to_owned());
-                        add_err!(validate(*sch, "propertyNames".into(), &v, &escape(pname)));
+                        add_err!(h.validate(*sch, "propertyNames".into(), &v, &escape(pname)));
                     }
                 }
 
@@ -526,7 +506,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             for &pname in uneval.props.iter() {
                                 if let Some(pvalue) = obj.get(pname) {
-                                    add_err!(validate(
+                                    add_err!(h.validate(
                                         *sch,
                                         kw_path.into(),
                                         pvalue,
@@ -571,7 +551,7 @@ impl Schema {
                     match items {
                         Items::SchemaRef(sch) => {
                             for (i, item) in arr.iter().enumerate() {
-                                add_err!(validate(*sch, "items".into(), item, &i.to_string()));
+                                add_err!(h.validate(*sch, "items".into(), item, &i.to_string()));
                             }
                             uneval.items.clear();
                         }
@@ -579,7 +559,7 @@ impl Schema {
                             for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                                 uneval.items.remove(&i);
                                 let kw_path = format!("items/{i}");
-                                add_err!(validate(*sch, kw_path.into(), item, &i.to_string()));
+                                add_err!(h.validate(*sch, kw_path.into(), item, &i.to_string()));
                             }
                         }
                     }
@@ -600,7 +580,7 @@ impl Schema {
                         Additional::SchemaRef(sch) => {
                             let from = arr.len() - uneval.items.len();
                             for (i, item) in arr[from..].iter().enumerate() {
-                                add_err!(validate(*sch, kw_path.into(), item, &i.to_string(),));
+                                add_err!(h.validate(*sch, kw_path.into(), item, &i.to_string(),));
                             }
                         }
                     }
@@ -611,14 +591,14 @@ impl Schema {
                 for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
                     uneval.items.remove(&i);
                     let kw_path = format!("prefixItems/{i}");
-                    add_err!(validate(*sch, kw_path.into(), item, &i.to_string()));
+                    add_err!(h.validate(*sch, kw_path.into(), item, &i.to_string()));
                 }
 
                 // items2020 --
                 if let Some(sch) = &self.items2020 {
                     let from = min(arr.len(), self.prefix_items.len());
                     for (i, item) in arr[from..].iter().enumerate() {
-                        add_err!(validate(*sch, "items".into(), item, &i.to_string()));
+                        add_err!(h.validate(*sch, "items".into(), item, &i.to_string()));
                     }
                     uneval.items.clear();
                 }
@@ -628,7 +608,7 @@ impl Schema {
                 let mut contains_errors = vec![];
                 if let Some(sch) = &self.contains {
                     for (i, item) in arr.iter().enumerate() {
-                        if let Err(e) = validate(*sch, "contains".into(), item, &i.to_string()) {
+                        if let Err(e) = h.validate(*sch, "contains".into(), item, &i.to_string()) {
                             contains_errors.push(e);
                         } else {
                             contains_matched.push(i);
@@ -642,7 +622,7 @@ impl Schema {
                 // minContains --
                 if let Some(min) = self.min_contains {
                     if contains_matched.len() < min {
-                        let mut e = error(
+                        let mut e = h.error(
                             "minContains",
                             kind!(MinContains, contains_matched.clone(), min),
                         );
@@ -650,7 +630,7 @@ impl Schema {
                         errors.push(e);
                     }
                 } else if self.contains.is_some() && contains_matched.is_empty() {
-                    let mut e = error("contains", kind!(Contains));
+                    let mut e = h.error("contains", kind!(Contains));
                     e.causes = contains_errors;
                     errors.push(e);
                 }
@@ -770,73 +750,30 @@ impl Schema {
             _ => {}
         }
 
-        let validate_ref = |sch, kw: &'static str, uneval: &mut Uneval<'_>| {
-            if let Err(ref_err) = validate_self(sch, kw.into(), uneval) {
-                let mut err = error(
-                    kw,
-                    ErrorKind::Reference {
-                        url: schemas.get(sch).loc.clone(),
-                    },
-                );
-                if let ErrorKind::Group = ref_err.kind {
-                    err.causes = ref_err.causes;
-                } else {
-                    err.causes.push(ref_err);
-                }
-                return Err(err);
-            }
-            Ok(())
-        };
-
         // $ref --
         if let Some(ref_) = self.ref_ {
-            add_err!(validate_ref(ref_, "$ref", uneval));
+            add_err!(h.validate_ref(ref_, "$ref", uneval));
         }
 
         // $recursiveRef --
-        if let Some(mut recursive_ref) = self.recursive_ref {
-            if schemas.get(recursive_ref).recursive_anchor {
-                let mut scope = &scope;
-                loop {
-                    let scope_sch = schemas.get(scope.sch);
-                    let base_sch = schemas.get(scope_sch.resource);
-                    if base_sch.recursive_anchor {
-                        recursive_ref = scope.sch;
-                    }
-                    if let Some(parent) = scope.parent {
-                        scope = parent;
-                    } else {
-                        break;
-                    }
-                }
+        if let Some(mut sch) = self.recursive_ref {
+            if schemas.get(sch).recursive_anchor {
+                sch = h.resolve_recursive_anchor().unwrap_or(sch);
             }
-            add_err!(validate_ref(recursive_ref, "$recursiveRef", uneval));
+            add_err!(h.validate_ref(sch, "$recursiveRef", uneval));
         }
 
         // $dynamicRef --
-        if let Some(mut dynamic_ref) = self.dynamic_ref {
-            if let Some(dynamic_anchor) = &schemas.get(dynamic_ref).dynamic_anchor {
-                let mut scope = &scope;
-                loop {
-                    let scope_sch = schemas.get(scope.sch);
-                    let base_sch = schemas.get(scope_sch.resource);
-                    debug_assert_eq!(base_sch.index, base_sch.resource);
-                    if let Some(sch) = base_sch.dynamic_anchors.get(dynamic_anchor) {
-                        dynamic_ref = *sch;
-                    }
-                    if let Some(parent) = scope.parent {
-                        scope = parent;
-                    } else {
-                        break;
-                    }
-                }
+        if let Some(mut sch) = self.dynamic_ref {
+            if let Some(name) = &schemas.get(sch).dynamic_anchor {
+                sch = h.resolve_dynamic_anchor(name).unwrap_or(sch);
             }
-            add_err!(validate_ref(dynamic_ref, "$dynamicRef", uneval));
+            add_err!(h.validate_ref(sch, "$dynamicRef", uneval));
         }
 
         // not --
         if let Some(not) = self.not {
-            if validate_self(not, "not".into(), uneval).is_ok() {
+            if h.validate_self(not, "not".into(), uneval).is_ok() {
                 add_error!("not", kind!(Not));
             }
         }
@@ -846,7 +783,7 @@ impl Schema {
             let (mut failed, mut allof_errors) = (vec![], vec![]);
             for (i, sch) in self.all_of.iter().enumerate() {
                 let kw_path = format!("allOf/{i}");
-                if let Err(e) = validate_self(*sch, kw_path.into(), uneval) {
+                if let Err(e) = h.validate_self(*sch, kw_path.into(), uneval) {
                     failed.push(i);
                     allof_errors.push(e);
                 }
@@ -854,7 +791,7 @@ impl Schema {
             match failed.len().cmp(&1) {
                 Ordering::Equal => errors.extend(allof_errors),
                 Ordering::Greater => {
-                    let mut err = error("allOf", kind!(AllOf, got: failed));
+                    let mut err = h.error("allOf", kind!(AllOf, got: failed));
                     err.causes = allof_errors;
                     errors.push(err);
                 }
@@ -868,7 +805,7 @@ impl Schema {
             let mut anyof_errors = vec![];
             for (i, sch) in self.any_of.iter().enumerate() {
                 let kw_path = format!("anyOf/{i}");
-                if let Err(e) = validate_self(*sch, kw_path.into(), uneval) {
+                if let Err(e) = h.validate_self(*sch, kw_path.into(), uneval) {
                     anyof_errors.push(e);
                 }
             }
@@ -877,7 +814,7 @@ impl Schema {
                 if anyof_errors.len() == 1 {
                     errors.extend(anyof_errors);
                 } else {
-                    let mut err = error("anyOf", kind!(AnyOf));
+                    let mut err = h.error("anyOf", kind!(AnyOf));
                     err.causes = anyof_errors;
                     errors.push(err);
                 }
@@ -889,7 +826,7 @@ impl Schema {
             let (mut matched, mut oneof_errors) = (vec![], vec![]);
             for (i, sch) in self.one_of.iter().enumerate() {
                 let kw_path = format!("oneOf/{i}");
-                if let Err(e) = validate_self(*sch, kw_path.into(), uneval) {
+                if let Err(e) = h.validate_self(*sch, kw_path.into(), uneval) {
                     oneof_errors.push(e);
                 } else {
                     matched.push(i);
@@ -903,7 +840,7 @@ impl Schema {
                 if oneof_errors.len() == 1 {
                     errors.extend(oneof_errors);
                 } else {
-                    let mut err = error("oneOf", kind!(OneOf, got: matched));
+                    let mut err = h.error("oneOf", kind!(OneOf, got: matched));
                     err.causes = oneof_errors;
                     errors.push(err);
                 }
@@ -914,12 +851,12 @@ impl Schema {
 
         // if, then, else --
         if let Some(if_) = self.if_ {
-            if validate_self(if_, "if".into(), uneval).is_ok() {
+            if h.validate_self(if_, "if".into(), uneval).is_ok() {
                 if let Some(then) = self.then {
-                    add_err!(validate_self(then, "then".into(), uneval));
+                    add_err!(h.validate_self(then, "then".into(), uneval));
                 }
             } else if let Some(else_) = self.else_ {
-                add_err!(validate_self(else_, "else".into(), uneval));
+                add_err!(h.validate_self(else_, "else".into(), uneval));
             }
         }
 
@@ -928,7 +865,7 @@ impl Schema {
             for pname in &uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
                     let kw_path = "unevaluatedProperties";
-                    add_err!(validate(sch, kw_path.into(), pvalue, &escape(pname)));
+                    add_err!(h.validate(sch, kw_path.into(), pvalue, &escape(pname)));
                 }
             }
             uneval.props.clear();
@@ -939,7 +876,7 @@ impl Schema {
             for i in &uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
                     let kw_path = "unevaluatedItems";
-                    add_err!(validate(sch, kw_path.into(), pvalue, &i.to_string()));
+                    add_err!(h.validate(sch, kw_path.into(), pvalue, &i.to_string()));
                 }
             }
             uneval.items.clear();
@@ -949,9 +886,121 @@ impl Schema {
             0 => Ok(_uneval),
             1 => Err(errors.remove(0)),
             _ => {
-                let mut e = error("", kind!(Group));
+                let mut e = h.error("", kind!(Group));
                 e.causes = errors;
                 Err(e)
+            }
+        }
+    }
+}
+
+struct Helper<'v, 'a, 'b, 'c> {
+    v: &'v Value,
+    schemas: &'a Schemas,
+    scope: Scope<'b>,
+    sloc: &'c String,
+    vloc: String,
+}
+
+impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
+    fn error(&self, kw_path: &str, kind: ErrorKind) -> ValidationError {
+        ValidationError {
+            keyword_location: self.scope.kw_loc(kw_path),
+            absolute_keyword_location: match kw_path.is_empty() {
+                true => self.sloc.clone(),
+                false => format!("{}/{kw_path}", self.sloc),
+            },
+            instance_location: self.vloc.clone(),
+            kind,
+            causes: vec![],
+        }
+    }
+
+    fn validate(
+        &self,
+        sch: usize,
+        kw_path: Cow<'static, str>,
+        v: &Value,
+        vpath: &str,
+    ) -> Result<(), ValidationError> {
+        let scope = Scope::child(sch, kw_path, self.scope.vid + 1, &self.scope);
+        self.schemas
+            .get(sch)
+            .validate(v, format!("{}/{vpath}", self.vloc), self.schemas, scope)
+            .map(|_| ())
+    }
+
+    fn validate_self(
+        &self,
+        sch: usize,
+        kw_path: Cow<'static, str>,
+        uneval: &mut Uneval<'_>,
+    ) -> Result<(), ValidationError> {
+        let scope = Scope::child(sch, kw_path, self.scope.vid, &self.scope);
+        let result = self
+            .schemas
+            .get(sch)
+            .validate(self.v, self.vloc.clone(), self.schemas, scope);
+        if let Ok(reply) = &result {
+            uneval.merge(reply);
+        }
+        result.map(|_| ())
+    }
+
+    fn validate_ref(
+        &self,
+        sch: usize,
+        kw: &'static str,
+        uneval: &mut Uneval<'_>,
+    ) -> Result<(), ValidationError> {
+        if let Err(ref_err) = self.validate_self(sch, kw.into(), uneval) {
+            let mut err = self.error(
+                kw,
+                ErrorKind::Reference {
+                    url: self.schemas.get(sch).loc.clone(),
+                },
+            );
+            if let ErrorKind::Group = ref_err.kind {
+                err.causes = ref_err.causes;
+            } else {
+                err.causes.push(ref_err);
+            }
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    fn resolve_recursive_anchor(&self) -> Option<usize> {
+        let mut scope = &self.scope;
+        let mut sch = None;
+        loop {
+            let scope_sch = self.schemas.get(scope.sch);
+            let base_sch = self.schemas.get(scope_sch.resource);
+            if base_sch.recursive_anchor {
+                sch.replace(scope.sch);
+            }
+            if let Some(parent) = scope.parent {
+                scope = parent;
+            } else {
+                return sch;
+            }
+        }
+    }
+
+    fn resolve_dynamic_anchor(&self, name: &String) -> Option<usize> {
+        let mut scope = &self.scope;
+        let mut sch = None;
+        loop {
+            let scope_sch = self.schemas.get(scope.sch);
+            let base_sch = self.schemas.get(scope_sch.resource);
+            debug_assert_eq!(base_sch.index, base_sch.resource);
+            if let Some(dsch) = base_sch.dynamic_anchors.get(name) {
+                sch.replace(*dsch);
+            }
+            if let Some(parent) = scope.parent {
+                scope = parent;
+            } else {
+                return sch;
             }
         }
     }
