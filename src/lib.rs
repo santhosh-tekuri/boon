@@ -329,15 +329,14 @@ impl Schema {
             return Err(h.error("", kind!(RefCycle)));
         }
 
-        let mut _uneval = Uneval::from(v);
-        let uneval = &mut _uneval;
+        let mut uneval = Uneval::from(v);
 
         // boolean --
         if let Some(b) = self.boolean {
             if !b {
                 return Err(h.error("", kind!(FalseSchema)));
             }
-            return Ok(_uneval);
+            return Ok(uneval);
         }
 
         // type --
@@ -377,368 +376,19 @@ impl Schema {
             }
         }
 
-        match v {
-            Value::Object(obj) => {
-                // minProperties --
-                if let Some(min) = self.min_properties {
-                    if obj.len() < min {
-                        h.add_error("minProperties", kind!(MinProperties, obj.len(), min));
-                    }
-                }
+        self.validate_object(&mut h, &mut uneval);
+        self.validate_array(&mut h, &mut uneval);
+        self.validate_string(&mut h);
+        self.validate_number(&mut h);
 
-                // maxProperties --
-                if let Some(max) = self.max_properties {
-                    if obj.len() > max {
-                        h.add_error("maxProperties", kind!(MaxProperties, obj.len(), max));
-                    }
-                }
+        self.validate_references(&mut h, &mut uneval);
+        self.validate_conditional(&mut h, &mut uneval);
+        self.validate_unevaluated(&mut h, &mut uneval);
 
-                // required --
-                let missing = self
-                    .required
-                    .iter()
-                    .filter(|p| !obj.contains_key(p.as_str()))
-                    .cloned()
-                    .collect::<Vec<String>>();
-                if !missing.is_empty() {
-                    h.add_error("required", kind!(Required, want: missing));
-                }
+        h.result(uneval)
+    }
 
-                // dependencies --
-                for (pname, dependency) in &self.dependencies {
-                    if obj.contains_key(pname) {
-                        let kw_path = format!("dependencies/{}", escape(pname));
-                        match dependency {
-                            Dependency::Props(required) => {
-                                let missing = required
-                                    .iter()
-                                    .filter(|p| !obj.contains_key(p.as_str()))
-                                    .cloned()
-                                    .collect::<Vec<String>>();
-                                if !missing.is_empty() {
-                                    h.add_error(
-                                        &kw_path,
-                                        kind!(DependentRequired, pname.clone(), missing),
-                                    );
-                                }
-                            }
-                            Dependency::SchemaRef(sch) => {
-                                h.add_err(h.validate_self(*sch, kw_path.into(), uneval));
-                            }
-                        }
-                    }
-                }
-
-                // dependentSchemas --
-                for (pname, sch) in &self.dependent_schemas {
-                    if obj.contains_key(pname) {
-                        let kw_path = format!("dependentSchemas/{}", escape(pname));
-                        h.add_err(h.validate_self(*sch, kw_path.into(), uneval));
-                    }
-                }
-
-                // dependentRequired --
-                for (pname, required) in &self.dependent_required {
-                    if obj.contains_key(pname) {
-                        let missing = required
-                            .iter()
-                            .filter(|p| !obj.contains_key(p.as_str()))
-                            .cloned()
-                            .collect::<Vec<String>>();
-                        if !missing.is_empty() {
-                            h.add_error(
-                                &format!("dependentRequired/{}", escape(pname)),
-                                kind!(DependentRequired, pname.clone(), missing),
-                            );
-                        }
-                    }
-                }
-
-                // properties --
-                for (pname, &psch) in &self.properties {
-                    if let Some(pvalue) = obj.get(pname) {
-                        uneval.props.remove(pname);
-                        let kw_path = format!("properties/{}", escape(pname));
-                        h.add_err(h.validate(psch, kw_path.into(), pvalue, &escape(pname)));
-                    }
-                }
-
-                // patternProperties --
-                for (regex, psch) in &self.pattern_properties {
-                    for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
-                        uneval.props.remove(pname);
-                        let kw_path = format!("patternProperties/{}", escape(regex.as_str()));
-                        h.add_err(h.validate(*psch, kw_path.into(), pvalue, &escape(pname)));
-                    }
-                }
-
-                // propertyNames --
-                if let Some(sch) = &self.property_names {
-                    for pname in obj.keys() {
-                        let v = Value::String(pname.to_owned());
-                        h.add_err(h.validate(*sch, "propertyNames".into(), &v, &escape(pname)));
-                    }
-                }
-
-                // additionalProperties --
-                if let Some(additional) = &self.additional_properties {
-                    let kw_path = "additionalProperties";
-                    match additional {
-                        Additional::Bool(allowed) => {
-                            if !allowed && !uneval.props.is_empty() {
-                                h.add_error(
-                                    kw_path,
-                                    kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect())
-                                );
-                            }
-                        }
-                        Additional::SchemaRef(sch) => {
-                            for &pname in uneval.props.iter() {
-                                if let Some(pvalue) = obj.get(pname) {
-                                    h.add_err(h.validate(
-                                        *sch,
-                                        kw_path.into(),
-                                        pvalue,
-                                        &escape(pname),
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    uneval.props.clear();
-                }
-            }
-
-            Value::Array(arr) => {
-                // minItems --
-                if let Some(min) = self.min_items {
-                    if arr.len() < min {
-                        h.add_error("minItems", kind!(MinItems, arr.len(), min));
-                    }
-                }
-
-                // maxItems --
-                if let Some(max) = self.max_items {
-                    if arr.len() > max {
-                        h.add_error("maxItems", kind!(MaxItems, arr.len(), max));
-                    }
-                }
-
-                // uniqueItems --
-                if self.unique_items {
-                    for i in 1..arr.len() {
-                        for j in 0..i {
-                            if equals(&arr[i], &arr[j]) {
-                                h.add_error("uniqueItems", kind!(UniqueItems, got: [j, i]));
-                            }
-                        }
-                    }
-                }
-
-                // items --
-                if let Some(items) = &self.items {
-                    match items {
-                        Items::SchemaRef(sch) => {
-                            for (i, item) in arr.iter().enumerate() {
-                                h.add_err(h.validate(*sch, "items".into(), item, &i.to_string()));
-                            }
-                            uneval.items.clear();
-                        }
-                        Items::SchemaRefs(list) => {
-                            for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
-                                uneval.items.remove(&i);
-                                let kw_path = format!("items/{i}");
-                                h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
-                            }
-                        }
-                    }
-                }
-
-                // additionalItems --
-                if let Some(additional) = &self.additional_items {
-                    let kw_path = "additionalItems";
-                    match additional {
-                        Additional::Bool(allowed) => {
-                            if !allowed && !uneval.items.is_empty() {
-                                h.add_error(
-                                    kw_path,
-                                    kind!(AdditionalItems, got: arr.len() - uneval.items.len()),
-                                );
-                            }
-                        }
-                        Additional::SchemaRef(sch) => {
-                            let from = arr.len() - uneval.items.len();
-                            for (i, item) in arr[from..].iter().enumerate() {
-                                h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
-                            }
-                        }
-                    }
-                    uneval.items.clear();
-                }
-
-                // prefixItems --
-                for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
-                    uneval.items.remove(&i);
-                    let kw_path = format!("prefixItems/{i}");
-                    h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
-                }
-
-                // items2020 --
-                if let Some(sch) = &self.items2020 {
-                    let from = min(arr.len(), self.prefix_items.len());
-                    for (i, item) in arr[from..].iter().enumerate() {
-                        h.add_err(h.validate(*sch, "items".into(), item, &i.to_string()));
-                    }
-                    uneval.items.clear();
-                }
-
-                // contains --
-                let mut contains_matched = vec![];
-                let mut contains_errors = vec![];
-                if let Some(sch) = &self.contains {
-                    for (i, item) in arr.iter().enumerate() {
-                        if let Err(e) = h.validate(*sch, "contains".into(), item, &i.to_string()) {
-                            contains_errors.push(e);
-                        } else {
-                            contains_matched.push(i);
-                            if self.draft_version >= 2020 {
-                                uneval.items.remove(&i);
-                            }
-                        }
-                    }
-                }
-
-                // minContains --
-                if let Some(min) = self.min_contains {
-                    if contains_matched.len() < min {
-                        let mut e = h.error(
-                            "minContains",
-                            kind!(MinContains, contains_matched.clone(), min),
-                        );
-                        e.causes = contains_errors;
-                        h.errors.push(e);
-                    }
-                } else if self.contains.is_some() && contains_matched.is_empty() {
-                    let mut e = h.error("contains", kind!(Contains));
-                    e.causes = contains_errors;
-                    h.errors.push(e);
-                }
-
-                // maxContains --
-                if let Some(max) = self.max_contains {
-                    if contains_matched.len() > max {
-                        h.add_error("maxContains", kind!(MaxContains, contains_matched, max));
-                    }
-                }
-            }
-
-            Value::String(s) => {
-                let mut len = None;
-
-                // minLength --
-                if let Some(min) = self.min_length {
-                    let len = len.get_or_insert_with(|| s.chars().count());
-                    if *len < min {
-                        h.add_error("minLength", kind!(MinLength, *len, min));
-                    }
-                }
-
-                // maxLength --
-                if let Some(max) = self.max_length {
-                    let len = len.get_or_insert_with(|| s.chars().count());
-                    if *len > max {
-                        h.add_error("maxLength", kind!(MaxLength, *len, max));
-                    }
-                }
-
-                // pattern --
-                if let Some(regex) = &self.pattern {
-                    if !regex.is_match(s) {
-                        h.add_error(
-                            "pattern",
-                            kind!(Pattern, s.clone(), regex.as_str().to_string()),
-                        );
-                    }
-                }
-
-                // contentEncoding --
-                let mut decoded = Cow::from(s.as_bytes());
-                if let Some((encoding, decode)) = &self.content_encoding {
-                    match decode(s) {
-                        Some(bytes) => decoded = Cow::from(bytes),
-                        None => h.add_error(
-                            "contentEncoding",
-                            kind!(ContentEncoding, s.clone(), encoding.clone()),
-                        ),
-                    }
-                }
-
-                // contentMediaType --
-                if let Some((media_type, check)) = &self.content_media_type {
-                    if !check(decoded.as_ref()) {
-                        h.add_error(
-                            "contentMediaType",
-                            kind!(ContentMediaType, decoded.into_owned(), media_type.clone()),
-                        );
-                    }
-                }
-            }
-
-            Value::Number(n) => {
-                // minimum --
-                if let Some(min) = &self.minimum {
-                    if let (Some(minf), Some(vf)) = (min.as_f64(), n.as_f64()) {
-                        if vf < minf {
-                            h.add_error("minimum", kind!(Minimum, n.clone(), min.clone()));
-                        }
-                    }
-                }
-
-                // maximum --
-                if let Some(max) = &self.maximum {
-                    if let (Some(maxf), Some(vf)) = (max.as_f64(), n.as_f64()) {
-                        if vf > maxf {
-                            h.add_error("maximum", kind!(Maximum, n.clone(), max.clone()));
-                        }
-                    }
-                }
-
-                // exclusiveMinimum --
-                if let Some(ex_min) = &self.exclusive_minimum {
-                    if let (Some(ex_minf), Some(nf)) = (ex_min.as_f64(), n.as_f64()) {
-                        if nf <= ex_minf {
-                            h.add_error(
-                                "exclusiveMinimum",
-                                kind!(ExclusiveMinimum, n.clone(), ex_min.clone()),
-                            );
-                        }
-                    }
-                }
-
-                // exclusiveMaximum --
-                if let Some(ex_max) = &self.exclusive_maximum {
-                    if let (Some(ex_maxf), Some(nf)) = (ex_max.as_f64(), n.as_f64()) {
-                        if nf >= ex_maxf {
-                            h.add_error(
-                                "exclusiveMaximum",
-                                kind!(ExclusiveMaximum, n.clone(), ex_max.clone()),
-                            );
-                        }
-                    }
-                }
-
-                // multipleOf --
-                if let Some(mul) = &self.multiple_of {
-                    if let (Some(mulf), Some(nf)) = (mul.as_f64(), n.as_f64()) {
-                        if (nf / mulf).fract() != 0.0 {
-                            h.add_error("multipleOf", kind!(MultipleOf, n.clone(), mul.clone()));
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-
+    fn validate_references(&self, h: &mut Helper, uneval: &mut Uneval) {
         // $ref --
         if let Some(ref_) = self.ref_ {
             h.add_err(h.validate_ref(ref_, "$ref", uneval));
@@ -746,7 +396,7 @@ impl Schema {
 
         // $recursiveRef --
         if let Some(mut sch) = self.recursive_ref {
-            if schemas.get(sch).recursive_anchor {
+            if h.schema(sch).recursive_anchor {
                 sch = h.resolve_recursive_anchor().unwrap_or(sch);
             }
             h.add_err(h.validate_ref(sch, "$recursiveRef", uneval));
@@ -754,12 +404,14 @@ impl Schema {
 
         // $dynamicRef --
         if let Some(mut sch) = self.dynamic_ref {
-            if let Some(name) = &schemas.get(sch).dynamic_anchor {
+            if let Some(name) = &h.schema(sch).dynamic_anchor {
                 sch = h.resolve_dynamic_anchor(name).unwrap_or(sch);
             }
             h.add_err(h.validate_ref(sch, "$dynamicRef", uneval));
         }
+    }
 
+    fn validate_conditional(&self, h: &mut Helper, uneval: &mut Uneval) {
         // not --
         if let Some(not) = self.not {
             if h.validate_self(not, "not".into(), uneval).is_ok() {
@@ -830,9 +482,11 @@ impl Schema {
                 h.add_err(h.validate_self(else_, "else".into(), uneval));
             }
         }
+    }
 
+    fn validate_unevaluated(&self, h: &mut Helper, uneval: &mut Uneval) {
         // unevaluatedProps --
-        if let (Some(sch), Value::Object(obj)) = (self.unevaluated_properties, v) {
+        if let (Some(sch), Value::Object(obj)) = (self.unevaluated_properties, h.v) {
             for pname in &uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
                     let kw_path = "unevaluatedProperties";
@@ -843,7 +497,7 @@ impl Schema {
         }
 
         // unevaluatedItems --
-        if let (Some(sch), Value::Array(arr)) = (self.unevaluated_items, v) {
+        if let (Some(sch), Value::Array(arr)) = (self.unevaluated_items, h.v) {
             for i in &uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
                     let kw_path = "unevaluatedItems";
@@ -852,8 +506,371 @@ impl Schema {
             }
             uneval.items.clear();
         }
+    }
 
-        h.result(_uneval)
+    fn validate_object(&self, h: &mut Helper, uneval: &mut Uneval) {
+        let Value::Object(obj) = h.v else {
+            return;
+        };
+        // minProperties --
+        if let Some(min) = self.min_properties {
+            if obj.len() < min {
+                h.add_error("minProperties", kind!(MinProperties, obj.len(), min));
+            }
+        }
+
+        // maxProperties --
+        if let Some(max) = self.max_properties {
+            if obj.len() > max {
+                h.add_error("maxProperties", kind!(MaxProperties, obj.len(), max));
+            }
+        }
+
+        // required --
+        let missing = self
+            .required
+            .iter()
+            .filter(|p| !obj.contains_key(p.as_str()))
+            .cloned()
+            .collect::<Vec<String>>();
+        if !missing.is_empty() {
+            h.add_error("required", kind!(Required, want: missing));
+        }
+
+        // dependencies --
+        for (pname, dependency) in &self.dependencies {
+            if obj.contains_key(pname) {
+                let kw_path = format!("dependencies/{}", escape(pname));
+                match dependency {
+                    Dependency::Props(required) => {
+                        let missing = required
+                            .iter()
+                            .filter(|p| !obj.contains_key(p.as_str()))
+                            .cloned()
+                            .collect::<Vec<String>>();
+                        if !missing.is_empty() {
+                            h.add_error(&kw_path, kind!(DependentRequired, pname.clone(), missing));
+                        }
+                    }
+                    Dependency::SchemaRef(sch) => {
+                        h.add_err(h.validate_self(*sch, kw_path.into(), uneval));
+                    }
+                }
+            }
+        }
+
+        // dependentSchemas --
+        for (pname, sch) in &self.dependent_schemas {
+            if obj.contains_key(pname) {
+                let kw_path = format!("dependentSchemas/{}", escape(pname));
+                h.add_err(h.validate_self(*sch, kw_path.into(), uneval));
+            }
+        }
+
+        // dependentRequired --
+        for (pname, required) in &self.dependent_required {
+            if obj.contains_key(pname) {
+                let missing = required
+                    .iter()
+                    .filter(|p| !obj.contains_key(p.as_str()))
+                    .cloned()
+                    .collect::<Vec<String>>();
+                if !missing.is_empty() {
+                    h.add_error(
+                        &format!("dependentRequired/{}", escape(pname)),
+                        kind!(DependentRequired, pname.clone(), missing),
+                    );
+                }
+            }
+        }
+
+        // properties --
+        for (pname, &psch) in &self.properties {
+            if let Some(pvalue) = obj.get(pname) {
+                uneval.props.remove(pname);
+                let kw_path = format!("properties/{}", escape(pname));
+                h.add_err(h.validate(psch, kw_path.into(), pvalue, &escape(pname)));
+            }
+        }
+
+        // patternProperties --
+        for (regex, psch) in &self.pattern_properties {
+            for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
+                uneval.props.remove(pname);
+                let kw_path = format!("patternProperties/{}", escape(regex.as_str()));
+                h.add_err(h.validate(*psch, kw_path.into(), pvalue, &escape(pname)));
+            }
+        }
+
+        // propertyNames --
+        if let Some(sch) = &self.property_names {
+            for pname in obj.keys() {
+                let v = Value::String(pname.to_owned());
+                h.add_err(h.validate(*sch, "propertyNames".into(), &v, &escape(pname)));
+            }
+        }
+
+        // additionalProperties --
+        if let Some(additional) = &self.additional_properties {
+            let kw_path = "additionalProperties";
+            match additional {
+                Additional::Bool(allowed) => {
+                    if !allowed && !uneval.props.is_empty() {
+                        h.add_error(
+                                    kw_path,
+                                    kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect())
+                                );
+                    }
+                }
+                Additional::SchemaRef(sch) => {
+                    for &pname in uneval.props.iter() {
+                        if let Some(pvalue) = obj.get(pname) {
+                            h.add_err(h.validate(*sch, kw_path.into(), pvalue, &escape(pname)));
+                        }
+                    }
+                }
+            }
+            uneval.props.clear();
+        }
+    }
+
+    fn validate_array(&self, h: &mut Helper, uneval: &mut Uneval) {
+        let Value::Array(arr) = h.v else {
+            return;
+        };
+        // minItems --
+        if let Some(min) = self.min_items {
+            if arr.len() < min {
+                h.add_error("minItems", kind!(MinItems, arr.len(), min));
+            }
+        }
+
+        // maxItems --
+        if let Some(max) = self.max_items {
+            if arr.len() > max {
+                h.add_error("maxItems", kind!(MaxItems, arr.len(), max));
+            }
+        }
+
+        // uniqueItems --
+        if self.unique_items {
+            for i in 1..arr.len() {
+                for j in 0..i {
+                    if equals(&arr[i], &arr[j]) {
+                        h.add_error("uniqueItems", kind!(UniqueItems, got: [j, i]));
+                    }
+                }
+            }
+        }
+
+        // items --
+        if let Some(items) = &self.items {
+            match items {
+                Items::SchemaRef(sch) => {
+                    for (i, item) in arr.iter().enumerate() {
+                        h.add_err(h.validate(*sch, "items".into(), item, &i.to_string()));
+                    }
+                    uneval.items.clear();
+                }
+                Items::SchemaRefs(list) => {
+                    for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
+                        uneval.items.remove(&i);
+                        let kw_path = format!("items/{i}");
+                        h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
+                    }
+                }
+            }
+        }
+
+        // additionalItems --
+        if let Some(additional) = &self.additional_items {
+            let kw_path = "additionalItems";
+            match additional {
+                Additional::Bool(allowed) => {
+                    if !allowed && !uneval.items.is_empty() {
+                        h.add_error(
+                            kw_path,
+                            kind!(AdditionalItems, got: arr.len() - uneval.items.len()),
+                        );
+                    }
+                }
+                Additional::SchemaRef(sch) => {
+                    let from = arr.len() - uneval.items.len();
+                    for (i, item) in arr[from..].iter().enumerate() {
+                        h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
+                    }
+                }
+            }
+            uneval.items.clear();
+        }
+
+        // prefixItems --
+        for (i, (sch, item)) in self.prefix_items.iter().zip(arr).enumerate() {
+            uneval.items.remove(&i);
+            let kw_path = format!("prefixItems/{i}");
+            h.add_err(h.validate(*sch, kw_path.into(), item, &i.to_string()));
+        }
+
+        // items2020 --
+        if let Some(sch) = &self.items2020 {
+            let from = min(arr.len(), self.prefix_items.len());
+            for (i, item) in arr[from..].iter().enumerate() {
+                h.add_err(h.validate(*sch, "items".into(), item, &i.to_string()));
+            }
+            uneval.items.clear();
+        }
+
+        // contains --
+        let mut contains_matched = vec![];
+        let mut contains_errors = vec![];
+        if let Some(sch) = &self.contains {
+            for (i, item) in arr.iter().enumerate() {
+                if let Err(e) = h.validate(*sch, "contains".into(), item, &i.to_string()) {
+                    contains_errors.push(e);
+                } else {
+                    contains_matched.push(i);
+                    if self.draft_version >= 2020 {
+                        uneval.items.remove(&i);
+                    }
+                }
+            }
+        }
+
+        // minContains --
+        if let Some(min) = self.min_contains {
+            if contains_matched.len() < min {
+                let mut e = h.error(
+                    "minContains",
+                    kind!(MinContains, contains_matched.clone(), min),
+                );
+                e.causes = contains_errors;
+                h.errors.push(e);
+            }
+        } else if self.contains.is_some() && contains_matched.is_empty() {
+            let mut e = h.error("contains", kind!(Contains));
+            e.causes = contains_errors;
+            h.errors.push(e);
+        }
+
+        // maxContains --
+        if let Some(max) = self.max_contains {
+            if contains_matched.len() > max {
+                h.add_error("maxContains", kind!(MaxContains, contains_matched, max));
+            }
+        }
+    }
+
+    fn validate_string(&self, h: &mut Helper) {
+        let Value::String(s) = h.v else {
+            return;
+        };
+
+        let mut len = None;
+
+        // minLength --
+        if let Some(min) = self.min_length {
+            let len = len.get_or_insert_with(|| s.chars().count());
+            if *len < min {
+                h.add_error("minLength", kind!(MinLength, *len, min));
+            }
+        }
+
+        // maxLength --
+        if let Some(max) = self.max_length {
+            let len = len.get_or_insert_with(|| s.chars().count());
+            if *len > max {
+                h.add_error("maxLength", kind!(MaxLength, *len, max));
+            }
+        }
+
+        // pattern --
+        if let Some(regex) = &self.pattern {
+            if !regex.is_match(s) {
+                h.add_error(
+                    "pattern",
+                    kind!(Pattern, s.clone(), regex.as_str().to_string()),
+                );
+            }
+        }
+
+        // contentEncoding --
+        let mut decoded = Cow::from(s.as_bytes());
+        if let Some((encoding, decode)) = &self.content_encoding {
+            match decode(s) {
+                Some(bytes) => decoded = Cow::from(bytes),
+                None => h.add_error(
+                    "contentEncoding",
+                    kind!(ContentEncoding, s.clone(), encoding.clone()),
+                ),
+            }
+        }
+
+        // contentMediaType --
+        if let Some((media_type, check)) = &self.content_media_type {
+            if !check(decoded.as_ref()) {
+                h.add_error(
+                    "contentMediaType",
+                    kind!(ContentMediaType, decoded.into_owned(), media_type.clone()),
+                );
+            }
+        }
+    }
+
+    fn validate_number(&self, h: &mut Helper) {
+        let Value::Number(n) = h.v else {
+            return;
+        };
+
+        // minimum --
+        if let Some(min) = &self.minimum {
+            if let (Some(minf), Some(vf)) = (min.as_f64(), n.as_f64()) {
+                if vf < minf {
+                    h.add_error("minimum", kind!(Minimum, n.clone(), min.clone()));
+                }
+            }
+        }
+
+        // maximum --
+        if let Some(max) = &self.maximum {
+            if let (Some(maxf), Some(vf)) = (max.as_f64(), n.as_f64()) {
+                if vf > maxf {
+                    h.add_error("maximum", kind!(Maximum, n.clone(), max.clone()));
+                }
+            }
+        }
+
+        // exclusiveMinimum --
+        if let Some(ex_min) = &self.exclusive_minimum {
+            if let (Some(ex_minf), Some(nf)) = (ex_min.as_f64(), n.as_f64()) {
+                if nf <= ex_minf {
+                    h.add_error(
+                        "exclusiveMinimum",
+                        kind!(ExclusiveMinimum, n.clone(), ex_min.clone()),
+                    );
+                }
+            }
+        }
+
+        // exclusiveMaximum --
+        if let Some(ex_max) = &self.exclusive_maximum {
+            if let (Some(ex_maxf), Some(nf)) = (ex_max.as_f64(), n.as_f64()) {
+                if nf >= ex_maxf {
+                    h.add_error(
+                        "exclusiveMaximum",
+                        kind!(ExclusiveMaximum, n.clone(), ex_max.clone()),
+                    );
+                }
+            }
+        }
+
+        // multipleOf --
+        if let Some(mul) = &self.multiple_of {
+            if let (Some(mulf), Some(nf)) = (mul.as_f64(), n.as_f64()) {
+                if (nf / mulf).fract() != 0.0 {
+                    h.add_error("multipleOf", kind!(MultipleOf, n.clone(), mul.clone()));
+                }
+            }
+        }
     }
 }
 
@@ -867,6 +884,10 @@ struct Helper<'v, 'a, 'b, 'c> {
 }
 
 impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
+    fn schema(&self, sch: usize) -> &Schema {
+        self.schemas.get(sch)
+    }
+
     fn error(&self, kw_path: &str, kind: ErrorKind) -> ValidationError {
         ValidationError {
             keyword_location: self.scope.kw_loc(kw_path),
