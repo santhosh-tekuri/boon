@@ -576,10 +576,8 @@ impl Schema {
                     .cloned()
                     .collect::<Vec<String>>();
                 if !missing.is_empty() {
-                    h.add_error(
-                        &format!("dependentRequired/{}", escape(pname)),
-                        kind!(DependentRequired, pname.clone(), missing),
-                    );
+                    let kind = kind!(DependentRequired, pname.clone(), missing);
+                    h.add_error(&format!("dependentRequired/{}", escape(pname)), kind);
                 }
             }
         }
@@ -616,10 +614,8 @@ impl Schema {
             match additional {
                 Additional::Bool(allowed) => {
                     if !allowed && !uneval.props.is_empty() {
-                        h.add_error(
-                                    kw_path,
-                                    kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect())
-                                );
+                        let kind = kind!(AdditionalProperties, got: uneval.props.iter().cloned().cloned().collect());
+                        h.add_error(kw_path, kind);
                     }
                 }
                 Additional::SchemaRef(sch) => {
@@ -739,10 +735,8 @@ impl Schema {
         // minContains --
         if let Some(min) = self.min_contains {
             if contains_matched.len() < min {
-                let mut e = h.error(
-                    "minContains",
-                    kind!(MinContains, contains_matched.clone(), min),
-                );
+                let kind = kind!(MinContains, contains_matched.clone(), min);
+                let mut e = h.error("minContains", kind);
                 e.causes = contains_errors;
                 h.errors.push(e);
             }
@@ -786,10 +780,8 @@ impl Schema {
         // pattern --
         if let Some(regex) = &self.pattern {
             if !regex.is_match(s) {
-                h.add_error(
-                    "pattern",
-                    kind!(Pattern, s.clone(), regex.as_str().to_string()),
-                );
+                let kind = kind!(Pattern, s.clone(), regex.as_str().to_string());
+                h.add_error("pattern", kind);
             }
         }
 
@@ -798,20 +790,18 @@ impl Schema {
         if let Some((encoding, decode)) = &self.content_encoding {
             match decode(s) {
                 Some(bytes) => decoded = Cow::from(bytes),
-                None => h.add_error(
-                    "contentEncoding",
-                    kind!(ContentEncoding, s.clone(), encoding.clone()),
-                ),
+                None => {
+                    let kind = kind!(ContentEncoding, s.clone(), encoding.clone());
+                    h.add_error("contentEncoding", kind)
+                }
             }
         }
 
         // contentMediaType --
         if let Some((media_type, check)) = &self.content_media_type {
             if !check(decoded.as_ref()) {
-                h.add_error(
-                    "contentMediaType",
-                    kind!(ContentMediaType, decoded.into_owned(), media_type.clone()),
-                );
+                let kind = kind!(ContentMediaType, decoded.into_owned(), media_type.clone());
+                h.add_error("contentMediaType", kind);
             }
         }
     }
@@ -843,10 +833,8 @@ impl Schema {
         if let Some(ex_min) = &self.exclusive_minimum {
             if let (Some(ex_minf), Some(nf)) = (ex_min.as_f64(), n.as_f64()) {
                 if nf <= ex_minf {
-                    h.add_error(
-                        "exclusiveMinimum",
-                        kind!(ExclusiveMinimum, n.clone(), ex_min.clone()),
-                    );
+                    let kind = kind!(ExclusiveMinimum, n.clone(), ex_min.clone());
+                    h.add_error("exclusiveMinimum", kind);
                 }
             }
         }
@@ -855,10 +843,8 @@ impl Schema {
         if let Some(ex_max) = &self.exclusive_maximum {
             if let (Some(ex_maxf), Some(nf)) = (ex_max.as_f64(), n.as_f64()) {
                 if nf >= ex_maxf {
-                    h.add_error(
-                        "exclusiveMaximum",
-                        kind!(ExclusiveMaximum, n.clone(), ex_max.clone()),
-                    );
+                    let kind = kind!(ExclusiveMaximum, n.clone(), ex_max.clone());
+                    h.add_error("exclusiveMaximum", kind);
                 }
             }
         }
