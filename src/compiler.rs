@@ -601,7 +601,7 @@ pub enum CompileError {
         url: String,
         src: Box<dyn Error>,
     },
-    UnsupportedUrl {
+    UnsupportedUrlScheme {
         url: String,
     },
     InvalidMetaSchema {
@@ -668,7 +668,7 @@ impl Display for CompileError {
                     write!(f, "error loading {url}")
                 }
             }
-            Self::UnsupportedUrl { url } => write!(f, "loading {url} unsupported"),
+            Self::UnsupportedUrlScheme { url } => write!(f, "unsupported scheme in {url}"),
             Self::InvalidMetaSchema { url } => write!(f, "invalid $schema in {url}"),
             Self::MetaSchemaCycle { url } => {
                 write!(f, "cycle in resolving $schema in {url}")

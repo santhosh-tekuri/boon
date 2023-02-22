@@ -42,7 +42,7 @@ impl DefaultUrlLoader {
                 url: url.as_str().to_owned(),
                 src,
             }),
-            None => Err(CompileError::UnsupportedUrl {
+            None => Err(CompileError::UnsupportedUrlScheme {
                 url: url.as_str().to_owned(),
             }),
         }
