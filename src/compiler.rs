@@ -624,6 +624,8 @@ pub enum CompileError {
     DuplicateAnchor {
         url: String,
         anchor: String,
+        ptr1: String,
+        ptr2: String,
     },
     InvalidJsonPointer(String),
     JsonPointerNotFound(String),
@@ -683,8 +685,16 @@ impl Display for CompileError {
             Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
             Self::InvalidAnchor { loc } => write!(f, "invalid $anchor at {loc}"),
             Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
-            Self::DuplicateAnchor { url, anchor } => {
-                write!(f, "duplicate $anchor {anchor:?} in {url}")
+            Self::DuplicateAnchor {
+                url,
+                anchor,
+                ptr1,
+                ptr2,
+            } => {
+                write!(
+                    f,
+                    "duplicate anchor {anchor:?} in {url} at {ptr1:?} and {ptr2:?}"
+                )
             }
             Self::InvalidJsonPointer(loc) => write!(f, "invalid json-pointer {loc}"),
             Self::JsonPointerNotFound(loc) => write!(f, "json-pointer in {loc} not found"),

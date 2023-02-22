@@ -98,7 +98,7 @@ impl Roots {
 
         let resources = {
             let mut m = HashMap::default();
-            draft.collect_resources(&doc, &url, String::new(), &mut m)?;
+            draft.collect_resources(&doc, &url, String::new(), &url, &mut m)?;
             m
         };
 

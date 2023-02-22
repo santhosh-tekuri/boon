@@ -173,16 +173,19 @@ impl Draft {
         base: &Url,
         ptr: &str,
         res: &mut Resource,
+        root_url: &Url,
     ) -> Result<(), CompileError> {
         let Value::Object(obj) = json else {
             return Ok(());
         };
 
         let mut add_anchor = |anchor: String| match res.anchors.entry(anchor) {
-            entry @ Entry::Occupied(_) => {
+            Entry::Occupied(entry) => {
                 return Err(CompileError::DuplicateAnchor {
-                    url: base.as_str().to_owned(),
+                    url: root_url.as_str().to_owned(),
                     anchor: entry.key().to_owned(),
+                    ptr1: entry.get().to_owned(),
+                    ptr2: ptr.to_owned(),
                 });
             }
             entry => {
@@ -229,6 +232,7 @@ impl Draft {
         json: &Value,
         base: &Url,  // base of json
         ptr: String, // ptr of json
+        root_url: &Url,
         resources: &mut HashMap<String, Resource>,
     ) -> Result<(), CompileError> {
         let Value::Object(obj) = json else {
@@ -266,7 +270,7 @@ impl Draft {
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base.as_ref()) {
-            self.collect_anchors(json, &base, &ptr, res)?;
+            self.collect_anchors(json, &base, &ptr, res, root_url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
@@ -277,13 +281,13 @@ impl Draft {
             };
             if pos & POS_SELF != 0 {
                 let ptr = format!("{ptr}/{kw}");
-                self.collect_resources(v, base.as_ref(), ptr, resources)?;
+                self.collect_resources(v, base.as_ref(), ptr, root_url, resources)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
                         let ptr = format!("{ptr}/{kw}/{i}");
-                        self.collect_resources(item, base.as_ref(), ptr, resources)?;
+                        self.collect_resources(item, base.as_ref(), ptr, root_url, resources)?;
                     }
                 }
             }
@@ -291,7 +295,7 @@ impl Draft {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
                         let ptr = format!("{ptr}/{kw}/{}", escape(pname));
-                        self.collect_resources(pvalue, base.as_ref(), ptr, resources)?;
+                        self.collect_resources(pvalue, base.as_ref(), ptr, root_url, resources)?;
                     }
                 }
             }
@@ -380,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_collect_ids() {
-        let base = Url::parse("http://a.com/schema.json").unwrap();
+        let url = Url::parse("http://a.com/schema.json").unwrap();
         let json: Value = serde_json::from_str(
             r#"{
                 "id": "http://a.com/schemas/schema.json",
@@ -423,7 +427,7 @@ mod tests {
         };
         let mut got = HashMap::new();
         DRAFT4
-            .collect_resources(&json, &base, String::new(), &mut got)
+            .collect_resources(&json, &url, String::new(), &url, &mut got)
             .unwrap();
         let got = got
             .iter()
@@ -434,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_collect_anchors() {
-        let base = Url::parse("http://a.com/schema.json").unwrap();
+        let url = Url::parse("http://a.com/schema.json").unwrap();
         let json: Value = serde_json::from_str(
             r#"{
                 "$defs": {
@@ -459,7 +463,7 @@ mod tests {
         .unwrap();
         let mut resources = HashMap::new();
         DRAFT2020
-            .collect_resources(&json, &base, String::new(), &mut resources)
+            .collect_resources(&json, &url, String::new(), &url, &mut resources)
             .unwrap();
         assert!(resources.get("").unwrap().anchors.is_empty());
         assert_eq!(resources.get("/$defs/s2").unwrap().anchors, {
