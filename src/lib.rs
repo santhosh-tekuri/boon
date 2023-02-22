@@ -512,6 +512,7 @@ impl Schema {
         let Value::Object(obj) = h.v else {
             return;
         };
+
         // minProperties --
         if let Some(min) = self.min_properties {
             if obj.len() < min {
@@ -634,6 +635,7 @@ impl Schema {
         let Value::Array(arr) = h.v else {
             return;
         };
+
         // minItems --
         if let Some(min) = self.min_items {
             if arr.len() < min {
