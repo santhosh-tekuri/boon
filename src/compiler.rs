@@ -25,6 +25,33 @@ pub enum Draft {
 }
 
 impl Draft {
+    /// get [`Draft`] for given `url`
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - accepts both `http` and `https` and ignores any fragments in url
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use boon::*;
+    /// assert_eq!(Draft::from_url("https://json-schema.org/draft/2020-12/schema"), Some(Draft::V2020_12));
+    /// assert_eq!(Draft::from_url("http://json-schema.org/draft-07/schema#"), Some(Draft::V7));
+    /// ```
+    pub fn from_url(url: &str) -> Option<Draft> {
+        match crate::draft::Draft::from_url(url) {
+            Some(draft) => match draft.version {
+                4 => Some(Draft::V4),
+                6 => Some(Draft::V6),
+                7 => Some(Draft::V7),
+                2019 => Some(Draft::V2019_09),
+                2020 => Some(Draft::V2020_12),
+                _ => None,
+            },
+            None => None,
+        }
+    }
+
     pub(crate) fn internal(&self) -> &'static crate::draft::Draft {
         match self {
             Draft::V4 => &DRAFT4,
