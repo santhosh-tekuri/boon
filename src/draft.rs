@@ -338,6 +338,7 @@ fn load_std_metaschemas() -> Result<Schemas, CompileError> {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
+    compiler.enable_format_assertions();
     for (url, content) in &files {
         let v = serde_json::from_str::<Value>(content).map_err(|e| CompileError::LoadUrlError {
             url: url.to_string(),

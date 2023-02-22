@@ -622,8 +622,8 @@ pub enum CompileError {
         id: String,
     },
     DuplicateAnchor {
-        url: String,
         anchor: String,
+        url: String,
         ptr1: String,
         ptr2: String,
     },
@@ -686,8 +686,8 @@ impl Display for CompileError {
             Self::InvalidAnchor { loc } => write!(f, "invalid $anchor at {loc}"),
             Self::DuplicateId { url, id } => write!(f, "duplicate $id {id} in {url}"),
             Self::DuplicateAnchor {
-                url,
                 anchor,
+                url,
                 ptr1,
                 ptr2,
             } => {
