@@ -25,11 +25,8 @@ use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SchemaIndex(SchemaIdx);
-
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SchemaIdx(usize);
+pub struct SchemaIndex(usize);
 
 #[derive(Default)]
 pub struct Schemas {
@@ -42,33 +39,33 @@ impl Schemas {
         Self::default()
     }
 
-    fn enqueue(&self, queue: &mut VecDeque<String>, mut loc: String) -> SchemaIdx {
+    fn enqueue(&self, queue: &mut VecDeque<String>, mut loc: String) -> SchemaIndex {
         if loc.rfind('#').is_none() {
             loc.push('#');
         }
 
         if let Some(&index) = self.map.get(&loc) {
             // already got compiled
-            return SchemaIdx(index);
+            return SchemaIndex(index);
         }
         if let Some(qindex) = queue.iter().position(|e| *e == loc) {
             // already queued for compilation
-            return SchemaIdx(self.list.len() + qindex);
+            return SchemaIndex(self.list.len() + qindex);
         }
 
         // new compilation request
         queue.push_back(loc);
-        SchemaIdx(self.list.len() + queue.len() - 1)
+        SchemaIndex(self.list.len() + queue.len() - 1)
     }
 
     fn insert(&mut self, loc: String, sch: Schema) -> SchemaIndex {
         let index = self.list.len();
         self.list.push(sch);
         self.map.insert(loc, index);
-        SchemaIndex(SchemaIdx(index))
+        SchemaIndex(index)
     }
 
-    fn get(&self, idx: SchemaIdx) -> &Schema {
+    fn get(&self, idx: SchemaIndex) -> &Schema {
         &self.list[idx.0] // todo: return bug
     }
 
@@ -84,7 +81,7 @@ impl Schemas {
 
     /// Returns true if `sch_index` is generated for this instance.
     pub fn contains(&self, sch_index: SchemaIndex) -> bool {
-        self.list.get(sch_index.0 .0).is_some()
+        self.list.get(sch_index.0).is_some()
     }
 
     /// Validates `v` with schema identified by `sch_index`
@@ -94,7 +91,7 @@ impl Schemas {
     /// Panics if `sch_index` is not generated for this instance.
     /// [`Schemas::contains`] can be used too ensure that it does not panic.
     pub fn validate(&self, v: &Value, sch_index: SchemaIndex) -> Result<(), ValidationError> {
-        let Some(sch) = self.list.get(sch_index.0.0) else {
+        let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
         let scope = Scope {
@@ -144,42 +141,42 @@ macro_rules! kind {
 #[derive(Default)]
 struct Schema {
     draft_version: usize,
-    idx: SchemaIdx,
+    idx: SchemaIndex,
     loc: String,
-    resource: SchemaIdx,
-    dynamic_anchors: HashMap<String, SchemaIdx>,
+    resource: SchemaIndex,
+    dynamic_anchors: HashMap<String, SchemaIndex>,
 
     // type agnostic --
     boolean: Option<bool>, // boolean schema
-    ref_: Option<SchemaIdx>,
-    recursive_ref: Option<SchemaIdx>,
+    ref_: Option<SchemaIndex>,
+    recursive_ref: Option<SchemaIndex>,
     recursive_anchor: bool,
-    dynamic_ref: Option<SchemaIdx>,
+    dynamic_ref: Option<SchemaIndex>,
     dynamic_anchor: Option<String>,
     types: Vec<Type>,
     enum_: Vec<Value>,
     constant: Option<Value>,
-    not: Option<SchemaIdx>,
-    all_of: Vec<SchemaIdx>,
-    any_of: Vec<SchemaIdx>,
-    one_of: Vec<SchemaIdx>,
-    if_: Option<SchemaIdx>,
-    then: Option<SchemaIdx>,
-    else_: Option<SchemaIdx>,
+    not: Option<SchemaIndex>,
+    all_of: Vec<SchemaIndex>,
+    any_of: Vec<SchemaIndex>,
+    one_of: Vec<SchemaIndex>,
+    if_: Option<SchemaIndex>,
+    then: Option<SchemaIndex>,
+    else_: Option<SchemaIndex>,
     format: Option<(String, Format)>,
 
     // object --
     min_properties: Option<usize>,
     max_properties: Option<usize>,
     required: Vec<String>,
-    properties: HashMap<String, SchemaIdx>,
-    pattern_properties: Vec<(Regex, SchemaIdx)>,
-    property_names: Option<SchemaIdx>,
+    properties: HashMap<String, SchemaIndex>,
+    pattern_properties: Vec<(Regex, SchemaIndex)>,
+    property_names: Option<SchemaIndex>,
     additional_properties: Option<Additional>,
     dependent_required: HashMap<String, Vec<String>>,
-    dependent_schemas: HashMap<String, SchemaIdx>,
+    dependent_schemas: HashMap<String, SchemaIndex>,
     dependencies: HashMap<String, Dependency>,
-    unevaluated_properties: Option<SchemaIdx>,
+    unevaluated_properties: Option<SchemaIndex>,
 
     // array --
     min_items: Option<usize>,
@@ -187,12 +184,12 @@ struct Schema {
     unique_items: bool,
     min_contains: Option<usize>,
     max_contains: Option<usize>,
-    contains: Option<SchemaIdx>,
+    contains: Option<SchemaIndex>,
     items: Option<Items>,
     additional_items: Option<Additional>,
-    prefix_items: Vec<SchemaIdx>,
-    items2020: Option<SchemaIdx>,
-    unevaluated_items: Option<SchemaIdx>,
+    prefix_items: Vec<SchemaIndex>,
+    items2020: Option<SchemaIndex>,
+    unevaluated_items: Option<SchemaIndex>,
 
     // string --
     min_length: Option<usize>,
@@ -211,20 +208,20 @@ struct Schema {
 
 #[derive(Debug)]
 enum Items {
-    SchemaRef(SchemaIdx),
-    SchemaRefs(Vec<SchemaIdx>),
+    SchemaRef(SchemaIndex),
+    SchemaRefs(Vec<SchemaIndex>),
 }
 
 #[derive(Debug)]
 enum Additional {
     Bool(bool),
-    SchemaRef(SchemaIdx),
+    SchemaRef(SchemaIndex),
 }
 
 #[derive(Debug)]
 enum Dependency {
     Props(Vec<String>),
-    SchemaRef(SchemaIdx),
+    SchemaRef(SchemaIndex),
 }
 
 #[derive(Default)]
@@ -254,7 +251,7 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 
 #[derive(Debug, Default)]
 struct Scope<'a> {
-    sch: SchemaIdx,
+    sch: SchemaIndex,
     kw_path: Cow<'static, str>,
     /// unique id of value being validated
     // if two scope validate same value, they will have same vid
@@ -263,7 +260,7 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(sch: SchemaIdx, kw_path: Cow<'static, str>, vid: usize, parent: &'a Scope) -> Self {
+    fn child(sch: SchemaIndex, kw_path: Cow<'static, str>, vid: usize, parent: &'a Scope) -> Self {
         Self {
             sch,
             kw_path,
@@ -875,7 +872,7 @@ struct Helper<'v, 'a, 'b, 'c> {
 }
 
 impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
-    fn schema(&self, sch: SchemaIdx) -> &Schema {
+    fn schema(&self, sch: SchemaIndex) -> &Schema {
         self.schemas.get(sch)
     }
 
@@ -924,7 +921,7 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
 
     fn validate(
         &self,
-        sch: SchemaIdx,
+        sch: SchemaIndex,
         kw_path: Cow<'static, str>,
         v: &Value,
         vpath: &str,
@@ -938,7 +935,7 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
 
     fn validate_self(
         &self,
-        sch: SchemaIdx,
+        sch: SchemaIndex,
         kw_path: Cow<'static, str>,
         uneval: &mut Uneval<'_>,
     ) -> Result<(), ValidationError> {
@@ -955,7 +952,7 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
 
     fn validate_ref(
         &self,
-        sch: SchemaIdx,
+        sch: SchemaIndex,
         kw: &'static str,
         uneval: &mut Uneval<'_>,
     ) -> Result<(), ValidationError> {
@@ -976,7 +973,7 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
         Ok(())
     }
 
-    fn resolve_recursive_anchor(&self) -> Option<SchemaIdx> {
+    fn resolve_recursive_anchor(&self) -> Option<SchemaIndex> {
         let mut scope = &self.scope;
         let mut sch = None;
         loop {
@@ -993,7 +990,7 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
         }
     }
 
-    fn resolve_dynamic_anchor(&self, name: &String) -> Option<SchemaIdx> {
+    fn resolve_dynamic_anchor(&self, name: &String) -> Option<SchemaIndex> {
         let mut scope = &self.scope;
         let mut sch = None;
         loop {

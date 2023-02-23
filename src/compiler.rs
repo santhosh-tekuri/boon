@@ -134,7 +134,7 @@ impl Compiler {
         let index = target.enqueue(&mut queue, loc);
         if queue.is_empty() {
             // already got compiled
-            return Ok(SchemaIndex(index));
+            return Ok(index);
         }
 
         let mut sch_index = None;
@@ -524,12 +524,12 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_path(&mut self, path: String) -> SchemaIdx {
+    fn enqueue_path(&mut self, path: String) -> SchemaIndex {
         let loc = format!("{}/{path}", self.loc);
         self.schemas.enqueue(self.queue, loc)
     }
 
-    fn enqueue_prop(&mut self, pname: &str) -> Option<SchemaIdx> {
+    fn enqueue_prop(&mut self, pname: &str) -> Option<SchemaIndex> {
         if self.obj.contains_key(pname) {
             let loc = format!("{}/{}", self.loc, escape(pname));
             Some(self.schemas.enqueue(self.queue, loc))
@@ -538,7 +538,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_arr(&mut self, pname: &str) -> Vec<SchemaIdx> {
+    fn enqueue_arr(&mut self, pname: &str) -> Vec<SchemaIndex> {
         if let Some(Value::Array(arr)) = self.obj.get(pname) {
             (0..arr.len())
                 .map(|i| {
@@ -551,7 +551,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, SchemaIdx> {
+    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, SchemaIndex> {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
@@ -564,7 +564,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_ref(&mut self, pname: &str) -> Result<Option<SchemaIdx>, CompileError> {
+    fn enqueue_ref(&mut self, pname: &str) -> Result<Option<SchemaIndex>, CompileError> {
         if let Some(Value::String(ref_)) = self.obj.get(pname) {
             let (_, ptr) = split(self.loc);
             let abs_ref =

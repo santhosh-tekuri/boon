@@ -6,7 +6,6 @@ use crate::{
     loader::DefaultUrlLoader,
     root::Root,
     util::*,
-    SchemaIndex,
 };
 
 use serde_json::Value;
@@ -105,7 +104,7 @@ impl Roots {
         if !url.as_str().contains("//json-schema.org/") {
             if let Some(std_sch) = draft.get_schema() {
                 STD_METASCHEMAS
-                    .validate(&doc, SchemaIndex(std_sch))
+                    .validate(&doc, std_sch)
                     .map_err(CompileError::NotValid)?;
             } else {
                 return Err(CompileError::Bug(
