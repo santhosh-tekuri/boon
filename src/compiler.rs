@@ -175,7 +175,7 @@ impl Compiler {
         s.draft_version = root.draft.version;
 
         // we know it is already in queue, we just want to get its index
-        s.index = schemas.enqueue(queue, loc.to_owned());
+        s.idx = schemas.enqueue(queue, loc.to_owned());
         s.resource = {
             let (_, ptr) = split(&loc);
             let base = root.base_url(ptr);
@@ -184,7 +184,7 @@ impl Compiler {
         };
 
         // enqueue dynamicAnchors for compilation
-        if s.index == s.resource && root.draft.version >= 2020 {
+        if s.idx == s.resource && root.draft.version >= 2020 {
             let (url, ptr) = split(&loc);
             if let Some(res) = root.resource(ptr) {
                 for danchor in &res.dynamic_anchors {
@@ -524,12 +524,12 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_path(&mut self, path: String) -> usize {
+    fn enqueue_path(&mut self, path: String) -> SchemaIdx {
         let loc = format!("{}/{path}", self.loc);
         self.schemas.enqueue(self.queue, loc)
     }
 
-    fn enqueue_prop(&mut self, pname: &str) -> Option<usize> {
+    fn enqueue_prop(&mut self, pname: &str) -> Option<SchemaIdx> {
         if self.obj.contains_key(pname) {
             let loc = format!("{}/{}", self.loc, escape(pname));
             Some(self.schemas.enqueue(self.queue, loc))
@@ -538,7 +538,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_arr(&mut self, pname: &str) -> Vec<usize> {
+    fn enqueue_arr(&mut self, pname: &str) -> Vec<SchemaIdx> {
         if let Some(Value::Array(arr)) = self.obj.get(pname) {
             (0..arr.len())
                 .map(|i| {
@@ -551,7 +551,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, usize> {
+    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, SchemaIdx> {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
@@ -564,7 +564,7 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
         }
     }
 
-    fn enqueue_ref(&mut self, pname: &str) -> Result<Option<usize>, CompileError> {
+    fn enqueue_ref(&mut self, pname: &str) -> Result<Option<SchemaIdx>, CompileError> {
         if let Some(Value::String(ref_)) = self.obj.get(pname) {
             let (_, ptr) = split(self.loc);
             let abs_ref =

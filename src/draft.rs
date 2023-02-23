@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use url::Url;
 
-use crate::{root::Resource, util::*, CompileError, Compiler, Schemas};
+use crate::{root::Resource, util::*, CompileError, Compiler, SchemaIdx, Schemas};
 
 const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
@@ -154,7 +154,7 @@ impl Draft {
         }
     }
 
-    pub(crate) fn get_schema(&self) -> Option<usize> {
+    pub(crate) fn get_schema(&self) -> Option<SchemaIdx> {
         let loc = match self.version {
             2020 => Some("https://json-schema.org/draft/2020-12/schema#"),
             2019 => Some("https://json-schema.org/draft/2019-09/schema#"),
@@ -164,7 +164,7 @@ impl Draft {
             _ => None,
         };
         loc.and_then(|loc| STD_METASCHEMAS.get_by_loc(loc))
-            .map(|s| s.index)
+            .map(|s| s.idx)
     }
 
     fn collect_anchors(
