@@ -2,7 +2,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
 
 ## Features
 
-- [x] pass [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) excluding optional
+- [x] pass [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) excluding optional(compare with other impls at [bowtie](https://bowtie-json-schema.github.io/bowtie/#))
   - [x] draft-04
   - [x] draft-06
   - [x] draft-07
@@ -32,12 +32,12 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
   - [x] contentMediaType
     - [x] application/json
   - [ ] contentSchema
-- [ ] errors
+- [x] errors
   - [x] introspectable
   - [x] hierarchy
-    - [ ] alternative display with `#`
-  - [ ] output
-    - [ ] flag
-    - [ ] basic
-    - [ ] detailed
+    - [x] alternative display with `#`
+  - [x] output
+    - [x] flag
+    - [x] basic
+    - [x] detailed
 - [ ] custom vocabulary
