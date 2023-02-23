@@ -104,18 +104,6 @@ impl UrlLoader for RemotesLoader {
             let json: Value = serde_json::from_reader(file)?;
             return Ok(json);
         }
-
-        // src/metaschemas --
-        let url = url.as_str();
-        let meta = url
-            .strip_prefix("http://json-schema.org/")
-            .or_else(|| url.strip_prefix("https://json-schema.org/"));
-        if let Some(meta) = meta {
-            let file = File::open(Path::new("src/metaschemas/").join(meta))?;
-            let json: Value = serde_json::from_reader(file)?;
-            return Ok(json);
-        }
-
         Err("no internet")?
     }
 }

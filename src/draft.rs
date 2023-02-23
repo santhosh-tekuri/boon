@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use url::Url;
 
-use crate::{root::Resource, util::*, CompileError, Compiler, SchemaIdx, Schemas};
+use crate::{compiler::*, root::Resource, util::*, SchemaIdx, Schemas};
 
 const POS_SELF: u8 = 1 << 0;
 const POS_PROP: u8 = 1 << 1;
@@ -305,50 +305,29 @@ impl Draft {
 }
 
 fn load_std_metaschemas() -> Result<Schemas, CompileError> {
-    let mut files = HashMap::new();
-    macro_rules! add {
-        ($path:expr) => {
-            let scheme = $path.find("/draft/").map_or("http", |_| "https");
-            let url = format!(
-                "{scheme}://json-schema.org{}",
-                &$path["metaschemas".len()..]
-            );
-            files.insert(url.as_str(), include_str!($path));
-        };
-    }
-    add!("metaschemas/draft-04/schema");
-    add!("metaschemas/draft-06/schema");
-    add!("metaschemas/draft-07/schema");
-    add!("metaschemas/draft/2019-09/schema");
-    add!("metaschemas/draft/2019-09/meta/core");
-    add!("metaschemas/draft/2019-09/meta/applicator");
-    add!("metaschemas/draft/2019-09/meta/validation");
-    add!("metaschemas/draft/2019-09/meta/meta-data");
-    add!("metaschemas/draft/2019-09/meta/format");
-    add!("metaschemas/draft/2019-09/meta/content");
-    add!("metaschemas/draft/2020-12/schema");
-    add!("metaschemas/draft/2020-12/meta/core");
-    add!("metaschemas/draft/2020-12/meta/applicator");
-    add!("metaschemas/draft/2020-12/meta/unevaluated");
-    add!("metaschemas/draft/2020-12/meta/validation");
-    add!("metaschemas/draft/2020-12/meta/meta-data");
-    add!("metaschemas/draft/2020-12/meta/content");
-    add!("metaschemas/draft/2020-12/meta/format-annotation");
-    add!("metaschemas/draft/2020-12/meta/format-assertion");
-
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_format_assertions();
-    for (url, content) in &files {
-        let v = serde_json::from_str::<Value>(content).map_err(|e| CompileError::LoadUrlError {
-            url: url.to_string(),
-            src: e.into(),
-        })?;
-        compiler.add_resource(url, v).unwrap();
-    }
-    for url in files.keys() {
-        compiler.compile(url.to_string(), &mut schemas)?;
-    }
+    compiler.compile(
+        "https://json-schema.org/draft/2020-12/schema#".to_string(),
+        &mut schemas,
+    )?;
+    compiler.compile(
+        "https://json-schema.org/draft/2019-09/schema#".to_string(),
+        &mut schemas,
+    )?;
+    compiler.compile(
+        "http://json-schema.org/draft-07/schema#".to_string(),
+        &mut schemas,
+    )?;
+    compiler.compile(
+        "http://json-schema.org/draft-06/schema#".to_string(),
+        &mut schemas,
+    )?;
+    compiler.compile(
+        "http://json-schema.org/draft-04/schema#".to_string(),
+        &mut schemas,
+    )?;
     Ok(schemas)
 }
 
