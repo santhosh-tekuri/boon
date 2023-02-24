@@ -17,8 +17,9 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("ipv4", is_ipv4);
     m.insert("ipv6", is_ipv6);
     m.insert("hostname", is_hostname_value);
-    m.insert("idn-hostname", is_idn_hostname);
-    m.insert("email", is_email);
+    m.insert("idn-hostname", is_idn_hostname_value);
+    m.insert("email", is_email_value);
+    m.insert("idn-email", is_idn_email);
     m.insert("date", is_date_value);
     m.insert("time", is_time_value);
     m.insert("date-time", is_date_time);
@@ -273,11 +274,14 @@ fn is_hostname(mut s: &str) -> bool {
     true
 }
 
-fn is_idn_hostname(v: &Value) -> bool {
+fn is_idn_hostname_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
+    is_idn_hostname(s)
+}
 
+fn is_idn_hostname(s: &str) -> bool {
     let Ok(s) = idna::domain_to_ascii_strict(s) else {
         return false;
     };
@@ -482,12 +486,15 @@ fn is_idn_hostname(v: &Value) -> bool {
     is_hostname(&s)
 }
 
-// see https://en.wikipedia.org/wiki/Email_address
-fn is_email(v: &Value) -> bool {
+fn is_email_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
+    is_email(s)
+}
 
+// see https://en.wikipedia.org/wiki/Email_address
+fn is_email(s: &str) -> bool {
     // entire email address to be no more than 254 characters long
     if s.len() > 254 {
         return false;
@@ -546,6 +553,28 @@ fn is_email(v: &Value) -> bool {
     }
 
     true
+}
+
+fn is_idn_email(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    let Some(at) = s.rfind('@') else {
+        return false;
+    };
+    let (local, domain) = (&s[..at], &s[at + 1..]);
+
+    let Ok(local) = idna::domain_to_ascii_strict(local) else {
+        return false;
+    };
+    let Ok(domain) = idna::domain_to_ascii_strict(domain) else {
+        return false;
+    };
+    if !is_idn_hostname(&domain) {
+        return false;
+    }
+    is_email(&format!("{local}@{domain}"))
 }
 
 fn is_json_pointer_value(v: &Value) -> bool {

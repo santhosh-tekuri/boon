@@ -6,11 +6,10 @@ use serde_json::Value;
 
 const SUITE_DIR: &str = "tests/JSON-Schema-Test-Suite";
 const TESTS_DIR: &str = "tests/JSON-Schema-Test-Suite/tests";
-static SKIP: [&str; 4] = [
+static SKIP: [&str; 3] = [
     "zeroTerminatedFloats.json", // only draft4: this behavior is changed in later drafts
     "float-overflow.json",
     "ecmascript-regex.json",
-    "idn-email.json",
 ];
 
 #[derive(Debug, Serialize, Deserialize)]
