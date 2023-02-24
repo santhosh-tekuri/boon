@@ -3,7 +3,6 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-use chrono::NaiveDate;
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use regex::Regex;
@@ -62,14 +61,37 @@ fn is_date_value(v: &Value) -> bool {
     is_date(s)
 }
 
+fn matches_char(s: &str, index: usize, ch: char) -> bool {
+    s.is_char_boundary(index) && s[index..].starts_with(ch)
+}
+
 // see https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
 fn is_date(s: &str) -> bool {
-    let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") else {
+    // yyyy-mm-dd
+    if s.len() != 10 || !matches_char(s, 4, '-') || !matches_char(s, 7, '-') {
+        return false;
+    }
+
+    let mut ymd = s.splitn(3, '-').filter_map(|t| t.parse::<usize>().ok());
+    let (Some(y), Some(m), Some(d)) = (ymd.next(), ymd.next(), ymd.next()) else {
         return false;
     };
 
-    // to ensure zero padded
-    d.format("%Y-%m-%d").to_string() == s
+    if !matches!(m, 1..=12) || !matches!(d, 1..=31) {
+        return false;
+    }
+
+    match m {
+        2 => {
+            if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
+                matches!(d, 1..=29) // leap year
+            } else {
+                matches!(d, 1..=28)
+            }
+        }
+        4 | 6 | 9 | 11 => d <= 30,
+        _ => true,
+    }
 }
 
 fn is_time_value(v: &Value) -> bool {
@@ -81,7 +103,7 @@ fn is_time_value(v: &Value) -> bool {
 
 fn is_time(mut str: &str) -> bool {
     // min: hh:mm:ssZ
-    if str.len() < 9 {
+    if str.len() < 9 || !matches_char(str, 2, ':') || !matches_char(str, 5, ':') {
         return false;
     }
 
@@ -119,9 +141,12 @@ fn is_time(mut str: &str) -> bool {
             Some('-') => 1,
             _ => return false,
         };
-        let mut zhm = str[1..]
-            .splitn(2, ':')
-            .filter_map(|t| t.parse::<usize>().ok());
+        str = &str[1..];
+        if !matches_char(str, 2, ':') {
+            return false;
+        }
+
+        let mut zhm = str.splitn(2, ':').filter_map(|t| t.parse::<usize>().ok());
         let (Some(zh), Some(zm)) = (zhm.next(), zhm.next()) else {
             return false;
         };

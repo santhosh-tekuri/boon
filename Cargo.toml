@@ -19,7 +19,6 @@ url = "2"
 url-escape = "0.1.1"
 percent-encoding = "2"
 once_cell = "1"
-chrono = "0.4"
 base64 = "0.21"
 
 [dev-dependencies]
