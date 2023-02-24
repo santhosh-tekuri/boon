@@ -23,11 +23,12 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] regex, uuid
     - [x] ipv4, ipv6
     - [x] hostname, email
+    - [x] idn-hostname, idn-email
     - [x] date, time, date-time, duration
     - [x] json-pointer, relative-json-pointer
     - [x] uri, uri-reference, uri-template
     - [x] iri, iri-reference
-    - [ ] period
+    - [x] period
 - [ ] content assertions
   - [x] flag to enable in draft >= 2019-10
   - [x] contentEncoding
