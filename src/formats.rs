@@ -22,8 +22,9 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m.insert("idn-email", is_idn_email);
     m.insert("date", is_date_value);
     m.insert("time", is_time_value);
-    m.insert("date-time", is_date_time);
-    m.insert("duration", is_duration);
+    m.insert("date-time", is_date_time_value);
+    m.insert("duration", is_duration_value);
+    m.insert("period", is_period);
     m.insert("json-pointer", is_json_pointer_value);
     m.insert("relative-json-pointer", is_relative_json_pointer);
     m.insert("uuid", is_uuid);
@@ -170,11 +171,14 @@ fn is_time(mut str: &str) -> bool {
     s < 60 || h == 23 && m == 59
 }
 
-fn is_date_time(v: &Value) -> bool {
+fn is_date_time_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
+    is_date_time(s)
+}
 
+fn is_date_time(s: &str) -> bool {
     // min: yyyy-mm-ddThh:mm:ssZ
     if s.len() < 20 {
         return false;
@@ -185,12 +189,15 @@ fn is_date_time(v: &Value) -> bool {
     is_date(&s[..10]) && is_time(&s[11..])
 }
 
-// see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
-fn is_duration(v: &Value) -> bool {
+fn is_duration_value(v: &Value) -> bool {
     let Value::String(s) = v else {
         return true;
     };
+    is_duration(s)
+}
 
+// see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
+fn is_duration(s: &str) -> bool {
     // must start with 'P'
     let Some(s) = s.strip_prefix('P') else {
         return false;
@@ -232,6 +239,22 @@ fn is_duration(v: &Value) -> bool {
     }
 
     true
+}
+
+// see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
+fn is_period(v: &Value) -> bool {
+    let Value::String(s) = v else {
+        return true;
+    };
+
+    let Some(slash) = s.find('/') else {
+        return false;
+    };
+    let (start, end) = (&s[..slash], &s[slash + 1..]);
+    if is_date_time(start) {
+        return is_date_time(end) || is_duration(end);
+    }
+    is_duration(start) && is_date_time(end)
 }
 
 fn is_hostname_value(v: &Value) -> bool {
