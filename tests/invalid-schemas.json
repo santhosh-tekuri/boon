@@ -5,7 +5,7 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "ftp://mars.com/schema.json"
         },
-        "error": "UnsupportedUrlScheme { url: \"ftp://mars.com/schema.json\" }"
+        "errors": ["UnsupportedUrlScheme { url: \"ftp://mars.com/schema.json\" }"]
     },
     {
         "description": "NotValid",
@@ -15,7 +15,7 @@
                 "^(abc]": { "type": "string" }
             }
         },
-        "error": "NotValid(ValidationError {"
+        "errors": ["NotValid(ValidationError {"]
     },
     {
         "description": "JsonPointerNotFound",
@@ -23,7 +23,7 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "#/$defs/something"
         },
-        "error": "JsonPointerNotFound(\"http://fake.com/schema.json#/$defs/something\")"
+        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/$defs/something\")"]
     },
     {
         "description": "InvalidRegex",
@@ -33,7 +33,31 @@
                 "^(abc]": { "type": "string" }
             }
         },
-        "error": "InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\" }"
+        "errors": ["InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\" }"]
+    },
+    {
+        "description": "DuplicateId",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": {
+                "a": {
+                    "$id": "http://a.com/b",
+                    "$defs": {
+                        "b": {
+                            "$id": "a.json"
+                        },
+                        "c": {
+                            "$id": "a.json"
+                        }
+                    }
+                }
+            }
+        },
+        "errors": [
+            "DuplicateId { url: \"http://fake.com/schema.json\", id: \"http://a.com/a.json\", ",
+            "\"/$defs/a/$defs/b\"",
+            "\"/$defs/a/$defs/c\""
+        ]
     },
     {
         "description": "DuplicateAnchor",
@@ -53,6 +77,10 @@
                 }
             }
         },
-        "error": "DuplicateAnchor { anchor: \"a1\", url: \"http://fake.com/schema.json\", ptr1: \"/$defs/a/$defs/b\", ptr2: \"/$defs/a/$defs/c\" }"
+        "errors": [
+            "DuplicateAnchor { anchor: \"a1\", url: \"http://fake.com/schema.json\", ",
+            "\"/$defs/a/$defs/b\"",
+            "\"/$defs/a/$defs/c\""
+        ]
     }
 ]

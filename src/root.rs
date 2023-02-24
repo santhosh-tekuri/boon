@@ -29,12 +29,14 @@ impl Root {
     }
 
     pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
-        let mut set = HashSet::new();
-        for Resource { id, .. } in self.resources.values() {
-            if !set.insert(id) {
+        let mut map = HashMap::new();
+        for (ptr, Resource { id, .. }) in &self.resources {
+            if let Some(ptr2) = map.insert(id, ptr) {
                 return Err(CompileError::DuplicateId {
                     url: self.url.as_str().to_owned(),
                     id: id.as_str().to_owned(),
+                    ptr1: ptr.to_owned(),
+                    ptr2: ptr2.to_owned(),
                 });
             }
         }

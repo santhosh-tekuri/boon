@@ -8,7 +8,7 @@ use serde_json::Value;
 struct Test {
     description: String,
     schema: Value,
-    error: String,
+    errors: Vec<String>,
 }
 
 #[test]
@@ -22,10 +22,12 @@ fn test_invalid_schemas() -> Result<(), Box<dyn Error>> {
             Err(e) => {
                 println!("   {e}");
                 let error = format!("{e:?}");
-                if !error.starts_with(&test.error) {
-                    println!("    got {error}");
-                    println!("   want {}", test.error);
-                    panic!("error mismatch");
+                for want in &test.errors {
+                    if !error.contains(want) {
+                        println!("    got {error}");
+                        println!("   want {want}");
+                        panic!("error mismatch");
+                    }
                 }
             }
         }
