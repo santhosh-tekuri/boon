@@ -15,17 +15,24 @@ use crate::roots::Roots;
 use crate::util::*;
 use crate::*;
 
+/// Supported draft versions
+#[non_exhaustive]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Draft {
+    /// Draft for `http://json-schema.org/draft-04/schema`
     V4,
+    /// Draft for `http://json-schema.org/draft-06/schema`
     V6,
+    /// Draft for `http://json-schema.org/draft-07/schema`
     V7,
+    /// Draft for `https://json-schema.org/draft/2019-09/schema`
     V2019_09,
+    /// Draft for `https://json-schema.org/draft/2020-12/schema`
     V2020_12,
 }
 
 impl Draft {
-    /// get [`Draft`] for given `url`
+    /// Get [`Draft`] for given `url`
     ///
     /// # Arguments
     ///
@@ -85,6 +92,10 @@ impl Compiler {
         Self::default()
     }
 
+    /// Overrides the draft used to compile schemas without
+    /// explicit `$schema` field.
+    ///
+    /// By default this library uses latest draft supported.  
     pub fn set_default_draft(&mut self, d: Draft) {
         self.roots.default_draft = d.internal()
     }
@@ -97,20 +108,39 @@ impl Compiler {
         self.assert_content = true;
     }
 
+    /// Registers [`UrlLoader`] for given url `scheme`
+    ///
+    /// # Note
+    /// - loader for `file` scheme is included by default and
+    /// - all standard meta-schemas from `http(s)://json-schema.org` are loaded internally
+    ///   without network access
     pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.register(scheme, url_loader);
     }
 
-    pub fn register_format(&mut self, name: &'static str, format: Format) {
-        self.formats.insert(name, format);
+    /// Registers custom `format`
+    pub fn register_format(&mut self, format: &'static str, validator: Format) {
+        self.formats.insert(format, validator);
     }
 
-    pub fn register_decoder(&mut self, content_encoding: &'static str, decoder: Decoder) {
+    /// Registers custom `contentEncoding`
+    ///
+    /// Note that content assertions are disabled by default.
+    /// see [`Compiler::enable_content_assertions`]
+    pub fn register_content_encoding(&mut self, content_encoding: &'static str, decoder: Decoder) {
         self.decoders.insert(content_encoding, decoder);
     }
 
-    pub fn register_media_type(&mut self, media_type: &'static str, validator: MediaType) {
-        self.media_types.insert(media_type, validator);
+    /// Registers custom `contentMediaType`
+    ///
+    /// Note that content assertions are disabled by default.
+    /// see [`Compiler::enable_content_assertions`]
+    pub fn register_content_media_type(
+        &mut self,
+        content_media_type: &'static str,
+        validator: MediaType,
+    ) {
+        self.media_types.insert(content_media_type, validator);
     }
 
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {

@@ -1009,11 +1009,13 @@ impl<'v, 'a, 'b, 'c> Helper<'v, 'a, 'b, 'c> {
     }
 }
 
+/// JSON data types for JSONSchema
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Null,
     Bool,
     Number,
+    /// Matches any number with a zero fractional part
     Integer,
     String,
     Array,
@@ -1065,10 +1067,15 @@ impl Display for Type {
 
 #[derive(Debug)]
 pub struct ValidationError {
+    /// The relative location of the validating keyword that follows the validation path
     pub keyword_location: String,
+    /// The absolute, dereferenced location of the validating keyword
     pub absolute_keyword_location: String,
+    /// The location of the JSON value within the instance being validated
     pub instance_location: String,
+    /// kind of error
     pub kind: ErrorKind,
+    /// Holds nested errors
     pub causes: Vec<ValidationError>,
 }
 
@@ -1182,6 +1189,7 @@ impl Display for ValidationError {
     }
 }
 
+/// A list specifying general categories of validation errors.
 #[derive(Debug)]
 pub enum ErrorKind {
     Group,
