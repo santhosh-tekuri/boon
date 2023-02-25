@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{hash_map::Entry, HashMap},
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
@@ -257,24 +254,26 @@ impl Draft {
 
         let id = self.get_id(obj);
 
-        let mut base = Cow::Borrowed(base);
+        let mut base = base;
+        let tmp;
         if let Some(Value::String(obj_id)) = id {
             let (obj_id, _) = split(obj_id);
             let Ok(obj_id) = base.join(obj_id) else {
-                let mut url = base.into_owned();
+                let mut url = base.clone();
                 url.set_fragment(Some(&ptr));
                 return Err(CompileError::InvalidId { loc: url.into() });
             };
             resources.insert(ptr.clone(), Resource::new(obj_id.clone()));
-            base = Cow::Owned(obj_id);
+            tmp = obj_id;
+            base = &tmp;
         } else if ptr.is_empty() {
             // root resource
-            resources.insert(ptr.clone(), Resource::new(base.as_ref().clone()));
+            resources.insert(ptr.clone(), Resource::new(base.clone()));
         }
 
         // collect anchors
-        if let Some(res) = resources.values_mut().find(|res| res.id == *base.as_ref()) {
-            self.collect_anchors(json, &base, &ptr, res, root_url)?;
+        if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
+            self.collect_anchors(json, base, &ptr, res, root_url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
@@ -285,13 +284,13 @@ impl Draft {
             };
             if pos & POS_SELF != 0 {
                 let ptr = format!("{ptr}/{kw}");
-                self.collect_resources(v, base.as_ref(), ptr, root_url, resources)?;
+                self.collect_resources(v, base, ptr, root_url, resources)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
                         let ptr = format!("{ptr}/{kw}/{i}");
-                        self.collect_resources(item, base.as_ref(), ptr, root_url, resources)?;
+                        self.collect_resources(item, base, ptr, root_url, resources)?;
                     }
                 }
             }
@@ -299,7 +298,7 @@ impl Draft {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
                         let ptr = format!("{ptr}/{kw}/{}", escape(pname));
-                        self.collect_resources(pvalue, base.as_ref(), ptr, root_url, resources)?;
+                        self.collect_resources(pvalue, base, ptr, root_url, resources)?;
                     }
                 }
             }
