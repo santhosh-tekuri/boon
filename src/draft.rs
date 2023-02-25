@@ -256,15 +256,15 @@ impl Draft {
 
         let mut base = base;
         let tmp;
-        if let Some(Value::String(obj_id)) = id {
-            let (obj_id, _) = split(obj_id);
-            let Ok(obj_id) = base.join(obj_id) else {
+        if let Some(Value::String(id)) = id {
+            let (id, _) = split(id);
+            let Ok(id) = base.join(id) else {
                 let mut url = base.clone();
                 url.set_fragment(Some(&ptr));
                 return Err(CompileError::InvalidId { loc: url.into() });
             };
-            resources.insert(ptr.clone(), Resource::new(obj_id.clone()));
-            tmp = obj_id;
+            resources.insert(ptr.clone(), Resource::new(id.clone()));
+            tmp = id;
             base = &tmp;
         } else if ptr.is_empty() {
             // root resource
