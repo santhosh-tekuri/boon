@@ -131,30 +131,31 @@ impl Root {
         if self.draft.version < 2019 {
             return Ok(None);
         }
-        match &self.doc {
-            Value::Object(obj) => {
-                if let Some(Value::Object(obj)) = obj.get("$vocabulary") {
-                    let mut vocabs = vec![];
-                    for vocab in obj.keys() {
-                        let name = vocab
-                            .strip_prefix(self.draft.vocab_prefix)
-                            .filter(|name| self.draft.all_vocabs.contains(name));
-                        if let Some(name) = name {
-                            vocabs.push(name.to_owned()); // todo: avoid alloc
-                        } else {
-                            return Err(CompileError::UnsupprtedVocabulary {
-                                url: self.url.as_str().to_owned(),
-                                vocabulary: vocab.to_owned(),
-                            });
-                        }
-                    }
-                    Ok(Some(vocabs))
+        let Value::Object(obj) = &self.doc else {
+            return Ok(None);
+        };
+
+        let Some(Value::Object(obj)) = obj.get("$vocabulary") else {
+            return Ok(None);
+        };
+
+        let mut vocabs = vec![];
+        for (vocab, enabled) in obj {
+            if let Value::Bool(true) = enabled {
+                let name = vocab
+                    .strip_prefix(self.draft.vocab_prefix)
+                    .filter(|name| self.draft.all_vocabs.contains(name));
+                if let Some(name) = name {
+                    vocabs.push(name.to_owned()); // todo: avoid alloc
                 } else {
-                    Ok(None)
+                    return Err(CompileError::UnsupprtedVocabulary {
+                        url: self.url.as_str().to_owned(),
+                        vocabulary: vocab.to_owned(),
+                    });
                 }
             }
-            _ => Ok(None),
         }
+        Ok(Some(vocabs))
     }
 }
 
