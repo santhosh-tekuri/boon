@@ -94,10 +94,10 @@ fn test_file(path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
 
 struct RemotesLoader;
 impl UrlLoader for RemotesLoader {
-    fn load(&self, url: &url::Url) -> Result<Value, Box<dyn std::error::Error>> {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn std::error::Error>> {
         // remotes folder --
-        if url.as_str().starts_with("http://localhost:1234/") {
-            let path = Path::new(SUITE_DIR).join("remotes").join(&url.path()[1..]);
+        if let Some(path) = url.strip_prefix("http://localhost:1234/") {
+            let path = Path::new(SUITE_DIR).join("remotes").join(path);
             let file = File::open(path)?;
             let json: Value = serde_json::from_reader(file)?;
             return Ok(json);

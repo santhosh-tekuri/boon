@@ -48,8 +48,8 @@ fn example_from_https() -> Result<(), Box<dyn Error>> {
 
     struct HttpUrlLoader;
     impl UrlLoader for HttpUrlLoader {
-        fn load(&self, url: &Url) -> Result<Value, Box<dyn Error>> {
-            let reader = ureq::get(url.as_str()).call()?.into_reader();
+        fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+            let reader = ureq::get(url).call()?.into_reader();
             Ok(serde_json::from_reader(reader)?)
         }
     }

@@ -29,8 +29,8 @@ fn test_debug() -> Result<(), Box<dyn Error>> {
 struct Remotes(Map<String, Value>);
 
 impl UrlLoader for Remotes {
-    fn load(&self, url: &url::Url) -> Result<Value, Box<dyn Error>> {
-        if let Some(v) = self.0.get(url.as_str()) {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+        if let Some(v) = self.0.get(url) {
             return Ok(v.clone());
         }
         Err("remote not found")?

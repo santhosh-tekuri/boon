@@ -9,7 +9,7 @@ use crate::compiler::CompileError;
 /// A trait for loading json from given `url`
 pub trait UrlLoader {
     /// Loads json from given `url`
-    fn load(&self, url: &Url) -> Result<Value, Box<dyn Error>>;
+    fn load(&self, url: &str) -> Result<Value, Box<dyn Error>>;
 }
 
 // --
@@ -17,7 +17,8 @@ pub trait UrlLoader {
 struct FileLoader;
 
 impl UrlLoader for FileLoader {
-    fn load(&self, url: &Url) -> Result<Value, Box<dyn Error>> {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+        let url = Url::parse(url)?;
         let path = url.to_file_path().map_err(|_| "invalid file path")?;
         let file = File::open(path)?;
         Ok(serde_json::from_reader(file)?)
@@ -57,10 +58,12 @@ impl DefaultUrlLoader {
         }
 
         match self.0.get(url.scheme()) {
-            Some(loader) => loader.load(url).map_err(|src| CompileError::LoadUrlError {
-                url: url.as_str().to_owned(),
-                src,
-            }),
+            Some(loader) => loader
+                .load(url.as_str())
+                .map_err(|src| CompileError::LoadUrlError {
+                    url: url.as_str().to_owned(),
+                    src,
+                }),
             None => Err(CompileError::UnsupportedUrlScheme {
                 url: url.as_str().to_owned(),
             }),
