@@ -70,7 +70,7 @@ impl Draft {
     }
 }
 
-// returns latest draft supported
+/// Returns latest draft supported
 impl Default for Draft {
     fn default() -> Self {
         Draft::V2020_12
@@ -261,6 +261,7 @@ impl Compiler {
 
         // we know it is already in queue, we just want to get its index
         s.idx = schemas.enqueue(queue, loc.to_owned());
+
         s.resource = {
             let (_, ptr) = split(&loc);
             let base = root.base_url(ptr);
