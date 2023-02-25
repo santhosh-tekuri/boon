@@ -43,6 +43,17 @@ pub(crate) fn unescape(token: &str) -> Result<String, Utf8Error> {
     path_unescape(&token.replace("~1", "/").replace("~0", "~"))
 }
 
+fn is_json_pointer(fragment: &str) -> bool {
+    fragment.is_empty()
+        || fragment.starts_with('/')
+        || fragment.starts_with("%2F")
+        || fragment.starts_with("%2f")
+}
+
+pub(crate) fn is_anchor(fragment: &str) -> bool {
+    !is_json_pointer(fragment)
+}
+
 pub(crate) fn fragment_to_anchor(fragment: &str) -> Result<Option<Cow<str>>, Utf8Error> {
     if fragment.is_empty() || fragment.starts_with('/') {
         Ok(None) // json-pointer
@@ -60,6 +71,10 @@ pub(crate) fn split(url: &str) -> (&str, &str) {
 }
 
 pub(crate) fn ptr_tokens(ptr: &str) -> impl Iterator<Item = Result<String, Utf8Error>> + '_ {
+    debug_assert!(
+        is_json_pointer(ptr),
+        "ptr_tokens: {ptr} is not json-pointer"
+    );
     ptr.split('/').skip(1).map(unescape)
 }
 

@@ -213,14 +213,24 @@ impl Compiler {
         }
 
         let mut sch_index = None;
-        while let Some(loc) = queue.front() {
-            let (url, ptr) = split(loc);
-            let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
-                url: url.to_owned(),
-                src: e.into(),
-            })?;
-            self.roots.or_load(url.clone())?;
-            let root = self.roots.get(&url).unwrap();
+        while let Some(mut loc) = queue.front() {
+            let (url, mut ptr) = split(loc);
+            let root = {
+                let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
+                    url: url.to_owned(),
+                    src: e.into(),
+                })?;
+                self.roots.or_load(url.clone())?;
+                self.roots.get(&url).unwrap()
+            };
+            let tmp;
+            if is_anchor(ptr) {
+                tmp = root.resolve(loc)?;
+                loc = &tmp;
+                let (prefix, suffix) = split(loc);
+                debug_assert_eq!(prefix, url);
+                ptr = suffix;
+            }
             let v = root
                 .lookup_ptr(ptr)
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
@@ -278,6 +288,7 @@ impl Compiler {
                     schemas,
                     queue,
                     root,
+                    roots: &self.roots,
                 };
                 self.compile_obj(&mut s, obj, &mut h)?;
             }
@@ -552,15 +563,16 @@ impl Compiler {
     }
 }
 
-struct Helper<'a, 'b, 'c, 'd, 'e> {
+struct Helper<'a, 'b, 'c, 'd, 'e, 'f> {
     obj: &'a Map<String, Value>,
     loc: &'c str,
     schemas: &'d Schemas,
     queue: &'b mut VecDeque<String>,
     root: &'e Root,
+    roots: &'f Roots,
 }
 
-impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
+impl<'a, 'b, 'c, 'd, 'e, 'f> Helper<'a, 'b, 'c, 'd, 'e, 'f> {
     fn draft_version(&self) -> usize {
         self.root.draft.version
     }
@@ -650,7 +662,20 @@ impl<'a, 'b, 'c, 'd, 'e> Helper<'a, 'b, 'c, 'd, 'e> {
                         url: ref_.clone(),
                         src: e.into(),
                     })?;
-            let resolved_ref = self.root.resolve(abs_ref.as_str())?;
+            let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
+
+            // handle if external anchor
+            let (url, ptr) = split(&resolved_ref);
+            if is_anchor(ptr) {
+                let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
+                    url: url.to_owned(),
+                    src: e.into(),
+                })?;
+                if let Some(root) = self.roots.get(&url) {
+                    resolved_ref = root.resolve(abs_ref.as_str())?;
+                }
+            }
+
             Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
         } else {
             Ok(None)
@@ -820,36 +845,5 @@ mod tests {
         let sch_index = c.compile(loc, &mut schemas).unwrap();
         let inst: Value = Value::String("xx".into());
         schemas.validate(&inst, sch_index).unwrap();
-    }
-
-    #[test]
-    fn test_debug() {
-        run_single(
-            Draft::V6,
-            r##"
-            {"type": "integer"}            
-            "##,
-            r##"
-            1.0
-            "##,
-            true,
-        );
-    }
-
-    fn run_single(draft: Draft, schema: &str, data: &str, valid: bool) {
-        let schema: Value = serde_json::from_str(schema).unwrap();
-        let data: Value = serde_json::from_str(data).unwrap();
-
-        let url = "http://testsuite.com/schema.json";
-        let mut schemas = Schemas::default();
-        let mut compiler = Compiler::default();
-        compiler.set_default_draft(draft);
-        compiler.add_resource(url, schema).unwrap();
-        let sch_index = compiler.compile(url.into(), &mut schemas).unwrap();
-        let result = schemas.validate(&data, sch_index);
-        if let Err(e) = &result {
-            println!("validation failed: {e:#}");
-        }
-        assert_eq!(result.is_ok(), valid);
     }
 }
