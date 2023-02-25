@@ -160,6 +160,23 @@ impl Compiler {
         self.media_types.insert(content_media_type, validator);
     }
 
+    /// Adds schema resource which used later in reference resultion
+    /// If you do not know which schema resources required, then use [`UrlResolver`].
+    ///
+    /// # NOTE
+    /// `url` should not have any fragment. if it has fragment, the fragment is
+    /// ignored.
+    ///
+    /// # Return
+    ///
+    /// - returns false, if resource with same url already loaded.
+    ///
+    /// # Errors
+    ///
+    /// returns [`CompilerError`] if basic validations fail, such as
+    /// - url parsing
+    /// - duplicate anchor or id
+    /// - metaschema resolution etc
     pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
         let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
             url: url.to_owned(),
@@ -168,6 +185,17 @@ impl Compiler {
         self.roots.or_insert(url, json)
     }
 
+    /// Compile given `loc` into `target` and return an identifier to the compiled
+    /// schema.
+    ///
+    /// the argument `loc`:
+    /// - must be absolute url
+    /// - can have fragment json-pointer. for example
+    ///   `http://example.com/schema.json#/defs/address` compiles
+    ///   subschema at `/defs/address`
+    ///
+    /// # NOTE
+    /// - if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
     pub fn compile(
         &mut self,
         mut loc: String,
