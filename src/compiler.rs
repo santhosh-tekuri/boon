@@ -100,10 +100,27 @@ impl Compiler {
         self.roots.default_draft = d.internal()
     }
 
+    /// Always enable format assertions.
+    ///
+    /// # Default Behavior
+    ///
+    /// - for draft-07 and earlier: enabled
+    /// - for draft/2019-09: disabled, unless
+    ///   metaschema says `format` vocabulary is required  
+    /// - for draft/2020-12: disabled, unless
+    ///   metaschema says `format-assertion` vocabulary is required  
     pub fn enable_format_assertions(&mut self) {
         self.assert_format = true;
     }
 
+    /// Always enable content assertions.
+    ///
+    /// content assertions include keywords:
+    /// - contentEncoding
+    /// - contentMediaType
+    /// - contentSchema
+    ///
+    /// Default Behavior is always disabled.
     pub fn enable_content_assertions(&mut self) {
         self.assert_content = true;
     }
