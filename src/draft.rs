@@ -4,7 +4,7 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use url::Url;
 
 use crate::{compiler::*, root::Resource, util::*, SchemaIndex, Schemas};
@@ -167,6 +167,21 @@ impl Draft {
             .map(|s| s.idx)
     }
 
+    fn get_id<'a>(&self, obj: &'a Map<String, Value>) -> Option<&'a Value> {
+        if self.version < 2019 {
+            if obj.contains_key("$ref") {
+                None // All other properties in a "$ref" object MUST be ignored
+            } else {
+                match obj.get(self.id) {
+                    Some(Value::String(id)) if id.starts_with('#') => None, // anchor only
+                    id => id,
+                }
+            }
+        } else {
+            obj.get(self.id)
+        }
+    }
+
     fn collect_anchors(
         &self,
         json: &Value,
@@ -240,18 +255,7 @@ impl Draft {
         };
         //todo: shouldn't we add resource for root boolean schema?? think
 
-        let id = if self.version < 2019 {
-            if obj.contains_key("$ref") {
-                None // All other properties in a "$ref" object MUST be ignored
-            } else {
-                match obj.get(self.id) {
-                    Some(Value::String(id)) if id.starts_with('#') => None, // anchor only
-                    id => id,
-                }
-            }
-        } else {
-            obj.get(self.id)
-        };
+        let id = self.get_id(obj);
 
         let mut base = Cow::Borrowed(base);
         if let Some(Value::String(obj_id)) = id {
