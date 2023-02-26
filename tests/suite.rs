@@ -1,4 +1,4 @@
-use std::{error::Error, ffi::OsStr, fs::File, path::Path};
+use std::{env, error::Error, ffi::OsStr, fs::File, path::Path};
 
 use boon::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
@@ -25,8 +25,16 @@ struct Test {
 }
 
 #[test]
-fn test_suite() -> Result<(), Box<dyn Error>> {
-    let suite = "tests/JSON-Schema-Test-Suite";
+fn test_suites() -> Result<(), Box<dyn Error>> {
+    if let Ok(suite) = env::var("TEST_SUITE") {
+        test_suite(&suite)?;
+    } else {
+        test_suite("tests/JSON-Schema-Test-Suite")?;
+    }
+    Ok(())
+}
+
+fn test_suite(suite: &str) -> Result<(), Box<dyn Error>> {
     test_dir(suite, "draft4", Draft::V4)?;
     test_dir(suite, "draft6", Draft::V6)?;
     test_dir(suite, "draft7", Draft::V7)?;
@@ -37,7 +45,11 @@ fn test_suite() -> Result<(), Box<dyn Error>> {
 
 fn test_dir(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
     let prefix = Path::new(suite).join("tests");
-    for entry in prefix.join(path).read_dir()? {
+    let dir = prefix.join(path);
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    for entry in dir.read_dir()? {
         let entry = entry?;
         let file_type = entry.file_type()?;
         let entry_path = entry.path();
