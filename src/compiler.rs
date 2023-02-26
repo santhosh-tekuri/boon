@@ -194,6 +194,18 @@ impl Compiler {
     /// - if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
     pub fn compile(
         &mut self,
+        loc: String,
+        target: &mut Schemas,
+    ) -> Result<SchemaIndex, CompileError> {
+        let result = self.do_compile(loc, target);
+        if let Err(bug @ CompileError::Bug(_)) = &result {
+            debug_assert!(false, "{bug}");
+        }
+        result
+    }
+
+    pub fn do_compile(
+        &mut self,
         mut loc: String,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {

@@ -49,7 +49,9 @@ impl Root {
 
         let (res_ptr, res) = {
             if url == self.url.as_str() {
-                let res = self.resources.get("").expect("root resource must exist");
+                let res = self.resources.get("").ok_or(CompileError::Bug(
+                    format!("no root resource found for{url}").into(),
+                ))?;
                 ("", res)
             } else {
                 // look for resource with id==url
