@@ -47,13 +47,22 @@ impl Root {
     pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
         let (url, ptr) = split(loc);
 
-        // look for resource with id==url
-        let entry = self
-            .resources
-            .iter()
-            .find(|(_res_ptr, res)| res.id.as_str() == url);
-        let Some((res_ptr, res)) = entry else {
-            return Ok(loc.to_owned()); // external url
+        let (res_ptr, res) = {
+            if url == self.url.as_str() {
+                let res = self.resources.get("").expect("root resource must exist");
+                ("", res)
+            } else {
+                // look for resource with id==url
+                let entry = self
+                    .resources
+                    .iter()
+                    .find(|(_res_ptr, res)| res.id.as_str() == url);
+
+                match entry {
+                    Some((ptr, res)) => (ptr.as_str(), res),
+                    _ => return Ok(loc.to_owned()), // external url
+                }
+            }
         };
 
         let anchor = fragment_to_anchor(ptr).map_err(|e| CompileError::ParseUrlError {

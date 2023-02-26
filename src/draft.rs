@@ -247,10 +247,17 @@ impl Draft {
         root_url: &Url,
         resources: &mut HashMap<String, Resource>,
     ) -> Result<(), CompileError> {
+        if let Value::Bool(_) = json {
+            if ptr.is_empty() {
+                // root resource
+                resources.insert(ptr, Resource::new(base.clone()));
+            }
+            return Ok(());
+        }
+
         let Value::Object(obj) = json else {
             return Ok(());
         };
-        //todo: shouldn't we add resource for root boolean schema?? think
 
         let id = self.get_id(obj);
 
