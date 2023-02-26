@@ -218,7 +218,7 @@ impl Draft {
                 let Ok(anchor) = fragment_to_anchor(fragment) else {
                     let mut url = base.clone();
                     url.set_fragment(Some(ptr));
-                    return Err(CompileError::InvalidAnchor { loc: url.into() });
+                    return Err(CompileError::ParseAnchorError { loc: url.into() });
                 };
                 if let Some(anchor) = anchor {
                     add_anchor(anchor.into())?;
@@ -270,7 +270,7 @@ impl Draft {
             let Ok(id) = base.join(id) else {
                 let mut url = base.clone();
                 url.set_fragment(Some(&ptr));
-                return Err(CompileError::InvalidId { loc: url.into() });
+                return Err(CompileError::ParseIdError { loc: url.into() });
             };
             resources.insert(ptr.clone(), Resource::new(id.clone()));
             tmp = id;

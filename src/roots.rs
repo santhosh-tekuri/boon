@@ -81,9 +81,10 @@ impl Roots {
                 return Ok((draft, None));
             }
             let (sch, _) = split(sch);
-            let Ok(sch) = Url::parse(sch) else {
-                return Err(InvalidMetaSchema { url: url.as_str().to_owned()});
-            };
+            let sch = Url::parse(sch).map_err(|e| InvalidMetaSchemaUrl {
+                url: url.as_str().to_owned(),
+                src: e.into(),
+            })?;
             if let Some(r) = self.map.get(&sch) {
                 return Ok((r.draft, r.get_reqd_vocabs()?));
             }
@@ -103,9 +104,12 @@ impl Roots {
 
         if !url.as_str().contains("//json-schema.org/") {
             if let Some(std_sch) = draft.get_schema() {
-                STD_METASCHEMAS
-                    .validate(&doc, std_sch)
-                    .map_err(CompileError::NotValid)?;
+                STD_METASCHEMAS.validate(&doc, std_sch).map_err(|src| {
+                    CompileError::ValidationError {
+                        url: url.to_string(),
+                        src,
+                    }
+                })?;
             } else {
                 return Err(CompileError::Bug(
                     format!("no metaschema preloaded for draft {}", draft.version).into(),

@@ -77,8 +77,8 @@ impl Root {
                 return Ok(format!("{}#{}", self.url, anchor_ptr));
             } else {
                 return Err(CompileError::AnchorNotFound {
-                    schema_url: self.url.as_str().to_owned(),
-                    anchor_url: loc.to_owned(),
+                    url: self.url.as_str().to_owned(),
+                    reference: loc.to_owned(),
                 });
             }
         } else {

@@ -73,6 +73,7 @@ impl Default for Draft {
     }
 }
 
+/// JsonSchema compiler.
 #[derive(Default)]
 pub struct Compiler {
     roots: Roots,
@@ -204,7 +205,7 @@ impl Compiler {
         result
     }
 
-    pub fn do_compile(
+    fn do_compile(
         &mut self,
         mut loc: String,
         target: &mut Schemas,
@@ -700,58 +701,66 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     }
 }
 
+/// Error type for compilation failures.
 #[derive(Debug)]
 pub enum CompileError {
-    ParseUrlError {
-        url: String,
-        src: Box<dyn Error>,
-    },
-    LoadUrlError {
-        url: String,
-        src: Box<dyn Error>,
-    },
-    UnsupportedUrlScheme {
-        url: String,
-    },
-    InvalidMetaSchema {
-        url: String,
-    },
-    MetaSchemaCycle {
-        url: String,
-    },
-    NotValid(ValidationError),
-    InvalidId {
-        loc: String,
-    },
-    InvalidAnchor {
-        loc: String,
-    },
+    /// Error in parsing `url`.
+    ParseUrlError { url: String, src: Box<dyn Error> },
+
+    /// Failed loading `url`.
+    LoadUrlError { url: String, src: Box<dyn Error> },
+
+    /// no [`UrlLoader`] registered for the `url`
+    UnsupportedUrlScheme { url: String },
+
+    /// Error in parsing `$schema` url.
+    InvalidMetaSchemaUrl { url: String, src: Box<dyn Error> },
+
+    /// Cycle in resolving `$schema` in `url`.
+    MetaSchemaCycle { url: String },
+
+    /// `url` is not valid against metaschema.
+    ValidationError { url: String, src: ValidationError },
+
+    /// Error in parsing `$id` at `loc`
+    ParseIdError { loc: String },
+
+    /// Error in parsing `$anchor` at `loc`
+    ParseAnchorError { loc: String },
+
+    /// Duplicate id `id` in `url` at `ptr1` and `ptr2`.
     DuplicateId {
         url: String,
         id: String,
         ptr1: String,
         ptr2: String,
     },
+
+    /// Duplicate anchor `anchor` in `url` at `ptr1` and `ptr2`.
     DuplicateAnchor {
         anchor: String,
         url: String,
         ptr1: String,
         ptr2: String,
     },
+
+    /// Not a valid json pointer.
     InvalidJsonPointer(String),
+
+    /// JsonPointer evaluated to nothing.
     JsonPointerNotFound(String),
-    AnchorNotFound {
-        schema_url: String,
-        anchor_url: String,
-    },
-    UnsupprtedVocabulary {
-        url: String,
-        vocabulary: String,
-    },
-    InvalidRegex {
-        url: String,
-        regex: String,
-    },
+
+    /// anchor in `reference` not found in `url`.
+    AnchorNotFound { url: String, reference: String },
+
+    /// Unsupported vocabulary `vocabulary` in `url`.
+    UnsupprtedVocabulary { url: String, vocabulary: String },
+
+    /// Invalid Regex `regex` at `url`.
+    InvalidRegex { url: String, regex: String },
+
+    /// Encountered bug in compiler implementation. Please report
+    /// this as an issue for this crate.
     Bug(Box<dyn Error>),
 }
 
@@ -782,19 +791,25 @@ impl Display for CompileError {
                 }
             }
             Self::UnsupportedUrlScheme { url } => write!(f, "unsupported scheme in {url}"),
-            Self::InvalidMetaSchema { url } => write!(f, "invalid $schema in {url}"),
+            Self::InvalidMetaSchemaUrl { url, src } => {
+                if f.alternate() {
+                    write!(f, "invalid $schema in {url}: {src}")
+                } else {
+                    write!(f, "invalid $schema in {url}")
+                }
+            }
             Self::MetaSchemaCycle { url } => {
                 write!(f, "cycle in resolving $schema in {url}")
             }
-            Self::NotValid(ve) => {
+            Self::ValidationError { url, src } => {
                 if f.alternate() {
-                    write!(f, "not valid against metaschema: {ve:#}")
+                    write!(f, "{url} is not valid against metaschema: {src:#}")
                 } else {
-                    write!(f, "not valid against metaschema")
+                    write!(f, "{url} is not valid against metaschema")
                 }
             }
-            Self::InvalidId { loc } => write!(f, "invalid $id at {loc}"),
-            Self::InvalidAnchor { loc } => write!(f, "invalid $anchor at {loc}"),
+            Self::ParseIdError { loc } => write!(f, "error in parsing $id at {loc}"),
+            Self::ParseAnchorError { loc } => write!(f, "error in parsing $anchor at {loc}"),
             Self::DuplicateId {
                 url,
                 id,
@@ -814,14 +829,8 @@ impl Display for CompileError {
             }
             Self::InvalidJsonPointer(loc) => write!(f, "invalid json-pointer {loc}"),
             Self::JsonPointerNotFound(loc) => write!(f, "json-pointer in {loc} not found"),
-            Self::AnchorNotFound {
-                schema_url,
-                anchor_url,
-            } => {
-                write!(
-                    f,
-                    "anchor in {anchor_url} is not found in schema {schema_url}"
-                )
+            Self::AnchorNotFound { url, reference } => {
+                write!(f, "anchor in {reference} is not found in schema {url}")
             }
             Self::UnsupprtedVocabulary { url, vocabulary } => {
                 write!(f, "unsupported vocabulary {vocabulary} in {url}")

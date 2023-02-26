@@ -25,9 +25,11 @@ use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
 
+/// Identifier to compiled schema.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchemaIndex(usize);
 
+/// Collection of compiled schemas.
 #[derive(Default)]
 pub struct Schemas {
     list: Vec<Schema>,
@@ -249,6 +251,7 @@ impl Display for Type {
     }
 }
 
+/// Error type for validation failures.
 #[derive(Debug)]
 pub struct ValidationError {
     /// The relative location of the validating keyword that follows the validation path

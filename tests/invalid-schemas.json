@@ -8,14 +8,14 @@
         "errors": ["UnsupportedUrlScheme { url: \"ftp://mars.com/schema.json\" }"]
     },
     {
-        "description": "NotValid",
+        "description": "ValidationError",
         "schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "patternProperties": {
                 "^(abc]": { "type": "string" }
             }
         },
-        "errors": ["NotValid(ValidationError {"]
+        "errors": ["ValidationError { url: \"http://fake.com/schema.json\""]
     },
     {
         "description": "JsonPointerNotFound",
