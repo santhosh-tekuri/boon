@@ -127,7 +127,7 @@ fn is_time(mut str: &str) -> bool {
 
     // parse sec-frac if present
     if let Some(rem) = str.strip_prefix('.') {
-        let n_digits = rem.chars().take_while(|c| c.is_ascii_digit()).count();
+        let n_digits = rem.chars().take_while(char::is_ascii_digit).count();
         if n_digits == 0 {
             return false;
         }
@@ -222,7 +222,7 @@ fn is_duration(s: &str) -> bool {
         }
         let mut units = UNITS[i];
         while !s.is_empty() {
-            let digit_count = s.chars().take_while(|c| c.is_ascii_digit()).count();
+            let digit_count = s.chars().take_while(char::is_ascii_digit).count();
             if digit_count == 0 {
                 return false;
             }
@@ -637,7 +637,7 @@ fn is_relative_json_pointer(v: &Value) -> bool {
     };
 
     // start with non-negative-integer
-    let num_digits = s.chars().take_while(|c| c.is_ascii_digit()).count();
+    let num_digits = s.chars().take_while(char::is_ascii_digit).count();
     if num_digits == 0 || (num_digits > 1 && s.starts_with('0')) {
         return false;
     }
