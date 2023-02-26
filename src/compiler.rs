@@ -238,7 +238,7 @@ impl Compiler {
                 return Err(CompileError::JsonPointerNotFound(loc.to_owned()));
             };
 
-            let sch = self.compile_value(target, v, loc.to_owned(), root, &mut queue)?;
+            let sch = self.compile_value(target, v, &loc.to_owned(), root, &mut queue)?;
             let loc = queue
                 .pop_front()
                 .ok_or(CompileError::Bug("queue must be non-empty".into()))?;
@@ -252,26 +252,26 @@ impl Compiler {
         &self,
         schemas: &Schemas,
         v: &Value,
-        loc: String,
+        loc: &str,
         root: &Root,
         queue: &mut VecDeque<String>,
     ) -> Result<Schema, CompileError> {
-        let mut s = Schema::new(loc.clone());
+        let mut s = Schema::new(loc.to_owned());
         s.draft_version = root.draft.version;
 
         // we know it is already in queue, we just want to get its index
         s.idx = schemas.enqueue(queue, loc.to_owned());
 
         s.resource = {
-            let (_, ptr) = split(&loc);
+            let (_, ptr) = split(loc);
             let base = root.base_url(ptr);
             let base_loc = root.resolve(base.as_str())?;
             schemas.enqueue(queue, base_loc)
         };
 
-        // enqueue dynamicAnchors for compilation
+        // if resource, enqueue dynamicAnchors for compilation
         if s.idx == s.resource && root.draft.version >= 2020 {
-            let (url, ptr) = split(&loc);
+            let (url, ptr) = split(loc);
             if let Some(res) = root.resource(ptr) {
                 for danchor in &res.dynamic_anchors {
                     let danchor_ptr = res.anchors.get(danchor).unwrap();
@@ -283,100 +283,102 @@ impl Compiler {
 
         match v {
             Value::Object(obj) => {
-                let mut h = Helper {
+                ObjCompiler {
+                    c: self,
                     obj,
-                    loc: &loc,
+                    loc,
                     schemas,
-                    queue,
                     root,
-                    roots: &self.roots,
-                };
-                self.compile_obj(&mut s, obj, &mut h)?;
+                    queue,
+                }
+                .compile_obj(&mut s)?;
             }
             Value::Bool(b) => s.boolean = Some(*b),
             _ => {}
         }
         Ok(s)
     }
+}
 
-    fn compile_obj(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
-        self.compile_draft4(s, obj, h)?;
-        if h.draft_version() >= 6 {
-            self.compile_draft6(s, h)?;
+struct ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+    c: &'c Compiler,
+    obj: &'v Map<String, Value>,
+    loc: &'l str,
+    schemas: &'s Schemas,
+    root: &'r Root,
+    queue: &'q mut VecDeque<String>,
+}
+
+// compile supported drafts
+impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+    fn compile_obj(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        self.compile_draft4(s)?;
+        if self.draft_version() >= 6 {
+            self.compile_draft6(s)?;
         }
-        if h.draft_version() >= 7 {
-            self.compile_draft7(s, h)?;
+        if self.draft_version() >= 7 {
+            self.compile_draft7(s)?;
         }
-        if h.draft_version() >= 2019 {
-            self.compile_draft2019(s, h)?;
+        if self.draft_version() >= 2019 {
+            self.compile_draft2019(s)?;
         }
-        if h.draft_version() >= 2020 {
-            self.compile_draft2020(s, h)?;
+        if self.draft_version() >= 2020 {
+            self.compile_draft2020(s)?;
         }
         Ok(())
     }
 
-    fn compile_draft4(
-        &self,
-        s: &mut Schema,
-        obj: &Map<String, Value>,
-        h: &mut Helper,
-    ) -> Result<(), CompileError> {
-        if h.has_vocab("core") {
-            s.ref_ = h.enqueue_ref("$ref")?;
-            if s.ref_.is_some() && h.draft_version() < 2019 {
+    fn compile_draft4(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        if self.has_vocab("core") {
+            s.ref_ = self.enqueue_ref("$ref")?;
+            if s.ref_.is_some() && self.draft_version() < 2019 {
                 // All other properties in a "$ref" object MUST be ignored
                 return Ok(());
             }
         }
 
-        if h.has_vocab("applicator") {
-            s.all_of = h.enqueue_arr("allOf");
-            s.any_of = h.enqueue_arr("anyOf");
-            s.one_of = h.enqueue_arr("oneOf");
-            s.not = h.enqueue_prop("not");
+        if self.has_vocab("applicator") {
+            s.all_of = self.enqueue_arr("allOf");
+            s.any_of = self.enqueue_arr("anyOf");
+            s.one_of = self.enqueue_arr("oneOf");
+            s.not = self.enqueue_prop("not");
 
-            if h.draft_version() < 2020 {
-                match obj.get("items") {
+            if self.draft_version() < 2020 {
+                match self.value("items") {
                     Some(Value::Array(_)) => {
-                        s.items = Some(Items::SchemaRefs(h.enqueue_arr("items")));
-                        s.additional_items = h.enquue_additional("additionalItems");
+                        s.items = Some(Items::SchemaRefs(self.enqueue_arr("items")));
+                        s.additional_items = self.enquue_additional("additionalItems");
                     }
-                    _ => s.items = h.enqueue_prop("items").map(Items::SchemaRef),
+                    _ => s.items = self.enqueue_prop("items").map(Items::SchemaRef),
                 }
             }
 
-            s.properties = h.enqueue_map("properties");
+            s.properties = self.enqueue_map("properties");
             s.pattern_properties = {
                 let mut v = vec![];
-                if let Some(Value::Object(obj)) = obj.get("patternProperties") {
+                if let Some(Value::Object(obj)) = self.value("patternProperties") {
                     for pname in obj.keys() {
                         let regex = Regex::new(pname).map_err(|_| CompileError::InvalidRegex {
-                            url: format!("{}/patternProperties", h.loc),
+                            url: format!("{}/patternProperties", self.loc),
                             regex: pname.clone(),
                         })?;
-                        let sch = h.enqueue_path(format!("patternProperties/{}", escape(pname)));
+                        let sch = self.enqueue_path(format!("patternProperties/{}", escape(pname)));
                         v.push((regex, sch));
                     }
                 }
                 v
             };
 
-            s.additional_properties = h.enquue_additional("additionalProperties");
+            s.additional_properties = self.enquue_additional("additionalProperties");
 
-            if let Some(Value::Object(deps)) = obj.get("dependencies") {
+            if let Some(Value::Object(deps)) = self.value("dependencies") {
                 s.dependencies = deps
                     .iter()
                     .filter_map(|(k, v)| {
                         let v = match v {
                             Value::Array(_) => Some(Dependency::Props(to_strings(v))),
                             _ => Some(Dependency::SchemaRef(
-                                h.enqueue_path(format!("dependencies/{}", escape(k))),
+                                self.enqueue_path(format!("dependencies/{}", escape(k))),
                             )),
                         };
                         v.map(|v| (k.clone(), v))
@@ -385,8 +387,8 @@ impl Compiler {
             }
         }
 
-        if h.has_vocab("validation") {
-            match h.value("type") {
+        if self.has_vocab("validation") {
+            match self.value("type") {
                 Some(Value::String(t)) => s.types.extend(Type::from_str(t)),
                 Some(Value::Array(tt)) => {
                     s.types.extend(tt.iter().filter_map(|t| {
@@ -400,59 +402,60 @@ impl Compiler {
                 _ => {}
             }
 
-            if let Some(Value::Array(e)) = h.value("enum") {
+            if let Some(Value::Array(e)) = self.value("enum") {
                 s.enum_ = e.clone();
             }
 
-            s.multiple_of = h.num("multipleOf");
+            s.multiple_of = self.num("multipleOf");
 
-            s.maximum = h.num("maximum");
-            if let Some(Value::Bool(exclusive)) = h.value("exclusiveMaximum") {
+            s.maximum = self.num("maximum");
+            if let Some(Value::Bool(exclusive)) = self.value("exclusiveMaximum") {
                 if *exclusive {
                     s.exclusive_maximum = s.maximum.take();
                 }
             } else {
-                s.exclusive_maximum = h.num("exclusiveMaximum");
+                s.exclusive_maximum = self.num("exclusiveMaximum");
             }
 
-            s.minimum = h.num("minimum");
-            if let Some(Value::Bool(exclusive)) = h.value("exclusiveMinimum") {
+            s.minimum = self.num("minimum");
+            if let Some(Value::Bool(exclusive)) = self.value("exclusiveMinimum") {
                 if *exclusive {
                     s.exclusive_minimum = s.minimum.take();
                 }
             } else {
-                s.exclusive_minimum = h.num("exclusiveMinimum");
+                s.exclusive_minimum = self.num("exclusiveMinimum");
             }
 
-            s.max_length = h.usize("maxLength");
-            s.min_length = h.usize("minLength");
+            s.max_length = self.usize("maxLength");
+            s.min_length = self.usize("minLength");
 
-            if let Some(Value::String(p)) = h.value("pattern") {
+            if let Some(Value::String(p)) = self.value("pattern") {
                 s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
-            s.max_items = h.usize("maxItems");
-            s.min_items = h.usize("minItems");
-            s.unique_items = h.bool("uniqueItems");
+            s.max_items = self.usize("maxItems");
+            s.min_items = self.usize("minItems");
+            s.unique_items = self.bool("uniqueItems");
 
-            s.max_properties = h.usize("maxProperties");
-            s.min_properties = h.usize("minProperties");
+            s.max_properties = self.usize("maxProperties");
+            s.min_properties = self.usize("minProperties");
 
-            if let Some(req) = h.value("required") {
+            if let Some(req) = self.value("required") {
                 s.required = to_strings(req);
             }
         }
 
         // format --
-        if self.assert_format
-            || h.has_vocab(match h.draft_version().cmp(&2019) {
+        if self.c.assert_format
+            || self.has_vocab(match self.draft_version().cmp(&2019) {
                 Ordering::Less => "core",
                 Ordering::Equal => "format",
                 Ordering::Greater => "format-assertion",
             })
         {
-            if let Some(Value::String(format)) = h.value("format") {
+            if let Some(Value::String(format)) = self.value("format") {
                 let func = self
+                    .c
                     .formats
                     .get(format.as_str())
                     .or_else(|| FORMATS.get(format.as_str()));
@@ -465,31 +468,32 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_draft6(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
-        if h.has_vocab("applicator") {
-            s.contains = h.enqueue_prop("contains");
-            s.property_names = h.enqueue_prop("propertyNames");
+    fn compile_draft6(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        if self.has_vocab("applicator") {
+            s.contains = self.enqueue_prop("contains");
+            s.property_names = self.enqueue_prop("propertyNames");
         }
 
-        if h.has_vocab("validation") {
-            s.constant = h.value("const").cloned();
+        if self.has_vocab("validation") {
+            s.constant = self.value("const").cloned();
         }
 
         Ok(())
     }
 
-    fn compile_draft7(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
-        if h.has_vocab("applicator") {
-            s.if_ = h.enqueue_prop("if");
+    fn compile_draft7(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        if self.has_vocab("applicator") {
+            s.if_ = self.enqueue_prop("if");
             if s.if_.is_some() {
-                s.then = h.enqueue_prop("then");
-                s.else_ = h.enqueue_prop("else");
+                s.then = self.enqueue_prop("then");
+                s.else_ = self.enqueue_prop("else");
             }
         }
 
-        if self.assert_content {
-            if let Some(Value::String(encoding)) = h.value("contentEncoding") {
+        if self.c.assert_content {
+            if let Some(Value::String(encoding)) = self.value("contentEncoding") {
                 let func = self
+                    .c
                     .decoders
                     .get(encoding.as_str())
                     .or_else(|| DECODERS.get(encoding.as_str()));
@@ -498,8 +502,9 @@ impl Compiler {
                 }
             }
 
-            if let Some(Value::String(media_type)) = h.value("contentMediaType") {
+            if let Some(Value::String(media_type)) = self.value("contentMediaType") {
                 let func = self
+                    .c
                     .media_types
                     .get(media_type.as_str())
                     .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
@@ -512,19 +517,19 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_draft2019(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
-        if h.has_vocab("core") {
-            s.recursive_ref = h.enqueue_ref("$recursiveRef")?;
-            s.recursive_anchor = h.bool("$recursiveAnchor");
+    fn compile_draft2019(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        if self.has_vocab("core") {
+            s.recursive_ref = self.enqueue_ref("$recursiveRef")?;
+            s.recursive_anchor = self.bool("$recursiveAnchor");
         }
 
-        if h.has_vocab("validation") {
+        if self.has_vocab("validation") {
             if s.contains.is_some() {
-                s.max_contains = h.usize("maxContains");
-                s.min_contains = h.usize("minContains");
+                s.max_contains = self.usize("maxContains");
+                s.min_contains = self.usize("minContains");
             }
 
-            if let Some(Value::Object(dep_req)) = h.value("dependentRequired") {
+            if let Some(Value::Object(dep_req)) = self.value("dependentRequired") {
                 for (pname, pvalue) in dep_req {
                     s.dependent_required
                         .insert(pname.clone(), to_strings(pvalue));
@@ -532,86 +537,40 @@ impl Compiler {
             }
         }
 
-        if h.has_vocab("applicator") {
-            s.dependent_schemas = h.enqueue_map("dependentSchemas");
+        if self.has_vocab("applicator") {
+            s.dependent_schemas = self.enqueue_map("dependentSchemas");
         }
 
-        if h.has_vocab(match h.draft_version() {
+        if self.has_vocab(match self.draft_version() {
             2019 => "applicator",
             _ => "unevaluated",
         }) {
-            s.unevaluated_items = h.enqueue_prop("unevaluatedItems");
-            s.unevaluated_properties = h.enqueue_prop("unevaluatedProperties");
+            s.unevaluated_items = self.enqueue_prop("unevaluatedItems");
+            s.unevaluated_properties = self.enqueue_prop("unevaluatedProperties");
         }
 
         Ok(())
     }
 
-    fn compile_draft2020(&self, s: &mut Schema, h: &mut Helper) -> Result<(), CompileError> {
-        if h.has_vocab("core") {
-            s.dynamic_ref = h.enqueue_ref("$dynamicRef")?;
-            if let Some(Value::String(anchor)) = h.value("$dynamicAnchor") {
+    fn compile_draft2020(&mut self, s: &mut Schema) -> Result<(), CompileError> {
+        if self.has_vocab("core") {
+            s.dynamic_ref = self.enqueue_ref("$dynamicRef")?;
+            if let Some(Value::String(anchor)) = self.value("$dynamicAnchor") {
                 s.dynamic_anchor = Some(anchor.to_owned());
             }
         }
 
-        if h.has_vocab("applicator") {
-            s.prefix_items = h.enqueue_arr("prefixItems");
-            s.items2020 = h.enqueue_prop("items");
+        if self.has_vocab("applicator") {
+            s.prefix_items = self.enqueue_arr("prefixItems");
+            s.items2020 = self.enqueue_prop("items");
         }
 
         Ok(())
     }
 }
 
-struct Helper<'a, 'b, 'c, 'd, 'e, 'f> {
-    obj: &'a Map<String, Value>,
-    loc: &'c str,
-    schemas: &'d Schemas,
-    queue: &'b mut VecDeque<String>,
-    root: &'e Root,
-    roots: &'f Roots,
-}
-
-impl<'a, 'b, 'c, 'd, 'e, 'f> Helper<'a, 'b, 'c, 'd, 'e, 'f> {
-    fn draft_version(&self) -> usize {
-        self.root.draft.version
-    }
-
-    fn has_vocab(&self, name: &str) -> bool {
-        self.root.has_vocab(name)
-    }
-
-    fn value(&self, pname: &str) -> Option<&Value> {
-        self.obj.get(pname)
-    }
-
-    fn bool(&self, pname: &str) -> bool {
-        matches!(self.obj.get(pname), Some(Value::Bool(true)))
-    }
-
-    fn usize(&self, pname: &str) -> Option<usize> {
-        if let Some(Value::Number(n)) = self.obj.get(pname) {
-            if n.is_u64() {
-                n.as_u64().map(|n| n as usize)
-            } else {
-                n.as_f64()
-                    .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
-                    .map(|n| n as usize)
-            }
-        } else {
-            None
-        }
-    }
-
-    fn num(&self, pname: &str) -> Option<Number> {
-        if let Some(Value::Number(n)) = self.obj.get(pname) {
-            Some(n.clone())
-        } else {
-            None
-        }
-    }
-
+// enqueue helpers
+impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     fn enqueue_path(&mut self, path: String) -> SchemaIndex {
         let loc = format!("{}/{path}", self.loc);
         self.schemas.enqueue(self.queue, loc)
@@ -672,7 +631,7 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Helper<'a, 'b, 'c, 'd, 'e, 'f> {
                     url: url.to_owned(),
                     src: e.into(),
                 })?;
-                if let Some(root) = self.roots.get(&url) {
+                if let Some(root) = self.c.roots.get(&url) {
                     resolved_ref = root.resolve(abs_ref.as_str())?;
                 }
             }
@@ -688,6 +647,47 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> Helper<'a, 'b, 'c, 'd, 'e, 'f> {
             Some(Additional::Bool(*b))
         } else {
             self.enqueue_prop(pname).map(Additional::SchemaRef)
+        }
+    }
+}
+
+// query helpers
+impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+    fn draft_version(&self) -> usize {
+        self.root.draft.version
+    }
+
+    fn has_vocab(&self, name: &str) -> bool {
+        self.root.has_vocab(name)
+    }
+
+    fn value(&self, pname: &str) -> Option<&'v Value> {
+        self.obj.get(pname)
+    }
+
+    fn bool(&self, pname: &str) -> bool {
+        matches!(self.obj.get(pname), Some(Value::Bool(true)))
+    }
+
+    fn usize(&self, pname: &str) -> Option<usize> {
+        if let Some(Value::Number(n)) = self.obj.get(pname) {
+            if n.is_u64() {
+                n.as_u64().map(|n| n as usize)
+            } else {
+                n.as_f64()
+                    .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
+                    .map(|n| n as usize)
+            }
+        } else {
+            None
+        }
+    }
+
+    fn num(&self, pname: &str) -> Option<Number> {
+        if let Some(Value::Number(n)) = self.obj.get(pname) {
+            Some(n.clone())
+        } else {
+            None
         }
     }
 }

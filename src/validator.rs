@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
 
 use serde_json::Value;
