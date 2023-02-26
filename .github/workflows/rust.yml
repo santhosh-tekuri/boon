@@ -1,7 +1,7 @@
-name: verify
+name: ci
 on: [push, pull_request]
 jobs:
-  verify:
+  ci:
     name: verify
     runs-on: ${{ matrix.os }}
     strategy:
