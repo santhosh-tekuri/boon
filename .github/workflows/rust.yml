@@ -1,0 +1,38 @@
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    name: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - name: install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+    - name: checkout repo
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: install rustfmt clippy
+      run: rustup component add rustfmt clippy
+    - name: check formatting
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+    - name: check linting
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all-targets --all-features -- -D warnings
+    - name: run tests
+      uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: -- --nocapture
+      
