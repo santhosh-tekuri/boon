@@ -179,15 +179,17 @@ impl Draft {
         }
     }
 
+    // collects anchors/dynamic_achors from `sch` into `res`.
+    // note this does not collect from subschemas in sch.
     fn collect_anchors(
         &self,
-        json: &Value,
+        sch: &Value,
         base: &Url,
         ptr: &str,
         res: &mut Resource,
         root_url: &Url,
     ) -> Result<(), CompileError> {
-        let Value::Object(obj) = json else {
+        let Value::Object(obj) = sch else {
             return Ok(());
         };
 
@@ -241,13 +243,13 @@ impl Draft {
     // error is json-ptr to invalid id
     pub(crate) fn collect_resources(
         &self,
-        json: &Value,
+        sch: &Value,
         base: &Url,  // base of json
         ptr: String, // ptr of json
         root_url: &Url,
         resources: &mut HashMap<String, Resource>,
     ) -> Result<(), CompileError> {
-        if let Value::Bool(_) = json {
+        if let Value::Bool(_) = sch {
             if ptr.is_empty() {
                 // root resource
                 resources.insert(ptr, Resource::new(base.clone()));
@@ -255,7 +257,7 @@ impl Draft {
             return Ok(());
         }
 
-        let Value::Object(obj) = json else {
+        let Value::Object(obj) = sch else {
             return Ok(());
         };
 
@@ -280,7 +282,7 @@ impl Draft {
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
-            self.collect_anchors(json, base, &ptr, res, root_url)?;
+            self.collect_anchors(sch, base, &ptr, res, root_url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
