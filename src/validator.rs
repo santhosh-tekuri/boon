@@ -2,10 +2,7 @@ use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
 
 use serde_json::Value;
 
-use crate::{
-    util::{equals, escape},
-    Additional, Dependency, ErrorKind, Items, Schema, SchemaIndex, Schemas, Type, ValidationError,
-};
+use crate::{util::*, *};
 
 pub(crate) fn validate(
     v: &Value,

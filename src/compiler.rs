@@ -1,19 +1,15 @@
-use std::cmp::Ordering;
-use std::collections::{HashMap, VecDeque};
-use std::error::Error;
-use std::fmt::Display;
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, VecDeque},
+    error::Error,
+    fmt::Display,
+};
 
 use regex::Regex;
 use serde_json::{Map, Value};
 use url::Url;
 
-use crate::content::{DECODERS, MEDIA_TYPES};
-use crate::draft::{DRAFT2019, DRAFT2020, DRAFT4, DRAFT6, DRAFT7};
-use crate::formats::FORMATS;
-use crate::root::Root;
-use crate::roots::Roots;
-use crate::util::*;
-use crate::*;
+use crate::{content::*, draft::*, formats::*, root::*, roots::*, util::*, *};
 
 /// Supported draft versions
 #[non_exhaustive]
