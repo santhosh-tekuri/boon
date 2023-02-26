@@ -138,7 +138,7 @@ impl Root {
         Ok(Some(v))
     }
 
-    pub(crate) fn get_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
+    pub(crate) fn get_reqd_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
         if self.draft.version < 2019 {
             return Ok(None);
         }
@@ -151,8 +151,8 @@ impl Root {
         };
 
         let mut vocabs = vec![];
-        for (vocab, enabled) in obj {
-            if let Value::Bool(true) = enabled {
+        for (vocab, reqd) in obj {
+            if let Value::Bool(true) = reqd {
                 let name = vocab
                     .strip_prefix(self.draft.vocab_prefix)
                     .filter(|name| self.draft.all_vocabs.contains(name));

@@ -85,14 +85,14 @@ impl Roots {
                 return Err(InvalidMetaSchema { url: url.as_str().to_owned()});
             };
             if let Some(r) = self.map.get(&sch) {
-                return Ok((r.draft, r.get_vocabs()?));
+                return Ok((r.draft, r.get_reqd_vocabs()?));
             }
             if !cycle.insert(sch.clone()) {
                 return Err(MetaSchemaCycle { url: sch.into() });
             }
             let doc = self.loader.load(&sch)?;
             let meta_root = &self.add_root(cycle, sch, doc)?;
-            Ok((meta_root.draft, meta_root.get_vocabs()?))
+            Ok((meta_root.draft, meta_root.get_reqd_vocabs()?))
         })()?;
 
         let resources = {
