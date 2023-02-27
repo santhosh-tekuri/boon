@@ -112,5 +112,27 @@
             "$schema": "http://remotes/a.json"
         },
         "errors": ["MetaSchemaCycle { url: \"http://remotes/a.json\" }"]
+    },
+    {
+        "description": "AnchorNotFound-local",
+        "schema": {
+            "$ref": "sample.json#abcd",
+            "$defs": {
+                "a": {
+                    "$id": "sample.json"
+                }
+            }
+        },
+        "errors": ["AnchorNotFound { url: \"http://fake.com/schema.json\", reference: \"http://fake.com/sample.json#abcd\" }"]
+    },
+    {
+        "description": "AnchorNotFound-remote",
+        "remotes": {
+            "http://remotes/a.json": {}
+        },
+        "schema": {
+            "$ref": "http://remotes/a.json#abcd"
+        },
+        "errors": ["AnchorNotFound { url: \"http://remotes/a.json\", reference: \"http://remotes/a.json#abcd\" }"]
     }
 ]

@@ -834,7 +834,10 @@ impl Display for CompileError {
             Self::InvalidJsonPointer(loc) => write!(f, "invalid json-pointer {loc}"),
             Self::JsonPointerNotFound(loc) => write!(f, "json-pointer in {loc} not found"),
             Self::AnchorNotFound { url, reference } => {
-                write!(f, "anchor in {reference} is not found in schema {url}")
+                write!(
+                    f,
+                    "anchor in reference {reference} is not found in schema {url}"
+                )
             }
             Self::UnsupprtedVocabulary { url, vocabulary } => {
                 write!(f, "unsupported vocabulary {vocabulary} in {url}")
