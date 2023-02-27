@@ -82,5 +82,35 @@
             "\"/$defs/a/$defs/b\"",
             "\"/$defs/a/$defs/c\""
         ]
+    },
+    {
+        "description": "UnsupportedDraft",
+        "remotes": {
+            "http://remotes/a.json": {
+                "$schema": "http://remotes/b.json"
+            },
+            "http://remotes/b.json": {
+                "$schema": "http://remotes/b.json"
+            }
+        },
+        "schema": {
+            "$schema": "http://remotes/a.json"
+        },
+        "errors": ["UnsupportedDraft { url: \"http://remotes/b.json\" }"]
+    },
+    {
+        "description": "MetaSchemaCycle",
+        "remotes": {
+            "http://remotes/a.json": {
+                "$schema": "http://remotes/b.json"
+            },
+            "http://remotes/b.json": {
+                "$schema": "http://remotes/a.json"
+            }
+        },
+        "schema": {
+            "$schema": "http://remotes/a.json"
+        },
+        "errors": ["MetaSchemaCycle { url: \"http://remotes/a.json\" }"]
     }
 ]
