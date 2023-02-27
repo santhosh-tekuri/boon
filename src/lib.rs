@@ -18,6 +18,7 @@ pub use loader::*;
 use std::{
     borrow::Cow,
     collections::{HashMap, VecDeque},
+    error::Error,
     fmt::Display,
 };
 
@@ -320,6 +321,8 @@ impl ValidationError {
         Ok(())
     }
 }
+
+impl Error for ValidationError {}
 
 impl Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
