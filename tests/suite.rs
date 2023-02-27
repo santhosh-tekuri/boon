@@ -53,8 +53,8 @@ fn test_dir(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>>
     for entry in dir.read_dir()? {
         let entry = entry?;
         let file_type = entry.file_type()?;
-        let entry_path = entry.path();
-        let entry_path = entry_path.strip_prefix(&prefix)?.to_str().unwrap();
+        let tmp_entry_path = entry.path();
+        let entry_path = tmp_entry_path.strip_prefix(&prefix)?.to_str().unwrap();
         if file_type.is_file() {
             if !SKIP.iter().any(|n| OsStr::new(n) == entry.file_name()) {
                 test_file(suite, entry_path, draft)?;
