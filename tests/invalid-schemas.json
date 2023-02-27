@@ -134,5 +134,34 @@
             "$ref": "http://remotes/a.json#abcd"
         },
         "errors": ["AnchorNotFound { url: \"http://remotes/a.json\", reference: \"http://remotes/a.json#abcd\" }"]
+    },
+    {
+        "description": "UnsupprtedVocabulary-required",
+        "remotes": {
+            "http://remotes/a.json": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema#",
+                "$vocabulary": {
+                    "https://json-schema.org/draft/2019-09/vocab/format": true
+                }
+            }
+        },
+        "schema": {
+            "$schema": "http://remotes/a.json"
+        },
+        "errors": ["UnsupprtedVocabulary { url: \"http://remotes/a.json\", vocabulary: \"https://json-schema.org/draft/2019-09/vocab/format\" }"]
+    },
+    {
+        "description": "UnsupprtedVocabulary-optioanl",
+        "remotes": {
+            "http://remotes/a.json": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema#",
+                "$vocabulary": {
+                    "https://json-schema.org/draft/2019-09/vocab/format": false
+                }
+            }
+        },
+        "schema": {
+            "$schema": "http://remotes/a.json"
+        }
     }
 ]
