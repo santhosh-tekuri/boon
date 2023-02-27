@@ -18,7 +18,11 @@ fn test_invalid_schemas() -> Result<(), Box<dyn Error>> {
     for test in tests {
         println!("{}", test.description);
         match compile_schema(test.schema) {
-            Ok(_) => Err("    expected compilation to fail")?,
+            Ok(_) => {
+                if !test.errors.is_empty() {
+                    Err("    expected compilation to fail")?;
+                }
+            }
             Err(e) => {
                 println!("   {e}");
                 let error = format!("{e:?}");
