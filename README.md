@@ -1,3 +1,4 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Crates.io](https://img.shields.io/crates/v/boon.svg)](https://crates.io/crates/boon)
 [![docs.rs](https://docs.rs/boon/badge.svg)](https://docs.rs/boon/)
 [![Build Status](https://github.com/santhosh-tekuri/boon/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/santhosh-tekuri/boon/actions/workflows/rust.yml)
