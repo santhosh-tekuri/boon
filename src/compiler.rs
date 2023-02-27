@@ -716,6 +716,9 @@ pub enum CompileError {
     /// Error in parsing `$schema` url.
     InvalidMetaSchemaUrl { url: String, src: Box<dyn Error> },
 
+    /// draft `url` is not supported
+    UnsupportedDraft { url: String },
+
     /// Cycle in resolving `$schema` in `url`.
     MetaSchemaCycle { url: String },
 
@@ -798,6 +801,7 @@ impl Display for CompileError {
                     write!(f, "invalid $schema in {url}")
                 }
             }
+            Self::UnsupportedDraft { url } => write!(f, "draft {url} is unsupported"),
             Self::MetaSchemaCycle { url } => {
                 write!(f, "cycle in resolving $schema in {url}")
             }
