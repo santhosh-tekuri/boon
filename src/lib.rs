@@ -499,19 +499,12 @@ impl Display for ErrorKind {
             }
             Self::Contains => write!(f, "no items match contains schema"),
             Self::MaxContains { got, want } => {
-                if got.is_empty() {
-                    write!(
-                        f,
-                        "maximum {want} items required to match contains schema, but found none",
-                    )
-                } else {
-                    write!(
+                write!(
                         f,
                         "maximum {want} items required to match contains schema, but found {} items at {}",
                         got.len(),
                         join_iter(got, ", ")
                     )
-                }
             }
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
             Self::AdditionalItems { got } => write!(f, "got {got} additionalItems"),
