@@ -71,17 +71,17 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
     let schema: Value = serde_json::from_str(r#"{"type": "string", "format": "palindrome"}"#)?;
     let instance: Value = serde_json::from_str(r#""step on no pets""#)?;
 
-    fn is_palindrome(v: &Value) -> bool {
+    fn is_palindrome(v: &Value) -> Result<(), Box<dyn Error>> {
         let Value::String(s) = v else {
-            return true; // applicable only on intergers
+            return Ok(()); // applicable only on strings
         };
         let mut chars = s.chars();
         while let (Some(c1), Some(c2)) = (chars.next(), chars.next_back()) {
             if c1 != c2 {
-                return false;
+                Err("char mismatch")?;
             }
         }
-        true
+        Ok(())
     }
 
     let mut schemas = Schemas::new();

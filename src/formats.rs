@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    error::Error,
     net::{Ipv4Addr, Ipv6Addr},
 };
 
@@ -9,59 +10,62 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
-pub(crate) type Format = fn(v: &Value) -> bool;
+pub(crate) type Format = fn(v: &Value) -> Result<(), Box<dyn Error>>;
 
 pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Format>::new();
-    m.insert("regex", is_regex);
-    m.insert("ipv4", is_ipv4);
-    m.insert("ipv6", is_ipv6);
-    m.insert("hostname", is_hostname_value);
-    m.insert("idn-hostname", is_idn_hostname_value);
-    m.insert("email", is_email_value);
-    m.insert("idn-email", is_idn_email);
-    m.insert("date", is_date_value);
-    m.insert("time", is_time_value);
-    m.insert("date-time", is_date_time_value);
-    m.insert("duration", is_duration_value);
-    m.insert("period", is_period);
-    m.insert("json-pointer", is_json_pointer_value);
-    m.insert("relative-json-pointer", is_relative_json_pointer);
-    m.insert("uuid", is_uuid);
-    m.insert("uri", is_uri);
-    m.insert("iri", is_uri);
-    m.insert("uri-reference", is_uri_reference);
-    m.insert("iri-reference", is_uri_reference);
-    m.insert("uri-template", is_uri_template);
+    m.insert("regex", check_regex);
+    m.insert("ipv4", check_ipv4);
+    m.insert("ipv6", check_ipv6);
+    m.insert("hostname", check_hostname_value);
+    m.insert("idn-hostname", check_idn_hostname_value);
+    m.insert("email", check_email_value);
+    m.insert("idn-email", check_idn_email);
+    m.insert("date", check_date_value);
+    m.insert("time", check_time_value);
+    m.insert("date-time", check_date_time_value);
+    m.insert("duration", check_duration_value);
+    m.insert("period", check_period);
+    m.insert("json-pointer", check_json_pointer_value);
+    m.insert("relative-json-pointer", check_relative_json_pointer);
+    m.insert("uuid", check_uuid);
+    m.insert("uri", check_uri);
+    m.insert("iri", check_uri);
+    m.insert("uri-reference", check_uri_reference);
+    m.insert("iri-reference", check_uri_reference);
+    m.insert("uri-template", check_uri_template);
     m
 });
 
-fn is_regex(v: &Value) -> bool {
+fn check_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    Regex::new(s).is_ok()
+    Regex::new(s)?;
+    Ok(())
 }
 
-fn is_ipv4(v: &Value) -> bool {
+fn check_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    s.parse::<Ipv4Addr>().is_ok()
+    s.parse::<Ipv4Addr>()?;
+    Ok(())
 }
 
-fn is_ipv6(v: &Value) -> bool {
+fn check_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    s.parse::<Ipv6Addr>().is_ok()
+    s.parse::<Ipv6Addr>()?;
+    Ok(())
 }
 
-fn is_date_value(v: &Value) -> bool {
+fn check_date_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_date(s)
+    check_date(s)
 }
 
 fn matches_char(s: &str, index: usize, ch: char) -> bool {
@@ -69,59 +73,75 @@ fn matches_char(s: &str, index: usize, ch: char) -> bool {
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
-fn is_date(s: &str) -> bool {
+fn check_date(s: &str) -> Result<(), Box<dyn Error>> {
     // yyyy-mm-dd
-    if s.len() != 10 || !matches_char(s, 4, '-') || !matches_char(s, 7, '-') {
-        return false;
+    if s.len() != 10 {
+        Err("must be 10 characters long")?;
+    }
+    if !matches_char(s, 4, '-') || !matches_char(s, 7, '-') {
+        Err("missing hyphen in correct place")?;
     }
 
     let mut ymd = s.splitn(3, '-').filter_map(|t| t.parse::<usize>().ok());
     let (Some(y), Some(m), Some(d)) = (ymd.next(), ymd.next(), ymd.next()) else {
-        return false;
+        return Err("non-positive year/month/day")?;
     };
 
-    if !matches!(m, 1..=12) || !matches!(d, 1..=31) {
-        return false;
+    if !matches!(m, 1..=12) {
+        Err(format!("{m} months in year"))?;
+    }
+    if !matches!(d, 1..=31) {
+        Err(format!("{d} days in month"))?;
     }
 
     match m {
         2 => {
+            let mut feb_days = 28;
             if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) {
-                matches!(d, 1..=29) // leap year
-            } else {
-                matches!(d, 1..=28)
+                feb_days += 1; // leap year
+            };
+            if d > feb_days {
+                Err(format!("february has {feb_days} days only"))?;
             }
         }
-        4 | 6 | 9 | 11 => d <= 30,
-        _ => true,
+        4 | 6 | 9 | 11 => {
+            if d > 30 {
+                Err("month has 30 days only")?;
+            }
+        }
+        _ => {}
     }
+    Ok(())
 }
 
-fn is_time_value(v: &Value) -> bool {
+fn check_time_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_time(s)
+    check_time(s)
 }
 
-fn is_time(mut str: &str) -> bool {
+fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
     // min: hh:mm:ssZ
-    if str.len() < 9 || !matches_char(str, 2, ':') || !matches_char(str, 5, ':') {
-        return false;
+    if str.len() < 9 {
+        Err("less than 9 characters long")?;
+    }
+    if !matches_char(str, 2, ':') || !matches_char(str, 5, ':') {
+        Err("missing colon in correct place")?;
     }
 
     // parse hh:mm:ss
     if !str.is_char_boundary(8) {
-        return false;
+        Err("contains non-ascii char")?;
     }
     let mut hms = (str[..8])
         .splitn(3, ':')
         .filter_map(|t| t.parse::<usize>().ok());
     let (Some(mut h), Some(mut m), Some(s)) = (hms.next(), hms.next(), hms.next()) else {
-        return false;
+        return Err("non-positive hour/min/sec")?;
     };
     if h > 23 || m > 59 || s > 60 {
-        return false;
+        Err("hour/min/sec out of range")?;
     }
     str = &str[8..];
 
@@ -129,7 +149,7 @@ fn is_time(mut str: &str) -> bool {
     if let Some(rem) = str.strip_prefix('.') {
         let n_digits = rem.chars().take_while(char::is_ascii_digit).count();
         if n_digits == 0 {
-            return false;
+            Err("no digits in second fraction")?;
         }
         str = &rem[n_digits..];
     }
@@ -137,24 +157,24 @@ fn is_time(mut str: &str) -> bool {
     if str != "z" && str != "Z" {
         // parse time-numoffset
         if str.len() != 6 {
-            return false;
+            Err("offset must be 6 characters long")?;
         }
         let sign: isize = match str.chars().next() {
             Some('+') => -1,
             Some('-') => 1,
-            _ => return false,
+            _ => return Err("offset must begin with plus/minus")?,
         };
         str = &str[1..];
         if !matches_char(str, 2, ':') {
-            return false;
+            Err("missing colon in offset at correct place")?;
         }
 
         let mut zhm = str.splitn(2, ':').filter_map(|t| t.parse::<usize>().ok());
         let (Some(zh), Some(zm)) = (zhm.next(), zhm.next()) else {
-            return false;
+            return Err("non-positive hour/min in offset")?;
         };
         if zh > 23 || zm > 59 {
-            return false;
+            Err("hour/min in offset out of range")?;
         }
 
         // apply timezone
@@ -168,145 +188,182 @@ fn is_time(mut str: &str) -> bool {
     }
 
     // check leapsecond
-    s < 60 || h == 23 && m == 59
+    if !(s < 60 || h == 23 && m == 59) {
+        Err("invalid leap second")?
+    }
+    Ok(())
 }
 
-fn is_date_time_value(v: &Value) -> bool {
+fn check_date_time_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_date_time(s)
+    check_date_time(s)
 }
 
-fn is_date_time(s: &str) -> bool {
+fn check_date_time(s: &str) -> Result<(), Box<dyn Error>> {
     // min: yyyy-mm-ddThh:mm:ssZ
     if s.len() < 20 {
-        return false;
+        Err("less than 20 characters long")?;
     }
     if !s.is_char_boundary(10) || !s[10..].starts_with(|c| matches!(c, 't' | 'T')) {
-        return false;
+        Err("11th character must be t or T")?;
     }
-    is_date(&s[..10]) && is_time(&s[11..])
+    if let Err(e) = check_date(&s[..10]) {
+        Err(format!("invalid date element: {e}"))?;
+    }
+    if let Err(e) = check_time(&s[11..]) {
+        Err(format!("invalid time element: {e}"))?;
+    }
+    Ok(())
 }
 
-fn is_duration_value(v: &Value) -> bool {
+fn check_duration_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_duration(s)
+    check_duration(s)
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
-fn is_duration(s: &str) -> bool {
+fn check_duration(s: &str) -> Result<(), Box<dyn Error>> {
     // must start with 'P'
     let Some(s) = s.strip_prefix('P') else {
-        return false;
+        return Err("must start with P")?;
     };
     if s.is_empty() {
-        return false;
+        Err("nothing after P")?;
     }
 
     // dur-week
     if let Some(s) = s.strip_suffix('W') {
-        return s.chars().all(|c| c.is_ascii_digit());
+        if s.is_empty() {
+            Err("no number in week")?;
+        }
+        if !s.chars().all(|c| c.is_ascii_digit()) {
+            Err("invalid week")?;
+        }
+        return Ok(());
     }
 
     static UNITS: [&str; 2] = ["YMD", "HMS"];
     for (i, s) in s.split('T').enumerate() {
         let mut s = s;
         if i != 0 && s.is_empty() {
-            return false;
+            Err("no time elements")?;
         }
         let Some(mut units) = UNITS.get(i).cloned() else {
-            return false;
+            return Err("more than one T")?;
         };
         while !s.is_empty() {
             let digit_count = s.chars().take_while(char::is_ascii_digit).count();
             if digit_count == 0 {
-                return false;
+                Err("missing number")?;
             }
             s = &s[digit_count..];
             let Some(unit) = s.chars().next() else {
-                return false;
+                return Err("missing unit")?;
             };
             let Some(j) = units.find(unit) else {
-                return false;
+                if UNITS[i].contains(unit) {
+                    return Err(format!("unit {unit} out of order"))?;
+                }
+                return Err(format!("invalid unit {unit}"))?;
             };
             units = &units[j + 1..];
             s = &s[1..];
         }
     }
 
-    true
+    Ok(())
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
-fn is_period(v: &Value) -> bool {
+fn check_period(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
 
     let Some(slash) = s.find('/') else {
-        return false;
+        return Err("missing slash")?;
     };
+
     let (start, end) = (&s[..slash], &s[slash + 1..]);
-    if is_date_time(start) {
-        return is_date_time(end) || is_duration(end);
+    if start.starts_with('P') {
+        if let Err(e) = check_duration(start) {
+            Err(format!("invalid start duration: {e}"))?
+        }
+        if let Err(e) = check_date_time(end) {
+            Err(format!("invalid end date-time: {e}"))?
+        }
+    } else {
+        if let Err(e) = check_date_time(start) {
+            Err(format!("invalid start date-time: {e}"))?
+        }
+        if end.starts_with('P') {
+            if let Err(e) = check_duration(end) {
+                Err(format!("invalid end duration: {e}"))?;
+            }
+        } else if let Err(e) = check_date_time(end) {
+            Err(format!("invalid end date-time: {e}"))?;
+        }
     }
-    is_duration(start) && is_date_time(end)
+    Ok(())
 }
 
-fn is_hostname_value(v: &Value) -> bool {
+fn check_hostname_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_hostname(s)
+    check_hostname(s)
 }
 
 // see https://en.wikipedia.org/wiki/Hostname#Restrictions_on_valid_host_names
-fn is_hostname(mut s: &str) -> bool {
+fn check_hostname(mut s: &str) -> Result<(), Box<dyn Error>> {
     // entire hostname (including the delimiting dots but not a trailing dot) has a maximum of 253 ASCII characters
     s = s.strip_suffix('.').unwrap_or(s);
     if s.len() > 253 {
-        return false;
+        Err("more than 253 characters long")?
     }
 
     // Hostnames are composed of series of labels concatenated with dots, as are all domain names
     for label in s.split('.') {
         // Each label must be from 1 to 63 characters long
         if !matches!(label.len(), 1..=63) {
-            return false;
+            Err("label must be 1 to 63 characters long")?;
         }
 
         // labels must not start or end with a hyphen
-        if label.starts_with('-') || label.ends_with('-') {
-            return false;
+        if label.starts_with('-') {
+            Err("label starts with hyphen")?;
+        }
+
+        if label.ends_with('-') {
+            Err("label ends with hyphen")?;
         }
 
         // labels may contain only the ASCII letters 'a' through 'z' (in a case-insensitive manner),
         // the digits '0' through '9', and the hyphen ('-')
-        if !label
+        if let Some(ch) = label
             .chars()
-            .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-'))
+            .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-'))
         {
-            return false;
+            Err(format!("invalid character {ch:?}"))?; // todo: tell which char is invalid
         }
     }
 
-    true
+    Ok(())
 }
 
-fn is_idn_hostname_value(v: &Value) -> bool {
+fn check_idn_hostname_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_idn_hostname(s)
+    check_idn_hostname(s)
 }
 
-fn is_idn_hostname(s: &str) -> bool {
-    let Ok(s) = idna::domain_to_ascii_strict(s) else {
-        return false;
-    };
+fn check_idn_hostname(s: &str) -> Result<(), Box<dyn Error>> {
+    let s = idna::domain_to_ascii_strict(s)?;
     let unicode = idna::domain_to_unicode(&s).0;
 
     // see https://www.rfc-editor.org/rfc/rfc5892#section-2.6
@@ -324,7 +381,7 @@ fn is_idn_hostname(s: &str) -> bool {
             '\u{303B}', //  VERTICAL IDEOGRAPHIC ITERATION MARK
         ];
         if unicode.contains(DISALLOWED) {
-            return false;
+            Err("contains disallowed character")?;
         }
     }
 
@@ -339,7 +396,7 @@ fn is_idn_hostname(s: &str) -> bool {
             .map(|c| if c == '-' { 1 } else { 0 })
             .sum();
         if count == 2 {
-            return false;
+            Err("unicode string must not contain '--' in 3rd and 4th position")?;
         }
     }
 
@@ -352,7 +409,7 @@ fn is_idn_hostname(s: &str) -> bool {
             let prefix = &s[..i];
             let suffix = &s[i + middle_dot.len_utf8()..];
             if !prefix.ends_with('l') || !suffix.ends_with('l') {
-                return false;
+                Err("MIDDLE DOT is allowed between 'l' characters only")?;
             }
             s = suffix;
         }
@@ -367,7 +424,7 @@ fn is_idn_hostname(s: &str) -> bool {
         while let Some(i) = s.find(keralia) {
             let suffix = &s[i + keralia.len_utf8()..];
             if !suffix.starts_with(|c| greek.contains(&c)) {
-                return false;
+                Err("Greek KERAIA must be followed by Greek character")?;
             }
             s = suffix;
         }
@@ -388,7 +445,11 @@ fn is_idn_hostname(s: &str) -> bool {
                 let prefix = &s[..i];
                 let suffix = &s[i + ch.len_utf8()..];
                 if !prefix.ends_with(|c| hebrew.contains(&c)) {
-                    return false;
+                    if i == 0 {
+                        Err("Hebrew GERESH must be preceded by Hebrew character")?;
+                    } else {
+                        Err("Hebrew GERESHYIM must be preceded by Hebrew character")?;
+                    }
                 }
                 s = suffix;
             }
@@ -409,7 +470,7 @@ fn is_idn_hostname(s: &str) -> bool {
             {
                 // ok
             } else {
-                return false;
+                Err("KATAKANA MIDDLE DOT must be with Hiragana, Katakana, or Han")?;
             }
         }
     }
@@ -423,7 +484,7 @@ fn is_idn_hostname(s: &str) -> bool {
         if unicode.contains(|c| arabic_indic_digits.contains(&c))
             && unicode.contains(|c| extended_arabic_indic_digits.contains(&c))
         {
-            return false;
+            Err("ARABIC-INDIC DIGITS and Extended Arabic-Indic Digits cannot be mixed")?;
         }
     }
 
@@ -499,64 +560,66 @@ fn is_idn_hostname(s: &str) -> bool {
             let prefix = &s[..i];
             let suffix = &s[i + zero_width_jointer.len_utf8()..];
             if !prefix.ends_with(VIRAMA) {
-                return false;
+                Err("ZERO WIDTH JOINER must be preceded by Virama")?;
             }
             s = suffix;
         }
     }
 
-    is_hostname(&s)
+    check_hostname(&s)
 }
 
-fn is_email_value(v: &Value) -> bool {
+fn check_email_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_email(s)
+    check_email(s)
 }
 
 // see https://en.wikipedia.org/wiki/Email_address
-fn is_email(s: &str) -> bool {
+fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     // entire email address to be no more than 254 characters long
     if s.len() > 254 {
-        return false;
+        Err("more than 254 characters long")?;
     }
 
     // email address is generally recognized as having two parts joined with an at-sign
     let Some(at) = s.rfind('@') else {
-        return false;
+        return Err("missing @")?;
     };
     let (local, domain) = (&s[..at], &s[at + 1..]);
 
     // local part may be up to 64 characters long
     if local.len() > 64 {
-        return false;
+        Err("local part more than 64 characters long")?;
     }
 
     if local.starts_with('"') && local.ends_with('"') {
         // quoted
         let local = &local[1..local.len() - 1];
         if local.contains('\\') || local.contains('"') {
-            return false;
+            Err("backslash and quote not allowed within quoted local part")?;
         }
     } else {
         // unquoted
 
-        // must not start or end with a dot
-        if local.starts_with('.') || local.ends_with('.') {
-            return false;
+        if local.starts_with('.') {
+            Err("starts with dot")?;
+        }
+        if local.ends_with('.') {
+            Err("ends with dot")?;
         }
 
         // consecutive dots not allowed
         if local.contains("..") {
-            return false;
+            Err("consecutive dots")?;
         }
 
         // check allowd chars
-        if !local.chars().all(|c| {
-            matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9') || ".!#$%&'*+-/=?^_`{|}~".contains(c)
+        if let Some(ch) = local.chars().find(|c| {
+            !(matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9') || ".!#$%&'*+-/=?^_`{|}~".contains(*c))
         }) {
-            return false;
+            Err(format!("invalid character {ch:?}"))?;
         }
     }
 
@@ -564,152 +627,174 @@ fn is_email(s: &str) -> bool {
     if domain.starts_with('[') && domain.ends_with(']') {
         let s = &domain[1..domain.len() - 1];
         if let Some(s) = s.strip_prefix("IPv6:") {
-            return s.parse::<Ipv6Addr>().is_ok();
+            if let Err(e) = s.parse::<Ipv6Addr>() {
+                Err(format!("invalid ipv6 address: {e}"))?;
+            }
+            return Ok(());
         }
-        return s.parse::<Ipv4Addr>().is_ok();
+        if let Err(e) = s.parse::<Ipv4Addr>() {
+            Err(format!("invalid ipv4 address: {e}"))?;
+        }
+        return Ok(());
     }
 
     // domain must match the requirements for a hostname
-    if !is_hostname(domain) {
-        return false;
+    if let Err(e) = check_hostname(domain) {
+        Err(format!("invalid domain: {e}"))?;
     }
 
-    true
+    Ok(())
 }
 
-fn is_idn_email(v: &Value) -> bool {
+fn check_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
 
     let Some(at) = s.rfind('@') else {
-        return false;
+        return Err("missing @")?;
     };
     let (local, domain) = (&s[..at], &s[at + 1..]);
 
-    let Ok(local) = idna::domain_to_ascii_strict(local) else {
-        return false;
-    };
-    let Ok(domain) = idna::domain_to_ascii_strict(domain) else {
-        return false;
-    };
-    if !is_idn_hostname(&domain) {
-        return false;
+    let local = idna::domain_to_ascii_strict(local)?;
+    let domain = idna::domain_to_ascii_strict(domain)?;
+    if let Err(e) = check_idn_hostname(&domain) {
+        Err(format!("invalid domain: {e}"))?;
     }
-    is_email(&format!("{local}@{domain}"))
+    check_email(&format!("{local}@{domain}"))
 }
 
-fn is_json_pointer_value(v: &Value) -> bool {
+fn check_json_pointer_value(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    is_json_pointer(s)
+    check_json_pointer(s)
 }
 
 // see https://www.rfc-editor.org/rfc/rfc6901#section-3
-fn is_json_pointer(s: &str) -> bool {
+fn check_json_pointer(s: &str) -> Result<(), Box<dyn Error>> {
     if s.is_empty() {
-        return true;
+        return Ok(());
     }
     if !s.starts_with('/') {
-        return false;
+        Err("not starting with slash")?;
     }
     for token in s.split('/').skip(1) {
         let mut chars = token.chars();
         while let Some(ch) = chars.next() {
             if ch == '~' {
                 if !matches!(chars.next(), Some('0' | '1')) {
-                    return false;
+                    Err("~ must be followed by 0 or 1")?;
                 }
             } else if !matches!(ch, '\x00'..='\x2E' | '\x30'..='\x7D' | '\x7F'..='\u{10FFFF}') {
-                return false;
+                Err("contains disallowed character")?;
             }
         }
     }
-    true
+    Ok(())
 }
 
 // see https://tools.ietf.org/html/draft-handrews-relative-json-pointer-01#section-3
-fn is_relative_json_pointer(v: &Value) -> bool {
+fn check_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
 
     // start with non-negative-integer
     let num_digits = s.chars().take_while(char::is_ascii_digit).count();
-    if num_digits == 0 || (num_digits > 1 && s.starts_with('0')) {
-        return false;
+    if num_digits == 0 {
+        Err("must start with non-negative integer")?;
+    }
+    if num_digits > 1 && s.starts_with('0') {
+        Err("starts with zero")?;
     }
     let s = &s[num_digits..];
 
     // followed by either json-pointer or '#'
-    s == "#" || is_json_pointer(s)
+    if s == "#" {
+        return Ok(());
+    }
+    if let Err(e) = check_json_pointer(s) {
+        Err(format!("invalid json-pointer element: {e}"))?;
+    }
+    Ok(())
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc4122#page-4
-fn is_uuid(v: &Value) -> bool {
+fn check_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
 
     static HEX_GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
     let mut i = 0;
     for group in s.split('-') {
-        if i > HEX_GROUPS.len()
-            || group.len() != HEX_GROUPS[i]
-            || !group.chars().all(|c| c.is_ascii_hexdigit())
-        {
-            return false;
+        if i > HEX_GROUPS.len() {
+            Err("more than 5 elements")?;
+        }
+        if group.len() != HEX_GROUPS[i] {
+            Err(format!(
+                "element {} must be {} characters long",
+                i + 1,
+                HEX_GROUPS[i]
+            ))?;
+        }
+        if let Some(ch) = group.chars().find(|c| !c.is_ascii_hexdigit()) {
+            Err(format!("non-hex character {ch:?}"))?;
         }
         i += 1;
     }
-    i == HEX_GROUPS.len()
+    if i != HEX_GROUPS.len() {
+        Err("must have 5 elements")?;
+    }
+    Ok(())
 }
 
-fn is_uri(v: &Value) -> bool {
+fn check_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
     };
-    Url::parse(s).is_ok()
-}
-
-fn parse_uri_reference(s: &str) -> Option<Url> {
     match Url::parse(s) {
-        Ok(url) => Some(url),
-        Err(url::ParseError::RelativeUrlWithoutBase) => match Url::parse("http://temp.com") {
-            Ok(url) => {
-                if s.contains('\\') {
-                    return None;
-                }
-                Some(url)
-            }
-            _ => None,
-        },
-        _ => None,
+        Ok(_) => Ok(()),
+        Err(url::ParseError::RelativeUrlWithoutBase) => Err("relative url")?,
+        Err(e) => Err(e)?,
     }
 }
 
-fn is_uri_reference(v: &Value) -> bool {
-    let Value::String(s) = v else {
-        return true;
-    };
-    parse_uri_reference(s).is_some()
+fn parse_uri_reference(s: &str) -> Result<Url, Box<dyn Error>> {
+    match Url::parse(s) {
+        Ok(url) => Ok(url),
+        Err(url::ParseError::RelativeUrlWithoutBase) => match Url::parse("http://temp.com") {
+            Ok(url) => {
+                if s.contains('\\') {
+                    Err("contains \\\\")?;
+                }
+                Ok(url)
+            }
+            Err(e) => Err(e)?,
+        },
+        Err(e) => Err(e)?,
+    }
 }
 
-fn is_uri_template(v: &Value) -> bool {
+fn check_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
-        return true;
+        return Ok(());
+    };
+    parse_uri_reference(s)?;
+    Ok(())
+}
+
+fn check_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
+    let Value::String(s) = v else {
+        return Ok(());
     };
 
-    let Some(url) = parse_uri_reference(s) else {
-        return false;
-    };
+    let url = parse_uri_reference(s)?;
 
     let path = url.path();
     // path we got has curly bases percent encoded
-    let Ok(path) = percent_decode_str(path).decode_utf8() else {
-        return false;
-    };
+    let path = percent_decode_str(path).decode_utf8()?;
 
     // ensure curly brackets are not nested and balanced
     for part in path.as_ref().split('/') {
@@ -720,14 +805,13 @@ fn is_uri_template(v: &Value) -> bool {
             .map(|c| c == '{')
         {
             if got != want {
-                return false;
+                Err("nested curly brackets")?;
             }
             want = !want;
         }
         if !want {
-            // no matching closing bracket
-            return false;
+            Err("no matching closing bracket")?
         }
     }
-    true
+    Ok(())
 }

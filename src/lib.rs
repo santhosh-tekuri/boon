@@ -379,40 +379,120 @@ impl Display for ValidationError {
 #[derive(Debug)]
 pub enum ErrorKind {
     Group,
-    Schema { url: String },
-    Reference { url: String },
+    Schema {
+        url: String,
+    },
+    Reference {
+        url: String,
+    },
     RefCycle,
     FalseSchema,
-    Type { got: Type, want: Vec<Type> },
-    Enum { got: Value, want: Vec<Value> },
-    Const { got: Value, want: Value },
-    Format { got: Value, want: String },
-    MinProperties { got: usize, want: usize },
-    MaxProperties { got: usize, want: usize },
-    AdditionalProperties { got: Vec<String> },
-    Required { want: Vec<String> },
-    DependentRequired { got: String, want: Vec<String> },
-    MinItems { got: usize, want: usize },
-    MaxItems { got: usize, want: usize },
+    Type {
+        got: Type,
+        want: Vec<Type>,
+    },
+    Enum {
+        got: Value,
+        want: Vec<Value>,
+    },
+    Const {
+        got: Value,
+        want: Value,
+    },
+    Format {
+        got: Value,
+        want: String,
+        reason: String,
+    },
+    MinProperties {
+        got: usize,
+        want: usize,
+    },
+    MaxProperties {
+        got: usize,
+        want: usize,
+    },
+    AdditionalProperties {
+        got: Vec<String>,
+    },
+    Required {
+        want: Vec<String>,
+    },
+    DependentRequired {
+        got: String,
+        want: Vec<String>,
+    },
+    MinItems {
+        got: usize,
+        want: usize,
+    },
+    MaxItems {
+        got: usize,
+        want: usize,
+    },
     Contains,
-    MinContains { got: Vec<usize>, want: usize },
-    MaxContains { got: Vec<usize>, want: usize },
-    UniqueItems { got: [usize; 2] },
-    AdditionalItems { got: usize },
-    MinLength { got: usize, want: usize },
-    MaxLength { got: usize, want: usize },
-    Pattern { got: String, want: String },
-    ContentEncoding { got: String, want: String },
-    ContentMediaType { got: Vec<u8>, want: String },
-    Minimum { got: Number, want: Number },
-    Maximum { got: Number, want: Number },
-    ExclusiveMinimum { got: Number, want: Number },
-    ExclusiveMaximum { got: Number, want: Number },
-    MultipleOf { got: Number, want: Number },
+    MinContains {
+        got: Vec<usize>,
+        want: usize,
+    },
+    MaxContains {
+        got: Vec<usize>,
+        want: usize,
+    },
+    UniqueItems {
+        got: [usize; 2],
+    },
+    AdditionalItems {
+        got: usize,
+    },
+    MinLength {
+        got: usize,
+        want: usize,
+    },
+    MaxLength {
+        got: usize,
+        want: usize,
+    },
+    Pattern {
+        got: String,
+        want: String,
+    },
+    ContentEncoding {
+        got: String,
+        want: String,
+    },
+    ContentMediaType {
+        got: Vec<u8>,
+        want: String,
+    },
+    Minimum {
+        got: Number,
+        want: Number,
+    },
+    Maximum {
+        got: Number,
+        want: Number,
+    },
+    ExclusiveMinimum {
+        got: Number,
+        want: Number,
+    },
+    ExclusiveMaximum {
+        got: Number,
+        want: Number,
+    },
+    MultipleOf {
+        got: Number,
+        want: Number,
+    },
     Not,
-    AllOf { got: Vec<usize> },
+    AllOf {
+        got: Vec<usize>,
+    },
     AnyOf,
-    OneOf { got: Vec<usize> },
+    OneOf {
+        got: Vec<usize>,
+    },
 }
 
 impl Display for ErrorKind {
@@ -448,7 +528,7 @@ impl Display for ErrorKind {
                     write!(f, "const failed")
                 }
             }
-            Self::Format { got, want } => write!(f, "{got} is not valid {want}"),
+            Self::Format { got, want, reason } => write!(f, "{got} is not valid {want}: {reason}"),
             Self::MinProperties { got, want } => write!(
                 f,
                 "minimum {want} properties required, but got {got} properties"

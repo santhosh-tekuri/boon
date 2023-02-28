@@ -120,8 +120,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // format --
         if let Some((format, check)) = &s.format {
-            if !check(v) {
-                self.add_error("format", &vloc, kind!(Format, v.clone(), format.clone()));
+            if let Err(e) = check(v) {
+                let kind = ErrorKind::Format {
+                    got: v.clone(),
+                    want: format.clone(),
+                    reason: e.to_string(),
+                };
+                self.add_error("format", &vloc, kind);
             }
         }
 
