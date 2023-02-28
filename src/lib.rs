@@ -15,12 +15,7 @@ use content::{Decoder, MediaType};
 use formats::Format;
 pub use loader::*;
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, VecDeque},
-    error::Error,
-    fmt::Display,
-};
+use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Number, Value};
@@ -42,7 +37,7 @@ impl Schemas {
         Self::default()
     }
 
-    fn enqueue(&self, queue: &mut VecDeque<String>, mut loc: String) -> SchemaIndex {
+    fn enqueue(&self, queue: &mut Vec<String>, mut loc: String) -> SchemaIndex {
         if loc.rfind('#').is_none() {
             loc.push('#');
         }
@@ -57,15 +52,8 @@ impl Schemas {
         }
 
         // new compilation request
-        queue.push_back(loc);
+        queue.push(loc);
         SchemaIndex(self.list.len() + queue.len() - 1)
-    }
-
-    fn insert(&mut self, loc: String, sch: Schema) -> SchemaIndex {
-        let index = self.list.len();
-        self.list.push(sch);
-        self.map.insert(loc, index);
-        SchemaIndex(index)
     }
 
     fn get(&self, idx: SchemaIndex) -> &Schema {

@@ -1,9 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, VecDeque},
-    error::Error,
-    fmt::Display,
-};
+use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -214,7 +209,7 @@ impl Compiler {
             loc.push('#');
         }
 
-        let mut queue = VecDeque::new();
+        let mut queue = vec![];
         let mut compiled = vec![];
 
         let index = target.enqueue(&mut queue, loc);
@@ -269,7 +264,7 @@ impl Compiler {
         v: &Value,
         loc: &str,
         root: &Root,
-        queue: &mut VecDeque<String>,
+        queue: &mut Vec<String>,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.to_owned());
         s.draft_version = root.draft.version;
@@ -321,7 +316,7 @@ struct ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     loc: &'l str,
     schemas: &'s Schemas,
     root: &'r Root,
-    queue: &'q mut VecDeque<String>,
+    queue: &'q mut Vec<String>,
 }
 
 // compile supported drafts
