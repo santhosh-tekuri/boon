@@ -221,7 +221,6 @@ impl Compiler {
             return Ok(index);
         }
 
-        let mut sch_index = None;
         while let Some(mut loc) = queue.front() {
             let (url, mut ptr) = split(loc);
             let root = {
@@ -251,10 +250,9 @@ impl Compiler {
             let loc = queue
                 .pop_front()
                 .ok_or(CompileError::Bug("queue must be non-empty".into()))?;
-            let index = target.insert(loc, sch);
-            sch_index = sch_index.or(Some(index));
+            target.insert(loc, sch);
         }
-        sch_index.ok_or(CompileError::Bug("schema_index must exist".into()))
+        Ok(index)
     }
 
     fn compile_value(
