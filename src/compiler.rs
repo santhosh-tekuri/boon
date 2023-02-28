@@ -248,13 +248,7 @@ impl Compiler {
             compiled.push(sch);
         }
 
-        // add all compiled schemas into target
-        for (loc, sch) in queue.into_iter().zip(compiled.into_iter()) {
-            let i = target.list.len();
-            target.list.push(sch);
-            target.map.insert(loc, i);
-        }
-
+        target.insert(queue, compiled);
         Ok(index)
     }
 

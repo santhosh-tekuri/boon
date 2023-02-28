@@ -56,6 +56,14 @@ impl Schemas {
         SchemaIndex(self.list.len() + queue.len() - 1)
     }
 
+    fn insert(&mut self, locs: Vec<String>, compiled: Vec<Schema>) {
+        for (loc, sch) in locs.into_iter().zip(compiled.into_iter()) {
+            let i = self.list.len();
+            self.list.push(sch);
+            self.map.insert(loc, i);
+        }
+    }
+
     fn get(&self, idx: SchemaIndex) -> &Schema {
         &self.list[idx.0] // todo: return bug
     }
