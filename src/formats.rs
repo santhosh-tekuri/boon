@@ -217,7 +217,7 @@ fn is_duration(s: &str) -> bool {
         if i != 0 && s.is_empty() {
             return false;
         }
-        if i > UNITS.len() {
+        if i >= UNITS.len() {
             return false;
         }
         let mut units = UNITS[i];
