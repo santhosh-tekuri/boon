@@ -215,13 +215,16 @@ impl Compiler {
         }
 
         let mut queue = VecDeque::new();
+        let mut compiled = vec![];
+
         let index = target.enqueue(&mut queue, loc);
         if queue.is_empty() {
             // already got compiled
             return Ok(index);
         }
 
-        while let Some(mut loc) = queue.front() {
+        while queue.len() > compiled.len() {
+            let mut loc = &queue[compiled.len()];
             let (url, mut ptr) = split(loc);
             let root = {
                 let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
@@ -247,11 +250,16 @@ impl Compiler {
             };
 
             let sch = self.compile_value(target, v, &loc.to_owned(), root, &mut queue)?;
-            let loc = queue
-                .pop_front()
-                .ok_or(CompileError::Bug("queue must be non-empty".into()))?;
-            target.insert(loc, sch);
+            compiled.push(sch);
         }
+
+        // add all compiled schemas into target
+        for (loc, sch) in queue.into_iter().zip(compiled.into_iter()) {
+            let i = target.list.len();
+            target.list.push(sch);
+            target.map.insert(loc, i);
+        }
+
         Ok(index)
     }
 
