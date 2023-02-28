@@ -217,10 +217,9 @@ fn is_duration(s: &str) -> bool {
         if i != 0 && s.is_empty() {
             return false;
         }
-        if i >= UNITS.len() {
+        let Some(mut units) = UNITS.get(i).cloned() else {
             return false;
-        }
-        let mut units = UNITS[i];
+        };
         while !s.is_empty() {
             let digit_count = s.chars().take_while(char::is_ascii_digit).count();
             if digit_count == 0 {
