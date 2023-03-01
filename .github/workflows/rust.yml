@@ -39,4 +39,8 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: lcov.info
+    - name: check doc
+      run: cargo doc
+      env:
+        RUSTFLAGS: -D warnings
       
