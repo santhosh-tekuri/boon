@@ -1,22 +1,17 @@
-use std::{error::Error, fs::File, path::Path};
+use std::{error::Error, fs::File};
 
 use boon::{Compiler, Schemas, UrlLoader};
 use serde_json::Value;
-use url::Url;
 
 #[test]
 fn example_from_files() -> Result<(), Box<dyn Error>> {
-    let schema_url = {
-        let path = Path::new("tests/examples/schema.json");
-        let path = path.canonicalize()?;
-        Url::from_file_path(path).unwrap()
-    };
+    let schema_file = "tests/examples/schema.json";
 
     let instance: Value = serde_json::from_reader(File::open("tests/examples/instance.json")?)?;
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    let sch_index = compiler.compile(schema_url.to_string(), &mut schemas)?;
+    let sch_index = compiler.compile(schema_file, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 
@@ -32,7 +27,7 @@ fn example_from_strings() -> Result<(), Box<dyn Error>> {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.add_resource(schema_url, schema)?;
-    let sch_index = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+    let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 
@@ -58,7 +53,7 @@ fn example_from_https() -> Result<(), Box<dyn Error>> {
     let mut compiler = Compiler::new();
     compiler.register_url_loader("http", Box::new(HttpUrlLoader));
     compiler.register_url_loader("https", Box::new(HttpUrlLoader));
-    let sch_index = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+    let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 
@@ -89,7 +84,7 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
     compiler.enable_format_assertions(); // in draft2020-12 format assertions are not enabled by default
     compiler.register_format("palindrome", is_palindrome);
     compiler.add_resource(schema_url, schema)?;
-    let sch_index = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+    let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 

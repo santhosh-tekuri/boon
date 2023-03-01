@@ -23,19 +23,21 @@ pub enum Draft {
 }
 
 impl Draft {
-    /// Get [`Draft`] for given `url`
-    ///
-    /// # Arguments
-    ///
-    /// * `url` - accepts both `http` and `https` and ignores any fragments in url
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use boon::*;
-    /// assert_eq!(Draft::from_url("https://json-schema.org/draft/2020-12/schema"), Some(Draft::V2020_12));
-    /// assert_eq!(Draft::from_url("http://json-schema.org/draft-07/schema#"), Some(Draft::V7));
-    /// ```
+    /**
+    Get [`Draft`] for given `url`
+
+    # Arguments
+
+    * `url` - accepts both `http` and `https` and ignores any fragments in url
+
+    # Examples
+
+    ```
+    # use boon::*;
+    assert_eq!(Draft::from_url("https://json-schema.org/draft/2020-12/schema"), Some(Draft::V2020_12));
+    assert_eq!(Draft::from_url("http://json-schema.org/draft-07/schema#"), Some(Draft::V7));
+    ```
+    */
     pub fn from_url(url: &str) -> Option<Draft> {
         match crate::draft::Draft::from_url(url) {
             Some(draft) => match draft.version {
@@ -84,45 +86,53 @@ impl Compiler {
         Self::default()
     }
 
-    /// Overrides the draft used to compile schemas without
-    /// explicit `$schema` field.
-    ///
-    /// By default this library uses latest draft supported.  
+    /**
+    Overrides the draft used to compile schemas without
+    explicit `$schema` field.
+
+    By default this library uses latest draft supported.
+    */
     pub fn set_default_draft(&mut self, d: Draft) {
         self.roots.default_draft = d.internal()
     }
 
-    /// Always enable format assertions.
-    ///
-    /// # Default Behavior
-    ///
-    /// - for draft-07 and earlier: enabled
-    /// - for draft/2019-09: disabled, unless
-    ///   metaschema says `format` vocabulary is required  
-    /// - for draft/2020-12: disabled, unless
-    ///   metaschema says `format-assertion` vocabulary is required  
+    /**
+    Always enable format assertions.
+
+    # Default Behavior
+
+    - for draft-07 and earlier: enabled
+    - for draft/2019-09: disabled, unless
+    metaschema says `format` vocabulary is required
+    - for draft/2020-12: disabled, unless
+    metaschema says `format-assertion` vocabulary is required
+    */
     pub fn enable_format_assertions(&mut self) {
         self.assert_format = true;
     }
 
-    /// Always enable content assertions.
-    ///
-    /// content assertions include keywords:
-    /// - contentEncoding
-    /// - contentMediaType
-    /// - contentSchema
-    ///
-    /// Default Behavior is always disabled.
+    /**
+    Always enable content assertions.
+
+    content assertions include keywords:
+    - contentEncoding
+    - contentMediaType
+    - contentSchema
+
+    Default Behavior is always disabled.
+    */
     pub fn enable_content_assertions(&mut self) {
         self.assert_content = true;
     }
 
-    /// Registers [`UrlLoader`] for given url `scheme`
-    ///
-    /// # Note
-    /// - loader for `file` scheme is included by default and
-    /// - all standard meta-schemas from `http(s)://json-schema.org` are loaded internally
-    ///   without network access
+    /**
+    Registers [`UrlLoader`] for given url `scheme`
+
+    # Note
+    - loader for `file` scheme is included by default and
+    - all standard meta-schemas from `http(s)://json-schema.org` are loaded internally
+      without network access
+    */
     pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.register(scheme, url_loader);
     }
@@ -132,18 +142,22 @@ impl Compiler {
         self.formats.insert(format, validator);
     }
 
-    /// Registers custom `contentEncoding`
-    ///
-    /// Note that content assertions are disabled by default.
-    /// see [`Compiler::enable_content_assertions`]
+    /**
+    Registers custom `contentEncoding`
+
+    Note that content assertions are disabled by default.
+    see [`Compiler::enable_content_assertions`]
+    */
     pub fn register_content_encoding(&mut self, content_encoding: &'static str, decoder: Decoder) {
         self.decoders.insert(content_encoding, decoder);
     }
 
-    /// Registers custom `contentMediaType`
-    ///
-    /// Note that content assertions are disabled by default.
-    /// see [`Compiler::enable_content_assertions`]
+    /**
+    Registers custom `contentMediaType`
+
+    Note that content assertions are disabled by default.
+    see [`Compiler::enable_content_assertions`]
+    */
     pub fn register_content_media_type(
         &mut self,
         content_media_type: &'static str,
@@ -152,47 +166,46 @@ impl Compiler {
         self.media_types.insert(content_media_type, validator);
     }
 
-    /// Adds schema resource which used later in reference resultion
-    /// If you do not know which schema resources required, then use [`UrlResolver`].
-    ///
-    /// # NOTE
-    /// `url` should not have any fragment. if it has fragment, the fragment is
-    /// ignored.
-    ///
-    /// # Return
-    ///
-    /// - returns false, if resource with same url already loaded.
-    ///
-    /// # Errors
-    ///
-    /// returns [`CompilerError`] if basic validations fail, such as
-    /// - url parsing
-    /// - duplicate anchor or id
-    /// - metaschema resolution etc
-    pub fn add_resource(&mut self, url: &str, json: Value) -> Result<bool, CompileError> {
-        let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
-            url: url.to_owned(),
-            src: e.into(),
-        })?;
+    /**
+    Adds schema resource which used later in reference resoltion
+    If you do not know which schema resources required, then use [`UrlResolver`].
+
+    The argument `loc` can be file path or url. any fragment in `url` is ignored.
+
+    If resource with same `url` already loaded, it returns `false`.
+
+    # Errors
+
+    returns [`CompilerError`] if basic validations fail, such as
+    - url parsing
+    - duplicate anchor or id
+    - metaschema resolution etc
+    */
+    pub fn add_resource(&mut self, mut url: &str, json: Value) -> Result<bool, CompileError> {
+        (url, _) = split(url); // strip fragment if any
+        let url = to_url(url)?;
         self.roots.or_insert(url, json)
     }
 
-    /// Compile given `loc` into `target` and return an identifier to the compiled
-    /// schema.
-    ///
-    /// the argument `loc`:
-    /// - must be absolute url
-    /// - can have fragment json-pointer. for example
-    ///   `http://example.com/schema.json#/defs/address` compiles
-    ///   subschema at `/defs/address`
-    ///
-    /// # NOTE
-    /// - if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
+    /**
+    Compile given `loc` into `target` and return an identifier to the compiled
+    schema.
+
+    the argument `loc` can be file path or url with optional fragment.
+    examples: `http://example.com/schema.json#/defs/address`,
+              `samples/schema_file.json#defs/address`
+
+    if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
+     */
     pub fn compile(
         &mut self,
-        loc: String,
+        loc: &str,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
+        let (url, ptr) = split(loc);
+        let url = to_url(url)?;
+        let loc = format!("{url}#{ptr}");
+
         let result = self.do_compile(loc, target);
         if let Err(bug @ CompileError::Bug(_)) = &result {
             debug_assert!(false, "{bug}");
@@ -202,12 +215,10 @@ impl Compiler {
 
     fn do_compile(
         &mut self,
-        mut loc: String,
+        loc: String,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
-        if loc.rfind('#').is_none() {
-            loc.push('#');
-        }
+        debug_assert!(loc.contains('#'));
 
         let mut queue = vec![];
         let mut compiled = vec![];
@@ -847,23 +858,5 @@ impl Display for CompileError {
                 )
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_compiler() {
-        let sch: Value = serde_json::from_str(r#"{"type":"string"}"#).unwrap();
-        let mut c = Compiler::default();
-        let url = Url::parse("http://a.com/schema.json").unwrap();
-        c.roots.or_insert(url.clone(), sch).unwrap();
-        let loc = format!("{url}#");
-        let mut schemas = Schemas::default();
-        let sch_index = c.compile(loc, &mut schemas).unwrap();
-        let inst: Value = Value::String("xx".into());
-        schemas.validate(&inst, sch_index).unwrap();
     }
 }

@@ -714,7 +714,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     }
 }
 
-// conditional validation
+// uneval validation
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn uneval_validate(&mut self, mut vloc: JsonPointer) {
         let s = self.schema;
@@ -750,7 +750,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     }
 }
 
-// validation helpers --
+// validation helpers
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn validate_val(
         &self,

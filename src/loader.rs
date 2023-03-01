@@ -8,7 +8,7 @@ use crate::compiler::CompileError;
 
 /// A trait for loading json from given `url`
 pub trait UrlLoader {
-    /// Loads json from given `url`
+    /// Loads json from given absolute `url`.
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>>;
 }
 

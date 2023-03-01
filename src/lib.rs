@@ -83,12 +83,14 @@ impl Schemas {
         self.list.get(sch_index.0).is_some()
     }
 
-    /// Validates `v` with schema identified by `sch_index`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `sch_index` is not generated for this instance.
-    /// [`Schemas::contains`] can be used too ensure that it does not panic.
+    /**
+    Validates `v` with schema identified by `sch_index`
+
+    # Panics
+
+    Panics if `sch_index` is not generated for this instance.
+    [`Schemas::contains`] can be used too ensure that it does not panic.
+    */
     pub fn validate(&self, v: &Value, sch_index: SchemaIndex) -> Result<(), ValidationError> {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");

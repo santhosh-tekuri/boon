@@ -51,7 +51,7 @@ fn compile(test: &Test) -> Result<(), CompileError> {
         compiler.register_url_loader("http", Box::new(Remotes(remotes.clone())));
     }
     compiler.add_resource(url, test.schema.clone())?;
-    compiler.compile(url.to_owned(), &mut schemas)?;
+    compiler.compile(url, &mut schemas)?;
     Ok(())
 }
 

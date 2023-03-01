@@ -49,7 +49,7 @@ fn test_folder(suite: &str, folder: &str, draft: Draft) -> Result<(), Box<dyn Er
             compiler.set_default_draft(draft);
             let schema_url = "http://output-tests/schema";
             compiler.add_resource(schema_url, group.schema)?;
-            let sch = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+            let sch = compiler.compile(schema_url, &mut schemas)?;
             for test in group.tests {
                 println!("        {}", test.description);
                 match schemas.validate(&test.data, sch) {
@@ -62,7 +62,7 @@ fn test_folder(suite: &str, folder: &str, draft: Draft) -> Result<(), Box<dyn Er
                             compiler.add_resource(&output_schema_url, output_schema.clone())?;
                             let schema_url = "http://output-tests/schema";
                             compiler.add_resource(schema_url, sch)?;
-                            let sch = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+                            let sch = compiler.compile(schema_url, &mut schemas)?;
                             let basic: Value = serde_json::from_str(&e.basic_output().to_string())?;
                             let result = schemas.validate(&basic, sch);
                             if let Err(e) = result {
@@ -79,7 +79,7 @@ fn test_folder(suite: &str, folder: &str, draft: Draft) -> Result<(), Box<dyn Er
                             compiler.add_resource(&output_schema_url, output_schema.clone())?;
                             let schema_url = "http://output-tests/schema";
                             compiler.add_resource(schema_url, sch)?;
-                            let sch = compiler.compile(schema_url.to_owned(), &mut schemas)?;
+                            let sch = compiler.compile(schema_url, &mut schemas)?;
                             let detailed: Value =
                                 serde_json::from_str(&e.detailed_output().to_string())?;
                             let result = schemas.validate(&detailed, sch);

@@ -1,8 +1,43 @@
-use std::{borrow::Cow, fmt::Display, str::Utf8Error};
+use std::{borrow::Cow, fmt::Display, path::Path, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use serde_json::Value;
+use url::Url;
+
+use crate::CompileError;
+
+fn starts_with_windows_drive(p: &str) -> bool {
+    p.chars().next().filter(char::is_ascii_uppercase).is_some() && p[1..].starts_with(":\\")
+}
+
+pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
+    debug_assert!(!s.contains('#'));
+
+    // note: windows drive letter is treated as url scheme by url parser
+    if std::env::consts::OS == "windows" && starts_with_windows_drive(s) {
+        return Url::from_file_path(s)
+            .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()));
+    }
+    match Url::parse(s) {
+        Ok(url) => Ok(url),
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            let path = Path::new(s);
+            let path = path
+                .canonicalize()
+                .map_err(|e| CompileError::ParseUrlError {
+                    url: s.to_owned(),
+                    src: e.into(),
+                })?;
+            Url::from_file_path(path)
+                .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()))
+        }
+        Err(e) => Err(CompileError::ParseUrlError {
+            url: s.to_owned(),
+            src: e.into(),
+        }),
+    }
+}
 
 /// returns single-quoted string
 pub(crate) fn quote<T>(s: &T) -> String
