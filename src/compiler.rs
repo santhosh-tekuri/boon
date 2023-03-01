@@ -168,7 +168,7 @@ impl Compiler {
 
     /**
     Adds schema resource which used later in reference resoltion
-    If you do not know which schema resources required, then use [`UrlResolver`].
+    If you do not know which schema resources required, then use [`UrlLoader`].
 
     The argument `loc` can be file path or url. any fragment in `url` is ignored.
 
@@ -176,7 +176,7 @@ impl Compiler {
 
     # Errors
 
-    returns [`CompilerError`] if basic validations fail, such as
+    returns [`CompileError`] if basic validations fail, such as
     - url parsing
     - duplicate anchor or id
     - metaschema resolution etc

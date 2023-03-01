@@ -1,3 +1,30 @@
+/*! This crate supports JsonScehama validation for drafts `2020-12`, `2019-09`, `7`, `6` and `4`.
+
+```rust,no_compile
+let schemas = Schemas::new(); // container for compiled schemas
+let compiler = Compiler::new();
+let sch_index = compiler.compile("schema.json", &mut schemas)?;
+let instance: Value = serde_json::from_reader(File::open("instance.json")?)?;
+let valid = schemas.validate(&instance, sch_index).is_ok();
+```
+
+If schema file has no `$schema` attribute, it assumes latest draft.
+You can override this:
+```rust,no_compile
+compiler.set_default_draft(Draft::V7);
+```
+
+## Examples
+
+- [example_from_strings]: loading schema from Strings
+- [example_from_https]: loading schema from `http(s)`
+- [example_custom_format]: registering custom format
+
+[example_from_strings]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L22
+[example_from_https]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L39
+[example_custom_format]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L64
+*/
+
 mod compiler;
 mod content;
 mod draft;
