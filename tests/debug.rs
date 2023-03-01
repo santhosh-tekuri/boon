@@ -8,6 +8,8 @@ fn test_debug() -> Result<(), Box<dyn Error>> {
     let test: Value = serde_json::from_reader(File::open("tests/debug.json")?)?;
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
+    compiler.enable_format_assertions();
+    compiler.enable_content_assertions();
     let remotes = Remotes(test["remotes"].as_object().unwrap().clone());
     compiler.register_url_loader("http", Box::new(remotes));
     let url = "http://debug.com/schema.json".to_owned();
