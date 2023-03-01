@@ -76,8 +76,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         let s = self.schema;
         let v = self.v;
 
-        if self.scope.has_cycle() {
-            return Err(self.error("", &vloc, kind!(RefCycle)));
+        if let Some(scp) = self.scope.check_cycle() {
+            let kind = ErrorKind::RefCycle {
+                url: self.schema.loc.clone(),
+                kw_loc1: self.scope.kw_loc(""),
+                kw_loc2: scp.kw_loc(""),
+            };
+            return Err(self.error("", &vloc, kind));
         }
 
         // boolean --
@@ -892,18 +897,18 @@ impl<'a> Scope<'a> {
         loc
     }
 
-    fn has_cycle(&self) -> bool {
+    fn check_cycle(&self) -> Option<&Scope> {
         let mut scope = self.parent;
         while let Some(scp) = scope {
             if scp.vid != self.vid {
                 break;
             }
             if scp.sch == self.sch {
-                return true;
+                return Some(scp);
             }
             scope = scp.parent;
         }
-        false
+        None
     }
 }
 

@@ -385,7 +385,11 @@ pub enum ErrorKind {
     Reference {
         url: String,
     },
-    RefCycle,
+    RefCycle {
+        url: String,
+        kw_loc1: String,
+        kw_loc2: String,
+    },
     FalseSchema,
     Type {
         got: Type,
@@ -502,7 +506,16 @@ impl Display for ErrorKind {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::Reference { url } => write!(f, "validation failed with {url}"),
-            Self::RefCycle => write!(f, "reference cycle detected"),
+            Self::RefCycle {
+                url,
+                kw_loc1,
+                kw_loc2,
+            } => write!(
+                f,
+                "both {} and {} resolve to {url} causing reference cycle",
+                quote(kw_loc1),
+                quote(kw_loc2)
+            ),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
