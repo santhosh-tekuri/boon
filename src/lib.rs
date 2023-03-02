@@ -1,16 +1,25 @@
 /*! This crate supports JsonScehama validation for drafts `2020-12`, `2019-09`, `7`, `6` and `4`.
 
-```rust,no_compile
-let schemas = Schemas::new(); // container for compiled schemas
-let compiler = Compiler::new();
+```rust,no_run
+# use std::fs::File;
+# use std::error::Error;
+# use boon::*;
+# use serde_json::Value;
+# fn main() -> Result<(), Box<dyn Error>>{
+let mut schemas = Schemas::new(); // container for compiled schemas
+let mut compiler = Compiler::new();
 let sch_index = compiler.compile("schema.json", &mut schemas)?;
 let instance: Value = serde_json::from_reader(File::open("instance.json")?)?;
 let valid = schemas.validate(&instance, sch_index).is_ok();
+# Ok(())
+# }
 ```
 
 If schema file has no `$schema` attribute, it assumes latest draft.
 You can override this:
-```rust,no_compile
+```rust,no_run
+# use boon::*;
+# let mut compiler = Compiler::new();
 compiler.set_default_draft(Draft::V7);
 ```
 
