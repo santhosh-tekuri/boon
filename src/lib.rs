@@ -507,6 +507,7 @@ pub enum ErrorKind {
     ContentMediaType {
         got: Vec<u8>,
         want: String,
+        reason: String,
     },
     Minimum {
         got: Number,
@@ -647,8 +648,8 @@ impl Display for ErrorKind {
             Self::ContentEncoding { want, reason, .. } => {
                 write!(f, "value is not {} encoded: {reason}", quote(want))
             }
-            Self::ContentMediaType { want, .. } => {
-                write!(f, "value is not of mediatype {}", quote(want))
+            Self::ContentMediaType { want, reason, .. } => {
+                write!(f, "value is not of mediatype {}: {reason}", quote(want))
             }
             Self::Minimum { got, want } => write!(f, "must be >={want}, but got {got}"),
             Self::Maximum { got, want } => write!(f, "must be <={want}, but got {got}"),

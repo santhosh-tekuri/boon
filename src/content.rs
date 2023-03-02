@@ -18,7 +18,7 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 }
 
 // mediatypes --
-pub(crate) type MediaType = fn(bytes: &[u8]) -> bool;
+pub(crate) type MediaType = fn(bytes: &[u8]) -> Result<(), Box<dyn Error>>;
 
 pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, MediaType>::new();
@@ -26,6 +26,7 @@ pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::ne
     m
 });
 
-fn is_json(bytes: &[u8]) -> bool {
-    serde_json::from_slice::<Value>(bytes).is_ok()
+fn is_json(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+    serde_json::from_slice::<Value>(bytes)?;
+    Ok(())
 }

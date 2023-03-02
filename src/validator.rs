@@ -481,8 +481,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // contentMediaType --
         if let Some((media_type, check)) = &s.content_media_type {
-            if !check(decoded.as_ref()) {
-                let kind = kind!(ContentMediaType, decoded.into_owned(), media_type.clone());
+            if let Err(e) = check(decoded.as_ref()) {
+                let kind = kind!(
+                    ContentMediaType,
+                    decoded.into_owned(),
+                    media_type.clone(),
+                    e.to_string()
+                );
                 self.add_error("contentMediaType", &vloc, kind);
             }
         }
