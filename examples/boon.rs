@@ -57,6 +57,7 @@ fn main() {
     }
 
     // flags --
+    let quiet = matches.opt_present("quiet");
     let assert_format = matches.opt_present("assert-format");
     let assert_content = matches.opt_present("assert-content");
 
@@ -87,7 +88,9 @@ fn main() {
         }
         Err(e) => {
             println!("schema {schema}: failed");
-            println!("{e:#}");
+            if !quiet {
+                println!("{e:#}");
+            }
             process::exit(2);
         }
     };
@@ -95,12 +98,16 @@ fn main() {
     // validate --
     let mut all_valid = true;
     for instance in &matches.free[1..] {
-        println!();
+        if !quiet {
+            println!();
+        }
         let rdr = match File::open(instance) {
             Ok(rdr) => rdr,
             Err(e) => {
                 println!("instance {instance}: failed");
-                println!("error reading file {instance}: {e}");
+                if !quiet {
+                    println!("error reading file {instance}: {e}");
+                }
                 all_valid = false;
                 continue;
             }
@@ -109,7 +116,9 @@ fn main() {
             Ok(v) => v,
             Err(e) => {
                 println!("instance {instance}: failed");
-                println!("error parsing file {instance}: {e}");
+                if !quiet {
+                    println!("error parsing file {instance}: {e}");
+                }
                 all_valid = false;
                 continue;
             }
@@ -118,16 +127,18 @@ fn main() {
             Ok(_) => println!("instance {instance}: ok"),
             Err(e) => {
                 println!("instance {instance}: failed");
-                match &output {
-                    Some(out) => match out.as_str() {
-                        "simple" => println!("{e}"),
-                        "alt" => println!("{e:#}"),
-                        "flag" => println!("{:#}", e.flag_output()),
-                        "basic" => println!("{:#}", e.basic_output()),
-                        "detailed" => println!("{:#}", e.detailed_output()),
-                        _ => (),
-                    },
-                    None => println!("{e}"),
+                if !quiet {
+                    match &output {
+                        Some(out) => match out.as_str() {
+                            "simple" => println!("{e}"),
+                            "alt" => println!("{e:#}"),
+                            "flag" => println!("{:#}", e.flag_output()),
+                            "basic" => println!("{:#}", e.basic_output()),
+                            "detailed" => println!("{:#}", e.detailed_output()),
+                            _ => (),
+                        },
+                        None => println!("{e}"),
+                    }
                 }
                 all_valid = false;
                 continue;
@@ -144,6 +155,7 @@ const BRIEF: &str = "Usage: boon [OPTIONS] SCHEMA [INSTANCE...]";
 fn options() -> Options {
     let mut opts = Options::new();
     opts.optflag("h", "help", "Print help information");
+    opts.optflag("q", "quiet", "Do not print errors");
     opts.optopt(
         "d",
         "draft",
