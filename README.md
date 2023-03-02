@@ -48,3 +48,29 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] basic
     - [x] detailed
 - [ ] custom vocabulary
+
+## CLI
+
+to install: `cargo install --example boon boon`
+
+```
+Usage: boon [OPTIONS] SCHEMA [INSTANCE...]
+
+Options:
+    -h, --help          Print help information
+    -q, --quiet         Do not print errors
+    -d, --draft <VER>   Draft used when '$schema' is missing. Valid values 4,
+                        6, 7, 2019, 2020 (default 2020)
+    -o, --output <FMT>  Output format. Valid values simple, alt, flag, basic,
+                        detailed (default simple)
+    -f, --assert-format
+                        Enable format assertions with draft >= 2019
+    -c, --assert-content
+                        Enable content assertions with draft >= 7
+```
+
+This cli can validate both schema and multiple instances.
+
+exit code is: 
+- `1` if command line arguments are invalid.
+- `2` if there are errors

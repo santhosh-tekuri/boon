@@ -15,7 +15,7 @@ let valid = schemas.validate(&instance, sch_index).is_ok();
 # }
 ```
 
-If schema file has no `$schema` attribute, it assumes latest draft.
+If schema file has no `$schema`, it assumes latest draft.
 You can override this:
 ```rust,no_run
 # use boon::*;
@@ -23,15 +23,74 @@ You can override this:
 compiler.set_default_draft(Draft::V7);
 ```
 
-## Examples
+# Examples
 
-- [example_from_strings]: loading schema from Strings
-- [example_from_https]: loading schema from `http(s)`
+- [example_from_strings]: loading schemas from Strings
+- [example_from_https]: loading schemas from `http(s)`
 - [example_custom_format]: registering custom format
+
+# Compile Errors
+
+```no_compile
+println!("{compile_error}");
+println!("{compile_error:#}"); // prints cause if any
+```
+
+Using alterate form in display will print cause if any.
+This will be useful in cases like [CompileError::LoadUrlError],
+as it would be useful to know whether the url does not exist or
+the resource at url is not a valid json document.
+
+# Validation Errors
+
+[`ValidationError`] may have multiple `causes` resulting
+in tree of errors.
+
+`println!("{validation_error}")` prints:
+```no_compile
+jsonschema validation failed with file:///tmp/customer.json#
+  at '': missing properties 'age'
+  at '/billing_address': missing properties 'street_address', 'city', 'state'
+```
+
+
+The alternate form `println!("{validation_error:#}")` prints:
+```no_compile
+jsonschema validation failed with file:///tmp/customer.json#
+  [I#] [S#/required] missing properties 'age'
+  [I#/billing_address] [S#/properties/billing_address/$ref] validation failed with file:///tmp/address.json#
+    [I#/billing_address] [S#/required] missing properties 'street_address', 'city', 'state'
+```
+here `I` refers to the instance document and `S` refers to last schema document.
+
+for example:
+- after line 1: `S` refers to `file:///tmp/customer.json`
+- after line 3: `S` refers to `file://tmp/address.json`
+
+
+# Output Formats
+
+[`ValidationError`] can be converted into following output formats:
+- [flag] `validation_error.flag_output()`
+- [basic] `validation_error.basic_output()`
+- [detailed] `validation_error.detailed_output()`
+
+The output object implements `serde::Serialize`.
+
+It also implement `Display` to print json:
+
+```no_compile
+println!("{output}"); // prints unformatted json
+println!("{output:#}"); // prints indented json
+```
 
 [example_from_strings]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L22
 [example_from_https]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L39
 [example_custom_format]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L64
+[flag]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-flag
+[basic]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-basic
+[detailed]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-detailed
+
 */
 
 mod compiler;
