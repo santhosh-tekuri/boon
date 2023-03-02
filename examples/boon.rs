@@ -10,16 +10,23 @@ fn main() {
         Ok(m) => m,
         Err(f) => {
             eprintln!("{f}");
+            eprintln!();
             eprintln!("{}", opts.usage(BRIEF));
             process::exit(1)
         }
     };
+
+    if matches.opt_present("help") {
+        println!("{}", opts.usage(BRIEF));
+        process::exit(0);
+    }
 
     // draft --
     let mut draft = Draft::default();
     if let Some(v) = matches.opt_str("draft") {
         let Ok(v) = usize::from_str(&v) else {
             eprintln!("invalid draft: {v}");
+            eprintln!();
             eprintln!("{}", opts.usage(BRIEF));
             process::exit(1);
         };
@@ -31,6 +38,7 @@ fn main() {
             2020 => Draft::V2020_12,
             _ => {
                 eprintln!("invalid draft: {v}");
+                eprintln!();
                 eprintln!("{}", opts.usage(BRIEF));
                 process::exit(1);
             }
@@ -40,11 +48,9 @@ fn main() {
     // output --
     let output = matches.opt_str("output");
     if let Some(o) = &output {
-        if !matches!(
-            o.as_str(),
-            "default" | "alt" | "flag" | "basic" | "detailed"
-        ) {
+        if !matches!(o.as_str(), "simple" | "alt" | "flag" | "basic" | "detailed") {
             eprintln!("invalid output: {o}");
+            eprintln!();
             eprintln!("{}", opts.usage(BRIEF));
             process::exit(1);
         }
@@ -57,6 +63,7 @@ fn main() {
     // schema --
     let Some(schema) = matches.free.get(0) else {
         eprintln!("missing SCHEMA");
+        eprintln!();
         eprintln!("{}", opts.usage(BRIEF));
         process::exit(1);
     };
@@ -113,7 +120,7 @@ fn main() {
                 println!("instance {instance}: failed");
                 match &output {
                     Some(out) => match out.as_str() {
-                        "default" => println!("{e}"),
+                        "simple" => println!("{e}"),
                         "alt" => println!("{e:#}"),
                         "flag" => println!("{:#}", e.flag_output()),
                         "basic" => println!("{:#}", e.basic_output()),
@@ -132,26 +139,32 @@ fn main() {
     }
 }
 
-const BRIEF: &str =  "usage: boon [--draft VERSION] [--output FORMAT] [--assert-format] [-assert-content] SCHEMA [INSTANCE...]";
+const BRIEF: &str = "Usage: boon [OPTIONS] SCHEMA [INSTANCE...]";
 
 fn options() -> Options {
     let mut opts = Options::new();
-    opts.optopt("d", "draft", "draft used when '$schema' attribute is missing. valid values 4, 6, 7, 2019, 2020 (default 2020)", "VERSION");
+    opts.optflag("h", "help", "Print help information");
+    opts.optopt(
+        "d",
+        "draft",
+        "Draft used when '$schema' is missing. Valid values 4, 6, 7, 2019, 2020 (default 2020)",
+        "<VER>",
+    );
     opts.optopt(
         "o",
         "output",
-        "output format. valid values default, alt, flag, basic, detailed",
-        "FORMAT",
+        "Output format. Valid values simple, alt, flag, basic, detailed (default simple)",
+        "<FMT>",
     );
     opts.optflag(
         "f",
         "assert-format",
-        "enable format assertions with draft >= 2019",
+        "Enable format assertions with draft >= 2019",
     );
     opts.optflag(
         "c",
         "assert-content",
-        "enable content assertions with draft >= 7",
+        "Enable content assertions with draft >= 7",
     );
     opts
 }
