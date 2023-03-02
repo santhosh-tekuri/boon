@@ -444,7 +444,7 @@ pub enum ErrorKind {
     Format {
         got: Value,
         want: String,
-        reason: String,
+        err: Box<dyn Error>,
     },
     MinProperties {
         got: usize,
@@ -502,12 +502,12 @@ pub enum ErrorKind {
     ContentEncoding {
         got: String,
         want: String,
-        reason: String,
+        err: Box<dyn Error>,
     },
     ContentMediaType {
         got: Vec<u8>,
         want: String,
-        reason: String,
+        err: Box<dyn Error>,
     },
     Minimum {
         got: Number,
@@ -581,7 +581,7 @@ impl Display for ErrorKind {
                     write!(f, "const failed")
                 }
             }
-            Self::Format { got, want, reason } => write!(f, "{got} is not valid {want}: {reason}"),
+            Self::Format { got, want, err } => write!(f, "{got} is not valid {want}: {err}"),
             Self::MinProperties { got, want } => write!(
                 f,
                 "minimum {want} properties required, but got {got} properties"
@@ -645,11 +645,11 @@ impl Display for ErrorKind {
             Self::Pattern { got, want } => {
                 write!(f, "{} does not match pattern {}", quote(got), quote(want))
             }
-            Self::ContentEncoding { want, reason, .. } => {
-                write!(f, "value is not {} encoded: {reason}", quote(want))
+            Self::ContentEncoding { want, err, .. } => {
+                write!(f, "value is not {} encoded: {err}", quote(want))
             }
-            Self::ContentMediaType { want, reason, .. } => {
-                write!(f, "value is not of mediatype {}: {reason}", quote(want))
+            Self::ContentMediaType { want, err, .. } => {
+                write!(f, "value is not of mediatype {}: {err}", quote(want))
             }
             Self::Minimum { got, want } => write!(f, "must be >={want}, but got {got}"),
             Self::Maximum { got, want } => write!(f, "must be <={want}, but got {got}"),

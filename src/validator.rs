@@ -57,11 +57,11 @@ macro_rules! kind {
             want: $want,
         }
     };
-    ($kind:ident, $got:expr, $want:expr, $reason:expr) => {
+    ($kind:ident, $got:expr, $want:expr, $err:expr) => {
         ErrorKind::$kind {
             got: $got,
             want: $want,
-            reason: $reason,
+            err: $err,
         }
     };
     ($kind: ident) => {
@@ -133,7 +133,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // format --
         if let Some((format, check)) = &s.format {
             if let Err(e) = check(v) {
-                let kind = kind!(Format, v.clone(), format.clone(), e.to_string());
+                let kind = kind!(Format, v.clone(), format.clone(), e);
                 self.add_error("format", &vloc, kind);
             }
         }
@@ -468,12 +468,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             match decode(str) {
                 Ok(bytes) => decoded = Cow::from(bytes),
                 Err(e) => {
-                    let kind = kind!(
-                        ContentEncoding,
-                        str.clone(),
-                        encoding.clone(),
-                        e.to_string()
-                    );
+                    let kind = kind!(ContentEncoding, str.clone(), encoding.clone(), e);
                     self.add_error("contentEncoding", &vloc, kind)
                 }
             }
@@ -482,12 +477,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // contentMediaType --
         if let Some((media_type, check)) = &s.content_media_type {
             if let Err(e) = check(decoded.as_ref()) {
-                let kind = kind!(
-                    ContentMediaType,
-                    decoded.into_owned(),
-                    media_type.clone(),
-                    e.to_string()
-                );
+                let kind = kind!(ContentMediaType, decoded.into(), media_type.clone(), e);
                 self.add_error("contentMediaType", &vloc, kind);
             }
         }
