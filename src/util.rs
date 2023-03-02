@@ -25,7 +25,7 @@ pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
             let path = Path::new(s);
             let path = path
                 .canonicalize()
-                .map_err(|e| CompileError::ParseUrlError {
+                .map_err(|e| CompileError::LoadUrlError {
                     url: s.to_owned(),
                     src: e.into(),
                 })?;
