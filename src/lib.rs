@@ -502,6 +502,7 @@ pub enum ErrorKind {
     ContentEncoding {
         got: String,
         want: String,
+        reason: String,
     },
     ContentMediaType {
         got: Vec<u8>,
@@ -643,7 +644,9 @@ impl Display for ErrorKind {
             Self::Pattern { got, want } => {
                 write!(f, "{} does not match pattern {}", quote(got), quote(want))
             }
-            Self::ContentEncoding { want, .. } => write!(f, "value is not {} encoded", quote(want)),
+            Self::ContentEncoding { want, reason, .. } => {
+                write!(f, "value is not {} encoded: {reason}", quote(want))
+            }
             Self::ContentMediaType { want, .. } => {
                 write!(f, "value is not of mediatype {}", quote(want))
             }

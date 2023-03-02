@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error};
 
 use base64::Engine;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 
 // decoders --
-pub(crate) type Decoder = fn(s: &str) -> Option<Vec<u8>>;
+pub(crate) type Decoder = fn(s: &str) -> Result<Vec<u8>, Box<dyn Error>>;
 
 pub(crate) static DECODERS: Lazy<HashMap<&'static str, Decoder>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Decoder>::new();
@@ -13,8 +13,8 @@ pub(crate) static DECODERS: Lazy<HashMap<&'static str, Decoder>> = Lazy::new(|| 
     m
 });
 
-fn decode_base64(s: &str) -> Option<Vec<u8>> {
-    base64::engine::general_purpose::STANDARD.decode(s).ok()
+fn decode_base64(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    Ok(base64::engine::general_purpose::STANDARD.decode(s)?)
 }
 
 // mediatypes --

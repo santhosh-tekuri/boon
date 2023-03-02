@@ -57,6 +57,13 @@ macro_rules! kind {
             want: $want,
         }
     };
+    ($kind:ident, $got:expr, $want:expr, $reason:expr) => {
+        ErrorKind::$kind {
+            got: $got,
+            want: $want,
+            reason: $reason,
+        }
+    };
     ($kind: ident) => {
         ErrorKind::$kind
     };
@@ -126,11 +133,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // format --
         if let Some((format, check)) = &s.format {
             if let Err(e) = check(v) {
-                let kind = ErrorKind::Format {
-                    got: v.clone(),
-                    want: format.clone(),
-                    reason: e.to_string(),
-                };
+                let kind = kind!(Format, v.clone(), format.clone(), e.to_string());
                 self.add_error("format", &vloc, kind);
             }
         }
@@ -463,9 +466,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         let mut decoded = Cow::from(str.as_bytes());
         if let Some((encoding, decode)) = &s.content_encoding {
             match decode(str) {
-                Some(bytes) => decoded = Cow::from(bytes),
-                None => {
-                    let kind = kind!(ContentEncoding, str.clone(), encoding.clone());
+                Ok(bytes) => decoded = Cow::from(bytes),
+                Err(e) => {
+                    let kind = kind!(
+                        ContentEncoding,
+                        str.clone(),
+                        encoding.clone(),
+                        e.to_string()
+                    );
                     self.add_error("contentEncoding", &vloc, kind)
                 }
             }
