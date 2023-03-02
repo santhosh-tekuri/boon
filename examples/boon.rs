@@ -40,7 +40,10 @@ fn main() {
     // output --
     let output = matches.opt_str("output");
     if let Some(o) = &output {
-        if !matches!(o.as_str(), "flag" | "basic" | "detailed") {
+        if !matches!(
+            o.as_str(),
+            "default" | "alt" | "flag" | "basic" | "detailed"
+        ) {
             eprintln!("invalid output: {o}");
             eprintln!("{}", opts.usage(BRIEF));
             process::exit(1);
@@ -110,6 +113,8 @@ fn main() {
                 println!("instance {instance}: failed");
                 match &output {
                     Some(out) => match out.as_str() {
+                        "default" => println!("{e}"),
+                        "alt" => println!("{e:#}"),
                         "flag" => println!("{:#}", e.flag_output()),
                         "basic" => println!("{:#}", e.basic_output()),
                         "detailed" => println!("{:#}", e.detailed_output()),
@@ -135,7 +140,7 @@ fn options() -> Options {
     opts.optopt(
         "o",
         "output",
-        "output format. valid values flag, basic, detailed",
+        "output format. valid values default, alt, flag, basic, detailed",
         "FORMAT",
     );
     opts.optflag(

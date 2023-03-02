@@ -322,7 +322,7 @@ impl ValidationError {
             } else {
                 let inst_ptr = &self.instance_location;
                 let (_, sch_ptr) = split(&self.absolute_keyword_location);
-                write!(f, "I[{inst_ptr}] S[{sch_ptr}] ")?;
+                write!(f, "[I#{inst_ptr}] [S#{sch_ptr}] ")?;
             }
             if let ErrorKind::Reference { url } = &self.kind {
                 let (a, _) = split(sch_loc);
