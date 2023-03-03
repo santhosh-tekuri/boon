@@ -6,7 +6,7 @@
 
 see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/examples.rs)
 
-## Features
+## Library Features
 
 - [x] pass [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) excluding optional(compare with other impls at [bowtie](https://bowtie-json-schema.github.io/bowtie/#))
   - [x] draft-04
