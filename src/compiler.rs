@@ -627,34 +627,33 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     }
 
     fn enqueue_ref(&mut self, pname: &str) -> Result<Option<SchemaIndex>, CompileError> {
-        if let Some(Value::String(ref_)) = self.obj.get(pname) {
-            let (_, ptr) = split(self.loc);
-            let abs_ref =
-                self.root
-                    .base_url(ptr)
-                    .join(ref_)
-                    .map_err(|e| CompileError::ParseUrlError {
-                        url: ref_.clone(),
-                        src: e.into(),
-                    })?;
-            let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
-
-            // handle if external anchor
-            let (url, ptr) = split(&resolved_ref);
-            if is_anchor(ptr) {
-                let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
-                    url: url.to_owned(),
+        let Some(Value::String(ref_)) = self.obj.get(pname) else {
+            return Ok(None);
+        };
+        let (_, ptr) = split(self.loc);
+        let abs_ref =
+            self.root
+                .base_url(ptr)
+                .join(ref_)
+                .map_err(|e| CompileError::ParseUrlError {
+                    url: ref_.clone(),
                     src: e.into(),
                 })?;
-                if let Some(root) = self.c.roots.get(&url) {
-                    resolved_ref = root.resolve(abs_ref.as_str())?;
-                }
-            }
+        let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
 
-            Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
-        } else {
-            Ok(None)
+        // handle if external anchor
+        let (url, ptr) = split(&resolved_ref);
+        if is_anchor(ptr) {
+            let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
+                url: url.to_owned(),
+                src: e.into(),
+            })?;
+            if let Some(root) = self.c.roots.get(&url) {
+                resolved_ref = root.resolve(abs_ref.as_str())?;
+            }
         }
+
+        Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
     }
 
     fn enquue_additional(&mut self, pname: &str) -> Option<Additional> {
@@ -685,16 +684,15 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     }
 
     fn usize(&self, pname: &str) -> Option<usize> {
-        if let Some(Value::Number(n)) = self.obj.get(pname) {
-            if n.is_u64() {
-                n.as_u64().map(|n| n as usize)
-            } else {
-                n.as_f64()
-                    .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
-                    .map(|n| n as usize)
-            }
+        let Some(Value::Number(n)) = self.obj.get(pname) else {
+            return None;
+        };
+        if n.is_u64() {
+            n.as_u64().map(|n| n as usize)
         } else {
-            None
+            n.as_f64()
+                .filter(|n| n.is_sign_positive() && n.fract() == 0.0)
+                .map(|n| n as usize)
         }
     }
 
