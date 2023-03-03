@@ -776,7 +776,11 @@ pub enum CompileError {
 impl Error for CompileError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ParseUrlError { src, .. } => Some(src.as_ref()),
             Self::LoadUrlError { src, .. } => Some(src.as_ref()),
+            Self::InvalidMetaSchemaUrl { src, .. } => Some(src.as_ref()),
+            Self::ValidationError { src, .. } => Some(src),
+            Self::Bug(src) => Some(src.as_ref()),
             _ => None,
         }
     }
