@@ -128,7 +128,7 @@ pub(crate) struct Draft {
 impl Draft {
     pub(crate) fn from_url(url: &str) -> Option<&'static Draft> {
         let (mut url, fragment) = split(url);
-        if !fragment.is_empty() {
+        if !fragment.as_str().is_empty() {
             return None;
         }
         if let Some(s) = url.strip_prefix("http://") {
@@ -214,8 +214,8 @@ impl Draft {
             }
             // anchor is specified in id
             if let Some(Value::String(id)) = obj.get(self.id) {
-                let (_, fragment) = split(id);
-                let Ok(anchor) = fragment_to_anchor(fragment) else {
+                let (_, frag) = split(id);
+                let Ok(anchor) = frag.to_anchor() else {
                     let mut url = base.clone();
                     url.set_fragment(Some(ptr));
                     return Err(CompileError::ParseAnchorError { loc: url.into() });

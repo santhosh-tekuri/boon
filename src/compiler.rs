@@ -1,6 +1,5 @@
 use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
 
-use percent_encoding::percent_decode_str;
 use regex::Regex;
 use serde_json::{Map, Value};
 use url::Url;
@@ -203,9 +202,9 @@ impl Compiler {
         loc: &str,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
-        let (url, ptr) = split(loc);
+        let (url, frag) = split(loc);
         let url = to_url(url)?;
-        let loc = format!("{url}#{ptr}");
+        let loc = format!("{url}#{frag}");
 
         let result = self.do_compile(loc, target);
         if let Err(bug @ CompileError::Bug(_)) = &result {
@@ -232,7 +231,7 @@ impl Compiler {
 
         while queue.len() > compiled.len() {
             let mut loc = &queue[compiled.len()];
-            let (url, mut ptr) = split(loc);
+            let (url, mut frag) = split(loc);
             let root = {
                 let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
                     url: url.to_owned(),
@@ -242,20 +241,17 @@ impl Compiler {
                 self.roots.get(&url).unwrap()
             };
             let tmp;
-            if is_anchor(ptr) {
+            if frag.is_anchor() {
                 tmp = root.resolve(loc)?;
                 loc = &tmp;
                 let (prefix, suffix) = split(loc);
                 debug_assert_eq!(prefix, url);
-                ptr = suffix;
+                frag = suffix;
             }
-            let ptr =
-                percent_decode_str(ptr)
-                    .decode_utf8()
-                    .map_err(|e| CompileError::LoadUrlError {
-                        url: url.to_owned(),
-                        src: e.into(),
-                    })?;
+            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+                url: url.to_owned(),
+                src: e.into(),
+            })?;
             let v = root
                 .lookup_ptr(ptr.as_ref())
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
@@ -286,16 +282,24 @@ impl Compiler {
         s.idx = schemas.enqueue(queue, loc.to_owned());
 
         s.resource = {
-            let (_, ptr) = split(loc);
-            let base = root.base_url(ptr);
+            let (_, frag) = split(loc);
+            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+                url: loc.to_owned(),
+                src: e.into(),
+            })?;
+            let base = root.base_url(ptr.as_ref());
             let base_loc = root.resolve(base.as_str())?;
             schemas.enqueue(queue, base_loc)
         };
 
         // if resource, enqueue dynamicAnchors for compilation
         if s.idx == s.resource && root.draft.version >= 2020 {
-            let (url, ptr) = split(loc);
-            if let Some(res) = root.resource(ptr) {
+            let (url, frag) = split(loc);
+            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+                url: loc.to_owned(),
+                src: e.into(),
+            })?;
+            if let Some(res) = root.resource(ptr.as_ref()) {
                 for danchor in &res.dynamic_anchors {
                     let danchor_ptr = res.anchors.get(danchor).unwrap();
                     let danchor_sch = schemas.enqueue(queue, format!("{url}#{danchor_ptr}"));
@@ -638,20 +642,22 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         let Some(Value::String(ref_)) = self.obj.get(pname) else {
             return Ok(None);
         };
-        let (_, ptr) = split(self.loc);
-        let abs_ref =
-            self.root
-                .base_url(ptr)
-                .join(ref_)
-                .map_err(|e| CompileError::ParseUrlError {
-                    url: ref_.clone(),
-                    src: e.into(),
-                })?;
+        let (_, frag) = split(self.loc);
+        let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+            url: self.loc.to_owned(),
+            src: e.into(),
+        })?;
+        let abs_ref = self.root.base_url(ptr.as_ref()).join(ref_).map_err(|e| {
+            CompileError::ParseUrlError {
+                url: ref_.clone(),
+                src: e.into(),
+            }
+        })?;
         let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
 
         // handle if external anchor
-        let (url, ptr) = split(&resolved_ref);
-        if is_anchor(ptr) {
+        let (url, frag) = split(&resolved_ref);
+        if frag.is_anchor() {
             let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
                 url: url.to_owned(),
                 src: e.into(),

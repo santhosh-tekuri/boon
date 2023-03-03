@@ -45,7 +45,7 @@ impl Root {
 
     // resolves `loc` to root-url#json-pointer
     pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
-        let (url, ptr) = split(loc);
+        let (url, frag) = split(loc);
 
         let (res_ptr, res) = {
             if url == self.url.as_str() {
@@ -67,7 +67,7 @@ impl Root {
             }
         };
 
-        let anchor = fragment_to_anchor(ptr).map_err(|e| CompileError::ParseUrlError {
+        let anchor = frag.to_anchor().map_err(|e| CompileError::ParseUrlError {
             url: loc.to_owned(),
             src: e.into(),
         })?;
@@ -82,7 +82,7 @@ impl Root {
                 });
             }
         } else {
-            return Ok(format!("{}#{}{}", self.url, res_ptr, ptr));
+            return Ok(format!("{}#{}{}", self.url, res_ptr, frag));
         }
     }
 

@@ -78,36 +78,54 @@ pub(crate) fn unescape(token: &str) -> Result<String, Utf8Error> {
     path_unescape(&token.replace("~1", "/").replace("~0", "~"))
 }
 
-fn is_json_pointer(fragment: &str) -> bool {
-    fragment.is_empty()
-        || fragment.starts_with('/')
-        || fragment.starts_with("%2F")
-        || fragment.starts_with("%2f")
-}
+pub(crate) struct Fragment<'a>(&'a str);
 
-pub(crate) fn is_anchor(fragment: &str) -> bool {
-    !is_json_pointer(fragment)
-}
+impl<'a> Fragment<'a> {
+    pub(crate) fn as_str(&self) -> &str {
+        self.0
+    }
 
-pub(crate) fn fragment_to_anchor(fragment: &str) -> Result<Option<Cow<str>>, Utf8Error> {
-    if fragment.is_empty() || fragment.starts_with('/') {
-        Ok(None) // json-pointer
-    } else {
-        Ok(Some(percent_decode_str(fragment).decode_utf8()?)) // anchor
+    fn is_json_pointer(&self) -> bool {
+        self.0.is_empty()
+            || self.0.starts_with('/')
+            || self.0.starts_with("%2F")
+            || self.0.starts_with("%2f")
+    }
+
+    pub(crate) fn is_anchor(&self) -> bool {
+        !self.is_json_pointer()
+    }
+
+    pub(crate) fn decode(&self) -> Result<Cow<str>, Utf8Error> {
+        return percent_decode_str(self.0).decode_utf8();
+    }
+
+    pub(crate) fn to_anchor(&self) -> Result<Option<Cow<str>>, Utf8Error> {
+        if self.is_json_pointer() {
+            Ok(None) // json-pointer
+        } else {
+            Ok(Some(self.decode()?)) // anchor
+        }
     }
 }
 
-pub(crate) fn split(url: &str) -> (&str, &str) {
+impl<'a> Display for Fragment<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+pub(crate) fn split(url: &str) -> (&str, Fragment) {
     if let Some(i) = url.find('#') {
-        (&url[..i], &url[i + 1..])
+        (&url[..i], Fragment(&url[i + 1..]))
     } else {
-        (url, "")
+        (url, Fragment(""))
     }
 }
 
 pub(crate) fn ptr_tokens(ptr: &str) -> impl Iterator<Item = Result<String, Utf8Error>> + '_ {
     debug_assert!(
-        is_json_pointer(ptr),
+        ptr.is_empty() || ptr.starts_with('/'),
         "ptr_tokens: {ptr} is not json-pointer"
     );
     ptr.split('/').skip(1).map(unescape)
@@ -199,9 +217,9 @@ impl<'a> Loc<'a> {
         if let Some(path) = to.strip_prefix(from) {
             return Self::Relative(0, path);
         }
-        let (_, path) = split(from);
-        if let Some(mut i) = path.rfind('/') {
-            i = from.len() - 1 - (path.len() - 1 - i);
+        let (_, path) = split(from); // todo: fragment misuse
+        if let Some(mut i) = path.0.rfind('/') {
+            i = from.len() - 1 - (path.0.len() - 1 - i);
             return match Self::locate(&from[..i], to) {
                 Self::Relative(i, ptr) => Self::Relative(i + 1, ptr),
                 loc => loc,
@@ -250,11 +268,11 @@ mod tests {
 
     #[test]
     fn test_fragment_to_anchor() {
-        assert_eq!(fragment_to_anchor(""), Ok(None));
-        assert_eq!(fragment_to_anchor("/a/b"), Ok(None));
-        assert_eq!(fragment_to_anchor("abcd"), Ok(Some(Cow::from("abcd"))));
+        assert_eq!(Fragment("").to_anchor(), Ok(None));
+        assert_eq!(Fragment("/a/b").to_anchor(), Ok(None));
+        assert_eq!(Fragment("abcd").to_anchor(), Ok(Some(Cow::from("abcd"))));
         assert_eq!(
-            fragment_to_anchor("%61%62%63%64"),
+            Fragment("%61%62%63%64").to_anchor(),
             Ok(Some(Cow::from("abcd")))
         );
     }
