@@ -1,5 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
 
+use percent_encoding::percent_decode_str;
 use regex::Regex;
 use serde_json::{Map, Value};
 use url::Url;
@@ -248,8 +249,15 @@ impl Compiler {
                 debug_assert_eq!(prefix, url);
                 ptr = suffix;
             }
+            let ptr =
+                percent_decode_str(ptr)
+                    .decode_utf8()
+                    .map_err(|e| CompileError::LoadUrlError {
+                        url: url.to_owned(),
+                        src: e.into(),
+                    })?;
             let v = root
-                .lookup_ptr(ptr)
+                .lookup_ptr(ptr.as_ref())
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
             let Some(v) = v else {
                 return Err(CompileError::JsonPointerNotFound(loc.to_owned()));
