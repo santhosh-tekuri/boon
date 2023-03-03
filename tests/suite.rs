@@ -30,7 +30,7 @@ fn test_suites() -> Result<(), Box<dyn Error>> {
         test_suite(&suite)?;
     } else {
         test_suite("tests/JSON-Schema-Test-Suite")?;
-        test_suite("tests/Extra-Suite")?;
+        test_suite("tests/Extra-Test-Suite")?;
     }
     Ok(())
 }
