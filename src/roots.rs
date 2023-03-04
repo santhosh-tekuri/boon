@@ -50,18 +50,13 @@ impl Roots {
         }
     }
 
-    pub(crate) fn or_load(&mut self, url: Url) -> Result<&Root, CompileError> {
+    pub(crate) fn or_load(&mut self, url: Url) -> Result<(), CompileError> {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
-        if let Some(_r) = self.map.get(&url) {
-            // return Ok(r); does not work
-            // this is current borrow checker limitation
-            // see: https://github.com/rust-lang/rust/issues/51545
-            // see: https://users.rust-lang.org/t/strange-borrow-checker-behavior-when-returning-content-of-option/88982
-            return Ok(self.map.get(&url).unwrap());
+        if !self.map.contains_key(&url) {
+            let doc = self.loader.load(&url)?;
+            self.add_root(HashSet::new(), url, doc)?;
         }
-
-        let doc = self.loader.load(&url)?;
-        self.add_root(HashSet::new(), url, doc)
+        Ok(())
     }
 
     fn add_root(
