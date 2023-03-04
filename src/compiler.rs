@@ -238,7 +238,9 @@ impl Compiler {
                     src: e.into(),
                 })?;
                 self.roots.or_load(url.clone())?;
-                self.roots.get(&url).unwrap()
+                self.roots
+                    .get(&url)
+                    .ok_or(CompileError::Bug("or_load didn't add".into()))?
             };
             let tmp;
             if frag.is_anchor() {
@@ -301,7 +303,9 @@ impl Compiler {
             })?;
             if let Some(res) = root.resource(ptr.as_ref()) {
                 for danchor in &res.dynamic_anchors {
-                    let danchor_ptr = res.anchors.get(danchor).unwrap();
+                    let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
+                        "dynamicAnchor must be collected in resource".into(),
+                    ))?;
                     let danchor_sch = schemas.enqueue(queue, format!("{url}#{danchor_ptr}"));
                     s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
                 }
