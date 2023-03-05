@@ -863,7 +863,7 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 
 // Scope ---
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Scope<'a> {
     sch: SchemaIndex,
     kw_path: Cow<'static, str>,
