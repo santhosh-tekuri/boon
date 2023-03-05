@@ -91,6 +91,10 @@ impl Compiler {
     explicit `$schema` field.
 
     By default this library uses latest draft supported.
+
+    The use of this option is HIGHLY encouraged to ensure
+    continued correct operation of your schema. The current
+    default value will not stay the same over time.
     */
     pub fn set_default_draft(&mut self, d: Draft) {
         self.roots.default_draft = d.internal()

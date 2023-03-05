@@ -23,6 +23,10 @@ You can override this:
 compiler.set_default_draft(Draft::V7);
 ```
 
+The use of this option is HIGHLY encouraged to ensure continued
+correct operation of your schema. The current default value will
+not stay the same over time.
+
 # Examples
 
 - [example_from_strings]: loading schemas from Strings
