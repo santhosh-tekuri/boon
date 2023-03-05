@@ -2,11 +2,11 @@ use std::{error::Error, fs::File};
 
 use boon::{Compiler, Schemas, UrlLoader};
 use serde_json::Value;
+use url::Url;
 
 #[test]
 fn example_from_files() -> Result<(), Box<dyn Error>> {
     let schema_file = "tests/examples/schema.json";
-
     let instance: Value = serde_json::from_reader(File::open("tests/examples/instance.json")?)?;
 
     let mut schemas = Schemas::new();
@@ -54,6 +54,39 @@ fn example_from_https() -> Result<(), Box<dyn Error>> {
     compiler.register_url_loader("http", Box::new(HttpUrlLoader));
     compiler.register_url_loader("https", Box::new(HttpUrlLoader));
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
+    let result = schemas.validate(&instance, sch_index);
+    assert!(result.is_ok());
+
+    Ok(())
+}
+
+#[test]
+fn example_from_yaml_files() -> Result<(), Box<dyn Error>> {
+    let schema_file = "tests/examples/schema.yml";
+    let instance: Value = serde_yaml::from_reader(File::open("tests/examples/instance.yml")?)?;
+
+    struct FileUrlLoader;
+    impl UrlLoader for FileUrlLoader {
+        fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+            let url = Url::parse(url)?;
+            let path = url.to_file_path().map_err(|_| "invalid file path")?;
+            let file = File::open(&path)?;
+            if path
+                .extension()
+                .filter(|&ext| ext == "yaml" || ext == "yml")
+                .is_some()
+            {
+                Ok(serde_yaml::from_reader(file)?)
+            } else {
+                Ok(serde_json::from_reader(file)?)
+            }
+        }
+    }
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler.register_url_loader("file", Box::new(FileUrlLoader));
+    let sch_index = compiler.compile(schema_file, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 

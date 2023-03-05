@@ -37,7 +37,7 @@ println!("{compile_error:#}"); // prints cause if any
 ```
 
 Using alterate form in display will print cause if any.
-This will be useful in cases like [CompileError::LoadUrlError],
+This will be useful in cases like [`CompileError::LoadUrlError`],
 as it would be useful to know whether the url does not exist or
 the resource at url is not a valid json document.
 
@@ -86,7 +86,8 @@ println!("{output:#}"); // prints indented json
 
 [example_from_strings]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L22
 [example_from_https]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L39
-[example_custom_format]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L64
+[example_from_yaml_files]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L64
+[example_custom_format]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L97
 [flag]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-flag
 [basic]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-basic
 [detailed]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-detailed
