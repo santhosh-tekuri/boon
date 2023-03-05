@@ -516,8 +516,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if self.has_vocab("applicator") {
             s.if_ = self.enqueue_prop("if");
             if s.if_.is_some() {
-                s.then = self.enqueue_prop("then");
-                s.else_ = self.enqueue_prop("else");
+                if !self.bool_schema("if", false) {
+                    s.then = self.enqueue_prop("then");
+                }
+                if !self.bool_schema("if", true) {
+                    s.else_ = self.enqueue_prop("else");
+                }
             }
         }
 
@@ -720,6 +724,13 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         } else {
             None
         }
+    }
+
+    fn bool_schema(&self, pname: &str, b: bool) -> bool {
+        if let Some(Value::Bool(v)) = self.obj.get(pname) {
+            return *v == b;
+        }
+        false
     }
 }
 
