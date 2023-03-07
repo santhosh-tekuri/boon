@@ -26,12 +26,38 @@
         "errors": ["ValidationError { url: \"http://fake.com/schema.json\""]
     },
     {
-        "description": "JsonPointerNotFound",
+        "description": "JsonPointerNotFound-obj",
         "schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "#/$defs/something"
         },
         "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/$defs/something\")"]
+    },
+    {
+        "description": "JsonPointerNotFound-arr-pos",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/dummy/0",
+            "dummy": []
+        },
+        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/0\")"]
+    },
+    {
+        "description": "JsonPointerNotFound-arr-neg",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/dummy/-1",
+            "dummy": []
+        },
+        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/-1\")"]
+    },
+    {
+        "description": "JsonPointerNotFound-primitive",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/$schema/something"
+        },
+        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/$schema/something\")"]
     },
     {
         "description": "InvalidRegex",
