@@ -211,11 +211,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                             .cloned()
                             .collect::<Vec<String>>();
                         if !missing.is_empty() {
-                            self.add_error(
-                                &kw_path,
-                                &vloc,
-                                kind!(DependentRequired, pname.clone(), missing),
-                            );
+                            let kind = kind!(DependentRequired, pname.clone(), missing);
+                            self.add_error(&kw_path, &vloc, kind);
                         }
                     }
                     Dependency::SchemaRef(sch) => {
