@@ -74,8 +74,27 @@ pub(crate) fn path_unescape(s: &str) -> Result<String, Utf8Error> {
     Ok(percent_decode_str(s).decode_utf8()?.into_owned())
 }
 
-pub(crate) fn unescape(token: &str) -> Result<String, Utf8Error> {
-    path_unescape(&token.replace("~1", "/").replace("~0", "~"))
+pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
+    let Some(mut tilde) = token.find('~') else {
+        return Ok(Cow::Borrowed(token));
+    };
+    let mut s = String::with_capacity(token.len());
+    loop {
+        s.push_str(&token[..tilde]);
+        token = &token[tilde + 1..];
+        match token.chars().next() {
+            Some('1') => s.push('/'),
+            Some('0') => s.push('~'),
+            _ => return Err(()),
+        }
+        token = &token[1..];
+        let Some(i) = token.find('~') else {
+            s.push_str(token);
+            break;
+        };
+        tilde = i;
+    }
+    Ok(Cow::Owned(s))
 }
 
 pub(crate) struct Fragment<'a>(&'a str);
@@ -121,14 +140,6 @@ pub(crate) fn split(url: &str) -> (&str, Fragment) {
     } else {
         (url, Fragment(""))
     }
-}
-
-pub(crate) fn ptr_tokens(ptr: &str) -> impl Iterator<Item = Result<String, Utf8Error>> + '_ {
-    debug_assert!(
-        ptr.is_empty() || ptr.starts_with('/'),
-        "ptr_tokens: {ptr} is not json-pointer"
-    );
-    ptr.split('/').skip(1).map(unescape)
 }
 
 /// serde_json treats 0 and 0.0 not equal. so we cannot simply use v1==v2

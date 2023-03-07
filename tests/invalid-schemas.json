@@ -1,5 +1,13 @@
 [
     {
+        "description": "InvalidJsonPointer",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/ab~~cd"
+        },
+        "errors": ["InvalidJsonPointer(\"http://fake.com/schema.json#/ab~~cd\")"]
+    },
+    {
         "description": "UnsupportedUrlScheme",
         "schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",

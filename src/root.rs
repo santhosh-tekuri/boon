@@ -106,19 +106,23 @@ impl Root {
         &self.url
     }
 
-    pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, std::str::Utf8Error> {
+    pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, ()> {
+        debug_assert!(
+            ptr.is_empty() || ptr.starts_with('/'),
+            "lookup_ptr: {ptr} is not json-pointer"
+        );
         let mut v = &self.doc;
-        for tok in ptr_tokens(ptr) {
-            let tok = tok?;
+        for tok in ptr.split('/').skip(1) {
+            let tok = unescape(tok)?;
             match v {
                 Value::Object(obj) => {
-                    if let Some(pvalue) = obj.get(&tok) {
+                    if let Some(pvalue) = obj.get(tok.as_ref()) {
                         v = pvalue;
                         continue;
                     }
                 }
                 Value::Array(arr) => {
-                    if let Ok(i) = usize::from_str(&tok) {
+                    if let Ok(i) = usize::from_str(tok.as_ref()) {
                         if let Some(item) = arr.get(i) {
                             v = item;
                             continue;
