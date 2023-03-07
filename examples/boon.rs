@@ -3,6 +3,7 @@ use std::{env, error::Error, fs::File, process, str::FromStr};
 use boon::{Compiler, Draft, Schemas, UrlLoader};
 use getopts::Options;
 use serde_json::Value;
+use url::Url;
 
 fn main() {
     let opts = options();
@@ -72,6 +73,7 @@ fn main() {
     // compile --
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
+    compiler.register_url_loader("file", Box::new(FileUrlLoader));
     compiler.register_url_loader("http", Box::new(HttpUrlLoader));
     compiler.register_url_loader("https", Box::new(HttpUrlLoader));
     compiler.set_default_draft(draft);
@@ -112,7 +114,13 @@ fn main() {
                 continue;
             }
         };
-        let value: Value = match serde_json::from_reader(rdr) {
+        let value: Result<Value, String> =
+            if instance.ends_with(".yaml") || instance.ends_with(".yml") {
+                serde_yaml::from_reader(rdr).map_err(|e| e.to_string())
+            } else {
+                serde_json::from_reader(rdr).map_err(|e| e.to_string())
+            };
+        let value = match value {
             Ok(v) => v,
             Err(e) => {
                 println!("instance {instance}: failed");
@@ -181,10 +189,36 @@ fn options() -> Options {
     opts
 }
 
+struct FileUrlLoader;
+impl UrlLoader for FileUrlLoader {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+        let url = Url::parse(url)?;
+        let path = url.to_file_path().map_err(|_| "invalid file path")?;
+        let file = File::open(&path)?;
+        if path
+            .extension()
+            .filter(|&ext| ext == "yaml" || ext == "yml")
+            .is_some()
+        {
+            Ok(serde_yaml::from_reader(file)?)
+        } else {
+            Ok(serde_json::from_reader(file)?)
+        }
+    }
+}
+
 struct HttpUrlLoader;
 impl UrlLoader for HttpUrlLoader {
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
-        let reader = ureq::get(url).call()?.into_reader();
-        Ok(serde_json::from_reader(reader)?)
+        let response = ureq::get(url).call()?;
+        let is_yaml = url.ends_with(".yaml") || url.ends_with(".yml") || {
+            let ctype = response.content_type();
+            ctype.ends_with("/yaml") || ctype.ends_with("-yaml")
+        };
+        if is_yaml {
+            Ok(serde_yaml::from_reader(response.into_reader())?)
+        } else {
+            Ok(serde_json::from_reader(response.into_reader())?)
+        }
     }
 }
