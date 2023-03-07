@@ -212,7 +212,7 @@ struct Schema {
     ref_: Option<SchemaIndex>,
     recursive_ref: Option<SchemaIndex>,
     recursive_anchor: bool,
-    dynamic_ref: Option<SchemaIndex>,
+    dynamic_ref: Option<DynamicRef>,
     dynamic_anchor: Option<String>,
     types: Vec<Type>,
     enum_: Vec<Value>,
@@ -283,6 +283,11 @@ enum Additional {
 enum Dependency {
     Props(Vec<String>),
     SchemaRef(SchemaIndex),
+}
+
+struct DynamicRef {
+    sch: SchemaIndex,
+    anchor: Option<String>,
 }
 
 impl Schema {

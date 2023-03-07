@@ -562,9 +562,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
 
         // $dynamicRef --
-        if let Some(mut sch) = s.dynamic_ref {
-            if let Some(name) = &self.schemas.get(sch).dynamic_anchor {
-                sch = self.resolve_dynamic_anchor(name).unwrap_or(sch);
+        if let Some(dref) = &s.dynamic_ref {
+            let mut sch = dref.sch; // initial target
+            if let Some(anchor) = &dref.anchor {
+                // $dynamicRef includes anchor
+                if self.schemas.get(sch).dynamic_anchor == dref.anchor {
+                    // initial target has matching $dynamicAnchor
+                    sch = self.resolve_dynamic_anchor(anchor).unwrap_or(sch);
+                }
             }
             add_err!(self.validate_ref(sch, "$dynamicRef", vloc.copy()));
         }

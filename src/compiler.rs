@@ -593,7 +593,19 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
     fn compile_draft2020(&mut self, s: &mut Schema) -> Result<(), CompileError> {
         if self.has_vocab("core") {
-            s.dynamic_ref = self.enqueue_ref("$dynamicRef")?;
+            if let Some(sch) = self.enqueue_ref("$dynamicRef")? {
+                if let Some(Value::String(dref)) = self.value("$dynamicRef") {
+                    let (_, frag) = split(dref);
+                    let anchor = frag
+                        .to_anchor()
+                        .map_err(|_| CompileError::ParseAnchorError {
+                            loc: format!("{}/$dynamicRef", self.loc),
+                        })?
+                        .map(|a| a.into_owned());
+                    s.dynamic_ref = Some(DynamicRef { sch, anchor });
+                }
+            };
+
             if let Some(Value::String(anchor)) = self.value("$dynamicAnchor") {
                 s.dynamic_anchor = Some(anchor.to_owned());
             }
