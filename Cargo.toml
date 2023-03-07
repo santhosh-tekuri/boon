@@ -1,6 +1,6 @@
 [package]
 name = "boon"
-version = "0.3.1-alpha.1"
+version = "0.3.1"
 edition = "2021"
 description = "JSONSchema (draft 2020-12, draft 2019-09, draft-7, draft-6, draft-4) Validation"
 readme = "README.md"
@@ -9,7 +9,7 @@ authors = ["santhosh kumar tekuri <santhosh.tekuri@gmail.com>"]
 keywords = ["jsonschema", "validation"]
 license = "MIT OR Apache-2.0"
 categories = ["web-programming"]
-exclude = [ "tests" ]
+exclude = [ "tests", ".github", ".gitmodules" ]
 
 [dependencies]
 serde = "1"

@@ -71,6 +71,8 @@ Options:
 
 This cli can validate both schema and multiple instances.
 
+It support both json and yaml files
+
 exit code is: 
 - `1` if command line arguments are invalid.
 - `2` if there are errors
