@@ -8,7 +8,6 @@ use crate::{compiler::CompileError, draft::*, util::*};
 use serde_json::Value;
 use url::Url;
 
-//#[derive(Debug)]
 pub(crate) struct Root {
     pub(crate) draft: &'static Draft,
     pub(crate) resources: HashMap<String, Resource>, // ptr => _
