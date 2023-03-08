@@ -627,16 +627,16 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         self.schemas.enqueue(self.queue, loc)
     }
 
-    fn enqueue_prop(&mut self, pname: &str) -> Option<SchemaIndex> {
+    fn enqueue_prop(&mut self, pname: &'static str) -> Option<SchemaIndex> {
         if self.obj.contains_key(pname) {
-            let loc = format!("{}/{}", self.loc, escape(pname));
+            let loc = format!("{}/{pname}", self.loc);
             Some(self.schemas.enqueue(self.queue, loc))
         } else {
             None
         }
     }
 
-    fn enqueue_arr(&mut self, pname: &str) -> Vec<SchemaIndex> {
+    fn enqueue_arr(&mut self, pname: &'static str) -> Vec<SchemaIndex> {
         if let Some(Value::Array(arr)) = self.obj.get(pname) {
             (0..arr.len())
                 .map(|i| {
@@ -649,7 +649,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         }
     }
 
-    fn enqueue_map(&mut self, pname: &str) -> HashMap<String, SchemaIndex> {
+    fn enqueue_map(&mut self, pname: &'static str) -> HashMap<String, SchemaIndex> {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
@@ -694,7 +694,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
     }
 
-    fn enquue_additional(&mut self, pname: &str) -> Option<Additional> {
+    fn enquue_additional(&mut self, pname: &'static str) -> Option<Additional> {
         if let Some(Value::Bool(b)) = self.obj.get(pname) {
             Some(Additional::Bool(*b))
         } else {
