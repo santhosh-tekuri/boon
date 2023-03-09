@@ -12,7 +12,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
   - [x] draft-04
   - [x] draft-06
   - [x] draft-07
-  - [x] draft/2019-10 
+  - [x] draft/2019-09 
   - [x] draft/2020-12
 - [x] detect infinite loop traps
   - [x] `$schema` cycle
@@ -20,7 +20,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
 - [x] custom `$schema` url
 - [x] vocabulary based validation
 - [x] format assertions
-  - [x] flag to enable in draft >= 2019-10
+  - [x] flag to enable in draft >= 2019-09
   - [x] custom format registration
   - [x] built-in formats
     - [x] regex, uuid
@@ -33,7 +33,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] iri, iri-reference
     - [x] period
 - [ ] content assertions
-  - [x] flag to enable in draft >= 2019-10
+  - [x] flag to enable in draft >= 2019-09
   - [x] contentEncoding
     - [x] base64
   - [x] contentMediaType
