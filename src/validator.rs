@@ -11,7 +11,7 @@ pub(crate) fn validate(
 ) -> Result<(), ValidationError> {
     let scope = Scope {
         sch: schema.idx,
-        kw_path: Cow::from(""),
+        kw_path: None,
         vid: 0,
         parent: None,
     };
@@ -86,8 +86,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
                 url: self.schema.loc.clone(),
-                kw_loc1: self.scope.kw_loc(""),
-                kw_loc2: scp.kw_loc(""),
+                kw_loc1: self.kw_loc(&self.scope, ""),
+                kw_loc2: self.kw_loc(scp, ""),
             };
             return Err(self.error("", &vloc, kind));
         }
@@ -114,19 +114,19 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                 *t == v_type
             });
             if !matched {
-                self.add_error("type", &vloc, kind!(Type, v_type, s.types.clone()));
+                self.add_error("/type", &vloc, kind!(Type, v_type, s.types.clone()));
             }
         }
 
         // enum --
         if !s.enum_.is_empty() && !s.enum_.iter().any(|e| equals(e, v)) {
-            self.add_error("enum", &vloc, kind!(Enum, v.clone(), s.enum_.clone()));
+            self.add_error("/enum", &vloc, kind!(Enum, v.clone(), s.enum_.clone()));
         }
 
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                self.add_error("const", &vloc, kind!(Const, v.clone(), c.clone()));
+                self.add_error("/const", &vloc, kind!(Const, v.clone(), c.clone()));
             }
         }
 
@@ -134,7 +134,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some((format, check)) = &s.format {
             if let Err(e) = check(v) {
                 let kind = kind!(Format, v.clone(), format.clone(), e);
-                self.add_error("format", &vloc, kind);
+                self.add_error("/format", &vloc, kind);
             }
         }
 
@@ -177,14 +177,16 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // minProperties --
         if let Some(min) = s.min_properties {
             if obj.len() < min {
-                self.add_error("minProperties", &vloc, kind!(MinProperties, obj.len(), min));
+                let kind = kind!(MinProperties, obj.len(), min);
+                self.add_error("/minProperties", &vloc, kind);
             }
         }
 
         // maxProperties --
         if let Some(max) = s.max_properties {
             if obj.len() > max {
-                self.add_error("maxProperties", &vloc, kind!(MaxProperties, obj.len(), max));
+                let kind = kind!(MaxProperties, obj.len(), max);
+                self.add_error("/maxProperties", &vloc, kind);
             }
         }
 
@@ -196,13 +198,12 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             .cloned()
             .collect::<Vec<String>>();
         if !missing.is_empty() {
-            self.add_error("required", &vloc, kind!(Required, want: missing));
+            self.add_error("/required", &vloc, kind!(Required, want: missing));
         }
 
         // dependencies --
         for (pname, dependency) in &s.dependencies {
             if obj.contains_key(pname) {
-                let kw_path = format!("dependencies/{}", escape(pname));
                 match dependency {
                     Dependency::Props(required) => {
                         let missing = required
@@ -211,12 +212,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                             .cloned()
                             .collect::<Vec<String>>();
                         if !missing.is_empty() {
+                            let kw_path = format!("/dependencies/{}", escape(pname));
                             let kind = kind!(DependentRequired, pname.clone(), missing);
                             self.add_error(&kw_path, &vloc, kind);
                         }
                     }
                     Dependency::SchemaRef(sch) => {
-                        add_err!(self.validate_self(*sch, kw_path.into(), vloc.copy()));
+                        add_err!(self.validate_self(*sch, None, vloc.copy()));
                     }
                 }
             }
@@ -225,8 +227,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // dependentSchemas --
         for (pname, sch) in &s.dependent_schemas {
             if obj.contains_key(pname) {
-                let kw_path = format!("dependentSchemas/{}", escape(pname));
-                add_err!(self.validate_self(*sch, kw_path.into(), vloc.copy()));
+                add_err!(self.validate_self(*sch, None, vloc.copy()));
             }
         }
 
@@ -239,8 +240,9 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                     .cloned()
                     .collect::<Vec<String>>();
                 if !missing.is_empty() {
+                    let kw_path = format!("/dependentRequired/{}", escape(pname));
                     let kind = kind!(DependentRequired, pname.clone(), missing);
-                    self.add_error(&format!("dependentRequired/{}", escape(pname)), &vloc, kind);
+                    self.add_error(&kw_path, &vloc, kind);
                 }
             }
         }
@@ -249,8 +251,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         for (pname, &psch) in &s.properties {
             if let Some(pvalue) = obj.get(pname) {
                 self.uneval.props.remove(pname);
-                let kw_path = format!("properties/{}", escape(pname));
-                add_err!(self.validate_val(psch, kw_path.into(), pvalue, vloc.prop(pname)));
+                add_err!(self.validate_val(psch, pvalue, vloc.prop(pname)));
             }
         }
 
@@ -258,8 +259,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         for (regex, psch) in &s.pattern_properties {
             for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
                 self.uneval.props.remove(pname);
-                let kw_path = format!("patternProperties/{}", escape(regex.as_str()));
-                add_err!(self.validate_val(*psch, kw_path.into(), pvalue, vloc.prop(pname)));
+                add_err!(self.validate_val(*psch, pvalue, vloc.prop(pname)));
             }
         }
 
@@ -267,25 +267,23 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(sch) = &s.property_names {
             for pname in obj.keys() {
                 let v = Value::String(pname.to_owned());
-                add_err!(self.validate_val(*sch, "propertyNames".into(), &v, vloc.prop(pname)));
+                add_err!(self.validate_val(*sch, &v, vloc.prop(pname)));
             }
         }
 
         // additionalProperties --
         if let Some(additional) = &s.additional_properties {
-            let kw_path = "additionalProperties";
             match additional {
                 Additional::Bool(allowed) => {
                     if !allowed && !self.uneval.props.is_empty() {
                         let kind = kind!(AdditionalProperties, got: self.uneval.props.iter().cloned().cloned().collect());
-                        self.add_error(kw_path, &vloc, kind);
+                        self.add_error("/additionalProperties", &vloc, kind);
                     }
                 }
                 Additional::SchemaRef(sch) => {
                     for &pname in self.uneval.props.iter() {
                         if let Some(pvalue) = obj.get(pname) {
-                            let result =
-                                self.validate_val(*sch, kw_path.into(), pvalue, vloc.prop(pname));
+                            let result = self.validate_val(*sch, pvalue, vloc.prop(pname));
                             add_err!(result);
                         }
                     }
@@ -311,14 +309,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // minItems --
         if let Some(min) = s.min_items {
             if arr.len() < min {
-                self.add_error("minItems", &vloc, kind!(MinItems, arr.len(), min));
+                self.add_error("/minItems", &vloc, kind!(MinItems, arr.len(), min));
             }
         }
 
         // maxItems --
         if let Some(max) = s.max_items {
             if arr.len() > max {
-                self.add_error("maxItems", &vloc, kind!(MaxItems, arr.len(), max));
+                self.add_error("/maxItems", &vloc, kind!(MaxItems, arr.len(), max));
             }
         }
 
@@ -327,7 +325,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             for i in 1..arr.len() {
                 for j in 0..i {
                     if equals(&arr[i], &arr[j]) {
-                        self.add_error("uniqueItems", &vloc, kind!(UniqueItems, got: [j, i]));
+                        self.add_error("/uniqueItems", &vloc, kind!(UniqueItems, got: [j, i]));
                     }
                 }
             }
@@ -338,15 +336,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             match items {
                 Items::SchemaRef(sch) => {
                     for (i, item) in arr.iter().enumerate() {
-                        add_err!(self.validate_val(*sch, "items".into(), item, vloc.item(i)));
+                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
                     }
                     self.uneval.items.clear();
                 }
                 Items::SchemaRefs(list) => {
                     for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                         self.uneval.items.remove(&i);
-                        let kw_path = format!("items/{i}");
-                        add_err!(self.validate_val(*sch, kw_path.into(), item, vloc.item(i)));
+                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
                     }
                 }
             }
@@ -354,18 +351,17 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // additionalItems --
         if let Some(additional) = &s.additional_items {
-            let kw_path = "additionalItems";
             match additional {
                 Additional::Bool(allowed) => {
                     if !allowed && !self.uneval.items.is_empty() {
                         let kind = kind!(AdditionalItems, got: arr.len() - self.uneval.items.len());
-                        self.add_error(kw_path, &vloc, kind);
+                        self.add_error("/additionalItems", &vloc, kind);
                     }
                 }
                 Additional::SchemaRef(sch) => {
                     let from = arr.len() - self.uneval.items.len();
                     for (i, item) in arr[from..].iter().enumerate() {
-                        add_err!(self.validate_val(*sch, kw_path.into(), item, vloc.item(i)));
+                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
                     }
                 }
             }
@@ -375,15 +371,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // prefixItems --
         for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
             self.uneval.items.remove(&i);
-            let kw_path = format!("prefixItems/{i}");
-            add_err!(self.validate_val(*sch, kw_path.into(), item, vloc.item(i)));
+            add_err!(self.validate_val(*sch, item, vloc.item(i)));
         }
 
         // items2020 --
         if let Some(sch) = &s.items2020 {
             let from = min(arr.len(), s.prefix_items.len());
             for (i, item) in arr[from..].iter().enumerate() {
-                add_err!(self.validate_val(*sch, "items".into(), item, vloc.item(i)));
+                add_err!(self.validate_val(*sch, item, vloc.item(i)));
             }
             self.uneval.items.clear();
         }
@@ -393,7 +388,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         let mut contains_errors = vec![];
         if let Some(sch) = &s.contains {
             for (i, item) in arr.iter().enumerate() {
-                if let Err(e) = self.validate_val(*sch, "contains".into(), item, vloc.item(i)) {
+                if let Err(e) = self.validate_val(*sch, item, vloc.item(i)) {
                     contains_errors.push(e);
                 } else {
                     contains_matched.push(i);
@@ -408,12 +403,12 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(min) = s.min_contains {
             if contains_matched.len() < min {
                 let kind = kind!(MinContains, contains_matched.clone(), min);
-                let mut e = self.error("minContains", &vloc, kind);
+                let mut e = self.error("/minContains", &vloc, kind);
                 e.causes = contains_errors;
                 self.errors.push(e);
             }
         } else if s.contains.is_some() && contains_matched.is_empty() {
-            let mut e = self.error("contains", &vloc, kind!(Contains));
+            let mut e = self.error("/contains", &vloc, kind!(Contains));
             e.causes = contains_errors;
             self.errors.push(e);
         }
@@ -422,7 +417,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(max) = s.max_contains {
             if contains_matched.len() > max {
                 let kind = kind!(MaxContains, contains_matched, max);
-                self.add_error("maxContains", &vloc, kind);
+                self.add_error("/maxContains", &vloc, kind);
             }
         }
     }
@@ -439,7 +434,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(min) = s.min_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len < min {
-                self.add_error("minLength", &vloc, kind!(MinLength, *len, min));
+                self.add_error("/minLength", &vloc, kind!(MinLength, *len, min));
             }
         }
 
@@ -447,7 +442,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(max) = s.max_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len > max {
-                self.add_error("maxLength", &vloc, kind!(MaxLength, *len, max));
+                self.add_error("/maxLength", &vloc, kind!(MaxLength, *len, max));
             }
         }
 
@@ -455,7 +450,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(regex) = &s.pattern {
             if !regex.is_match(str) {
                 let kind = kind!(Pattern, str.clone(), regex.as_str().to_string());
-                self.add_error("pattern", &vloc, kind);
+                self.add_error("/pattern", &vloc, kind);
             }
         }
 
@@ -466,7 +461,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                 Ok(bytes) => decoded = Cow::from(bytes),
                 Err(e) => {
                     let kind = kind!(ContentEncoding, str.clone(), encoding.clone(), e);
-                    self.add_error("contentEncoding", &vloc, kind)
+                    self.add_error("/contentEncoding", &vloc, kind)
                 }
             }
         }
@@ -475,7 +470,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some((media_type, check)) = &s.content_media_type {
             if let Err(e) = check(decoded.as_ref()) {
                 let kind = kind!(ContentMediaType, decoded.into(), media_type.clone(), e);
-                self.add_error("contentMediaType", &vloc, kind);
+                self.add_error("/contentMediaType", &vloc, kind);
             }
         }
     }
@@ -491,7 +486,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(min) = &s.minimum {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
-                    self.add_error("minimum", &vloc, kind!(Minimum, num.clone(), min.clone()));
+                    self.add_error("/minimum", &vloc, kind!(Minimum, num.clone(), min.clone()));
                 }
             }
         }
@@ -500,7 +495,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(max) = &s.maximum {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
-                    self.add_error("maximum", &vloc, kind!(Maximum, num.clone(), max.clone()));
+                    self.add_error("/maximum", &vloc, kind!(Maximum, num.clone(), max.clone()));
                 }
             }
         }
@@ -510,7 +505,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if let (Some(ex_minf), Some(numf)) = (ex_min.as_f64(), num.as_f64()) {
                 if numf <= ex_minf {
                     let kind = kind!(ExclusiveMinimum, num.clone(), ex_min.clone());
-                    self.add_error("exclusiveMinimum", &vloc, kind);
+                    self.add_error("/exclusiveMinimum", &vloc, kind);
                 }
             }
         }
@@ -520,7 +515,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if let (Some(ex_maxf), Some(numf)) = (ex_max.as_f64(), num.as_f64()) {
                 if numf >= ex_maxf {
                     let kind = kind!(ExclusiveMaximum, num.clone(), ex_max.clone());
-                    self.add_error("exclusiveMaximum", &vloc, kind);
+                    self.add_error("/exclusiveMaximum", &vloc, kind);
                 }
             }
         }
@@ -530,7 +525,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if let (Some(mulf), Some(numf)) = (mul.as_f64(), num.as_f64()) {
                 if (numf / mulf).fract() != 0.0 {
                     let kind = kind!(MultipleOf, num.clone(), mul.clone());
-                    self.add_error("multipleOf", &vloc, kind);
+                    self.add_error("/multipleOf", &vloc, kind);
                 }
             }
         }
@@ -550,7 +545,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // $ref --
         if let Some(ref_) = s.ref_ {
-            add_err!(self.validate_ref(ref_, "$ref", vloc.copy()));
+            add_err!(self.validate_ref(ref_, "/$ref", vloc.copy()));
         }
 
         // $recursiveRef --
@@ -558,7 +553,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if self.schemas.get(sch).recursive_anchor {
                 sch = self.resolve_recursive_anchor().unwrap_or(sch);
             }
-            add_err!(self.validate_ref(sch, "$recursiveRef", vloc.copy()));
+            add_err!(self.validate_ref(sch, "/$recursiveRef", vloc.copy()));
         }
 
         // $dynamicRef --
@@ -571,7 +566,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                     sch = self.resolve_dynamic_anchor(anchor).unwrap_or(sch);
                 }
             }
-            add_err!(self.validate_ref(sch, "$dynamicRef", vloc.copy()));
+            add_err!(self.validate_ref(sch, "/$dynamicRef", vloc.copy()));
         }
     }
 
@@ -648,8 +643,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // not --
         if let Some(not) = s.not {
-            if self.validate_self(not, "not".into(), vloc.copy()).is_ok() {
-                self.add_error("not", &vloc, kind!(Not));
+            if self.validate_self(not, None, vloc.copy()).is_ok() {
+                self.add_error("/not", &vloc, kind!(Not));
             }
         }
 
@@ -657,14 +652,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if !s.all_of.is_empty() {
             let (mut failed, mut allof_errors) = (vec![], vec![]);
             for (i, sch) in s.all_of.iter().enumerate() {
-                let kw_path = format!("allOf/{i}");
-                if let Err(e) = self.validate_self(*sch, kw_path.into(), vloc.copy()) {
+                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
                     failed.push(i);
                     allof_errors.push(e);
                 }
             }
             if !failed.is_empty() {
-                self.add_errors(allof_errors, "allOf", &vloc, kind!(AllOf, got: failed));
+                self.add_errors(allof_errors, "/allOf", &vloc, kind!(AllOf, got: failed));
             }
         }
 
@@ -672,15 +666,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if !s.any_of.is_empty() {
             // NOTE: all schemas must be checked
             let mut anyof_errors = vec![];
-            for (i, sch) in s.any_of.iter().enumerate() {
-                let kw_path = format!("anyOf/{i}");
-                if let Err(e) = self.validate_self(*sch, kw_path.into(), vloc.copy()) {
+            for sch in s.any_of.iter() {
+                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
                     anyof_errors.push(e);
                 }
             }
             if anyof_errors.len() == s.any_of.len() {
                 // none matched
-                self.add_errors(anyof_errors, "anyOf", &vloc, kind!(AnyOf));
+                self.add_errors(anyof_errors, "/anyOf", &vloc, kind!(AnyOf));
             }
         }
 
@@ -688,8 +681,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if !s.one_of.is_empty() {
             let (mut matched, mut oneof_errors) = (vec![], vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
-                let kw_path = format!("oneOf/{i}");
-                if let Err(e) = self.validate_self(*sch, kw_path.into(), vloc.copy()) {
+                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
                     oneof_errors.push(e);
                 } else {
                     matched.push(i);
@@ -700,20 +692,20 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
             if matched.is_empty() {
                 // none matched
-                self.add_errors(oneof_errors, "oneOf", &vloc, kind!(OneOf, got: matched));
+                self.add_errors(oneof_errors, "/oneOf", &vloc, kind!(OneOf, got: matched));
             } else if matched.len() > 1 {
-                self.add_error("oneOf", &vloc, kind!(OneOf, got: matched));
+                self.add_error("/oneOf", &vloc, kind!(OneOf, got: matched));
             }
         }
 
         // if, then, else --
         if let Some(if_) = s.if_ {
-            if self.validate_self(if_, "if".into(), vloc.copy()).is_ok() {
+            if self.validate_self(if_, None, vloc.copy()).is_ok() {
                 if let Some(then) = s.then {
-                    add_err!(self.validate_self(then, "then".into(), vloc.copy()));
+                    add_err!(self.validate_self(then, None, vloc.copy()));
                 }
             } else if let Some(else_) = s.else_ {
-                add_err!(self.validate_self(else_, "else".into(), vloc.copy()));
+                add_err!(self.validate_self(else_, None, vloc.copy()));
             }
         }
     }
@@ -735,8 +727,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let (Some(sch), Value::Object(obj)) = (s.unevaluated_properties, v) {
             for pname in &self.uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
-                    let kw_path = "unevaluatedProperties";
-                    add_err!(self.validate_val(sch, kw_path.into(), pvalue, vloc.prop(pname)));
+                    add_err!(self.validate_val(sch, pvalue, vloc.prop(pname)));
                 }
             }
             self.uneval.props.clear();
@@ -746,8 +737,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let (Some(sch), Value::Array(arr)) = (s.unevaluated_items, v) {
             for i in &self.uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
-                    let kw_path = "unevaluatedItems";
-                    add_err!(self.validate_val(sch, kw_path.into(), pvalue, vloc.item(*i)));
+                    add_err!(self.validate_val(sch, pvalue, vloc.item(*i)));
                 }
             }
             self.uneval.items.clear();
@@ -760,11 +750,10 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn validate_val(
         &self,
         sch: SchemaIndex,
-        kw_path: Cow<'static, str>,
         v: &Value,
         vloc: JsonPointer,
     ) -> Result<(), ValidationError> {
-        let scope = Scope::child(sch, kw_path, self.scope.vid + 1, &self.scope);
+        let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
         Validator {
             v,
             schema: self.schemas.get(sch),
@@ -780,7 +769,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn validate_self(
         &mut self,
         sch: SchemaIndex,
-        kw_path: Cow<'static, str>,
+        kw_path: Option<&'static str>,
         vloc: JsonPointer,
     ) -> Result<(), ValidationError> {
         let scope = Scope::child(sch, kw_path, self.scope.vid, &self.scope);
@@ -804,11 +793,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn error(&self, kw_path: &str, vloc: &JsonPointer, kind: ErrorKind) -> ValidationError {
         ValidationError {
-            keyword_location: self.scope.kw_loc(kw_path),
-            absolute_keyword_location: match kw_path.is_empty() {
-                true => self.schema.loc.clone(),
-                false => format!("{}/{kw_path}", self.schema.loc),
-            },
+            keyword_location: self.kw_loc(&self.scope, kw_path),
+            absolute_keyword_location: format!("{}{kw_path}", self.schema.loc),
             instance_location: vloc.to_string(),
             kind,
             causes: vec![],
@@ -833,6 +819,20 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             err.causes = errors;
             self.errors.push(err);
         }
+    }
+
+    fn kw_loc(&self, mut scope: &Scope, kw_path: &str) -> String {
+        let mut loc = kw_path.to_string();
+        while let Some(parent) = scope.parent {
+            let kw_path = scope.kw_path.unwrap_or_else(|| {
+                let cur = &self.schemas.get(scope.sch).loc;
+                let parent = &self.schemas.get(parent.sch).loc;
+                &cur[parent.len()..]
+            });
+            loc.insert_str(0, kw_path);
+            scope = parent;
+        }
+        loc
     }
 }
 
@@ -868,7 +868,9 @@ impl<'v> From<&'v Value> for Uneval<'v> {
 #[derive(Debug)]
 struct Scope<'a> {
     sch: SchemaIndex,
-    kw_path: Cow<'static, str>,
+    // if None, compute from self.sch and self.parent.sh
+    // not None only when there is jump i.e $ref, $XXXRef
+    kw_path: Option<&'static str>,
     /// unique id of value being validated
     // if two scope validate same value, they will have same vid
     vid: usize,
@@ -876,30 +878,18 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(sch: SchemaIndex, kw_path: Cow<'static, str>, vid: usize, parent: &'a Scope) -> Self {
+    fn child(
+        sch: SchemaIndex,
+        kw_path: Option<&'static str>,
+        vid: usize,
+        parent: &'a Scope,
+    ) -> Self {
         Self {
             sch,
             kw_path,
             vid,
             parent: Some(parent),
         }
-    }
-
-    fn kw_loc(&self, kw_path: &str) -> String {
-        let mut loc = kw_path.to_string();
-        let mut scope = self;
-        loop {
-            if !loc.is_empty() {
-                loc.insert(0, '/');
-            }
-            loc.insert_str(0, scope.kw_path.as_ref());
-            if let Some(parent) = scope.parent {
-                scope = parent;
-            } else {
-                break;
-            }
-        }
-        loc
     }
 
     fn check_cycle(&self) -> Option<&Scope> {
