@@ -66,6 +66,7 @@ fn test_folder(suite: &str, folder: &str, draft: Draft) -> Result<(), Box<dyn Er
                             let basic: Value = serde_json::from_str(&e.basic_output().to_string())?;
                             let result = schemas.validate(&basic, sch);
                             if let Err(e) = result {
+                                println!("{basic:#}\n");
                                 for line in format!("{e}").lines() {
                                     println!("            {line}");
                                 }
@@ -84,6 +85,7 @@ fn test_folder(suite: &str, folder: &str, draft: Draft) -> Result<(), Box<dyn Er
                                 serde_json::from_str(&e.detailed_output().to_string())?;
                             let result = schemas.validate(&detailed, sch);
                             if let Err(e) = result {
+                                println!("{detailed:#}\n");
                                 for line in format!("{e}").lines() {
                                     println!("            {line}");
                                 }
