@@ -23,6 +23,7 @@ fn test_debug() -> Result<(), Box<dyn Error>> {
         for line in format!("{e:#}").lines() {
             println!("        {line}");
         }
+        println!("{:#}", e.detailed_output());
     }
     assert_eq!(result.is_ok(), test["valid"].as_bool().unwrap());
     Ok(())
