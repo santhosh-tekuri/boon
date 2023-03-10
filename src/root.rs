@@ -73,15 +73,15 @@ impl Root {
 
         if let Some(anchor) = anchor {
             if let Some(anchor_ptr) = res.anchors.get(anchor.as_ref()) {
-                return Ok(format!("{}#{}", self.url, anchor_ptr));
+                Ok(format!("{}#{}", self.url, anchor_ptr))
             } else {
-                return Err(CompileError::AnchorNotFound {
+                Err(CompileError::AnchorNotFound {
                     url: self.url.as_str().to_owned(),
                     reference: loc.to_owned(),
-                });
+                })
             }
         } else {
-            return Ok(format!("{}#{}{}", self.url, res_ptr, frag));
+            Ok(format!("{}#{}{}", self.url, res_ptr, frag))
         }
     }
 
