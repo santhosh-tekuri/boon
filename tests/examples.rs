@@ -123,3 +123,45 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn example_custom_content_encoding() -> Result<(), Box<dyn Error>> {
+    let schema_url = "http://tmp/schema.json";
+    let schema: Value = serde_json::from_str(r#"{"type": "string", "contentEncoding": "hex"}"#)?;
+    let instance: Value = serde_json::from_str(r#""aBcdxyz""#)?;
+
+    fn decode(b: u8) -> Result<u8, Box<dyn Error>> {
+        match b {
+            b'0'..=b'9' => Ok(b - b'0'),
+            b'a'..=b'f' => Ok(b - b'a' + 10),
+            b'A'..=b'F' => Ok(b - b'A' + 10),
+            _ => Err("decode_hex: non-hex char")?,
+        }
+    }
+    fn decode_hex(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+        if s.len() % 2 != 0 {
+            Err("decode_hex: odd length")?;
+        }
+        let mut bytes = s.bytes();
+        let mut out = Vec::with_capacity(s.len() / 2);
+        for _ in 0..out.len() {
+            if let (Some(b1), Some(b2)) = (bytes.next(), bytes.next()) {
+                out.push(decode(b1)? << 4 | decode(b2)?);
+            } else {
+                Err("decode_hex: non-ascii char")?;
+            }
+        }
+        Ok(out)
+    }
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler.enable_content_assertions(); // content assertions are not enabled by default
+    compiler.register_content_encoding("hex", decode_hex);
+    compiler.add_resource(schema_url, schema)?;
+    let sch_index = compiler.compile(schema_url, &mut schemas)?;
+    let result = schemas.validate(&instance, sch_index);
+    assert!(result.is_err());
+
+    Ok(())
+}

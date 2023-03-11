@@ -36,6 +36,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
   - [x] flag to enable in draft >= 2019-09
   - [x] contentEncoding
     - [x] base64
+    - [x] custom
   - [x] contentMediaType
     - [x] application/json
   - [ ] contentSchema
