@@ -22,11 +22,11 @@ pub(crate) type MediaType = fn(bytes: &[u8]) -> Result<(), Box<dyn Error>>;
 
 pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, MediaType>::new();
-    m.insert("application/json", is_json);
+    m.insert("application/json", check_json);
     m
 });
 
-fn is_json(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+fn check_json(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
     serde_json::from_slice::<IgnoredAny>(bytes)?;
     Ok(())
 }
