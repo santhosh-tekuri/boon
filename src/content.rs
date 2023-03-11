@@ -2,7 +2,7 @@ use std::{collections::HashMap, error::Error};
 
 use base64::Engine;
 use once_cell::sync::Lazy;
-use serde_json::Value;
+use serde::de::IgnoredAny;
 
 // decoders --
 pub(crate) type Decoder = fn(s: &str) -> Result<Vec<u8>, Box<dyn Error>>;
@@ -27,6 +27,6 @@ pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::ne
 });
 
 fn is_json(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
-    serde_json::from_slice::<Value>(bytes)?;
+    serde_json::from_slice::<IgnoredAny>(bytes)?;
     Ok(())
 }
