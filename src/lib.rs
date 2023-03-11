@@ -32,6 +32,8 @@ not stay the same over time.
 - [example_from_strings]: loading schemas from Strings
 - [example_from_https]: loading schemas from `http(s)`
 - [example_custom_format]: registering custom format
+- [example_custom_content_encoding]: registering custom contentEncoding
+- [example_custom_content_media_type]: registering custom contentMediaType
 
 # Compile Errors
 
@@ -92,6 +94,8 @@ println!("{output:#}"); // prints indented json
 [example_from_https]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L39
 [example_from_yaml_files]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L64
 [example_custom_format]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L97
+[example_custom_content_encoding]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L129
+[example_custom_content_media_type]: https://github.com/santhosh-tekuri/boon/blob/d466730e5e5c7c663bd6739e74e39d1e2f7baae4/tests/examples.rs#L171
 [flag]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-flag
 [basic]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-basic
 [detailed]: https://json-schema.org/draft/2020-12/json-schema-core.html#name-detailed

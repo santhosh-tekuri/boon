@@ -39,6 +39,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] custom
   - [x] contentMediaType
     - [x] application/json
+    - [x] custom
   - [ ] contentSchema
 - [x] errors
   - [x] introspectable
