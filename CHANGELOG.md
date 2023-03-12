@@ -4,6 +4,7 @@
 
 ### Breaking Changes
 - signature change in `Compiler.register_XXX` methods
+- in `ErrorKind` few struct fileds changed from `String` to `&'static str'`
 
 ### Added
 - implement `contentSchema` keyword

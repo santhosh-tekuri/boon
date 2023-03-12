@@ -517,7 +517,7 @@ pub enum ErrorKind {
     },
     Format {
         got: Value,
-        want: String,
+        want: &'static str,
         err: Box<dyn Error>,
     },
     MinProperties {
@@ -575,12 +575,12 @@ pub enum ErrorKind {
     },
     ContentEncoding {
         got: String,
-        want: String,
+        want: &'static str,
         err: Box<dyn Error>,
     },
     ContentMediaType {
         got: Vec<u8>,
-        want: String,
+        want: &'static str,
         err: Box<dyn Error>,
     },
     Minimum {

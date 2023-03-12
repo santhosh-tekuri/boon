@@ -133,7 +133,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // format --
         if let Some(format) = &s.format {
             if let Err(e) = (format.func)(v) {
-                let kind = kind!(Format, v.clone(), format.name.to_owned(), e);
+                let kind = kind!(Format, v.clone(), format.name, e);
                 self.add_error("/format", &vloc, kind);
             }
         }
@@ -466,7 +466,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             match (decoder.func)(str) {
                 Ok(bytes) => decoded = Cow::from(bytes),
                 Err(e) => {
-                    let kind = kind!(ContentEncoding, str.clone(), decoder.name.to_owned(), e);
+                    let kind = kind!(ContentEncoding, str.clone(), decoder.name, e);
                     self.add_error("/contentEncoding", &vloc, kind)
                 }
             }
@@ -478,7 +478,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
                 Ok(des) => deserialized = des,
                 Err(e) => {
-                    let kind = kind!(ContentMediaType, decoded.into(), mt.name.to_owned(), e);
+                    let kind = kind!(ContentMediaType, decoded.into(), mt.name, e);
                     self.add_error("/contentMediaType", &vloc, kind);
                 }
             }
