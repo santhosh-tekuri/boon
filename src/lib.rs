@@ -115,7 +115,6 @@ mod validator;
 
 pub use compiler::Draft;
 pub use compiler::*;
-use content::Decoder;
 pub use content::*;
 use formats::Format;
 pub use loader::*;
@@ -261,7 +260,7 @@ struct Schema {
     min_length: Option<usize>,
     max_length: Option<usize>,
     pattern: Option<Regex>,
-    content_encoding: Option<(String, Decoder)>,
+    content_encoding: Option<Decoder>,
     content_media_type: Option<MediaType>,
     content_schema: Option<SchemaIndex>,
 

@@ -6,11 +6,27 @@ use serde::de::IgnoredAny;
 use serde_json::Value;
 
 // decoders --
-pub(crate) type Decoder = fn(s: &str) -> Result<Vec<u8>, Box<dyn Error>>;
+
+/// Defines Decoder for `contentEncoding`.
+#[derive(Clone, Copy)]
+pub struct Decoder {
+    /// Name of the encoding
+    pub name: &'static str,
+
+    /// Decodes given string to bytes
+    #[allow(clippy::type_complexity)]
+    pub func: fn(s: &str) -> Result<Vec<u8>, Box<dyn Error>>,
+}
 
 pub(crate) static DECODERS: Lazy<HashMap<&'static str, Decoder>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Decoder>::new();
-    m.insert("base64", decode_base64);
+    m.insert(
+        "base64",
+        Decoder {
+            name: "base64",
+            func: decode_base64,
+        },
+    );
     m
 });
 
@@ -20,7 +36,7 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 
 // mediatypes --
 
-/// Defines Mediatype.
+/// Defines Mediatype for `contentMediaType`.
 #[derive(Clone, Copy)]
 pub struct MediaType {
     /// Name of this media-type as defined in RFC 2046.

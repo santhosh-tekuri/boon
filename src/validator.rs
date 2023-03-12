@@ -462,11 +462,11 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // contentEncoding --
         let mut decoded = Cow::from(str.as_bytes());
-        if let Some((encoding, decode)) = &s.content_encoding {
-            match decode(str) {
+        if let Some(decoder) = &s.content_encoding {
+            match (decoder.func)(str) {
                 Ok(bytes) => decoded = Cow::from(bytes),
                 Err(e) => {
-                    let kind = kind!(ContentEncoding, str.clone(), encoding.clone(), e);
+                    let kind = kind!(ContentEncoding, str.clone(), decoder.name.to_owned(), e);
                     self.add_error("/contentEncoding", &vloc, kind)
                 }
             }

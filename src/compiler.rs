@@ -152,8 +152,8 @@ impl Compiler {
     Note that content assertions are disabled by default.
     see [`Compiler::enable_content_assertions`]
     */
-    pub fn register_content_encoding(&mut self, content_encoding: &'static str, decoder: Decoder) {
-        self.decoders.insert(content_encoding, decoder);
+    pub fn register_content_encoding(&mut self, decoder: Decoder) {
+        self.decoders.insert(decoder.name, decoder);
     }
 
     /**
@@ -527,14 +527,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
         if self.c.assert_content {
             if let Some(Value::String(encoding)) = self.value("contentEncoding") {
-                let func = self
+                s.content_encoding = self
                     .c
                     .decoders
                     .get(encoding.as_str())
-                    .or_else(|| DECODERS.get(encoding.as_str()));
-                if let Some(func) = func {
-                    s.content_encoding = Some((encoding.to_owned(), *func));
-                }
+                    .or_else(|| DECODERS.get(encoding.as_str()))
+                    .cloned();
             }
 
             if let Some(Value::String(media_type)) = self.value("contentMediaType") {

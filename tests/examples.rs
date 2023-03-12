@@ -1,6 +1,6 @@
 use std::{error::Error, fs::File};
 
-use boon::{Compiler, MediaType, Schemas, UrlLoader};
+use boon::{Compiler, Decoder, MediaType, Schemas, UrlLoader};
 use serde::de::IgnoredAny;
 use serde_json::Value;
 use url::Url;
@@ -158,7 +158,10 @@ fn example_custom_content_encoding() -> Result<(), Box<dyn Error>> {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_content_assertions(); // content assertions are not enabled by default
-    compiler.register_content_encoding("hex", decode_hex);
+    compiler.register_content_encoding(Decoder {
+        name: "hex",
+        func: decode_hex,
+    });
     compiler.add_resource(schema_url, schema)?;
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
