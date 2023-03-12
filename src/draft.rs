@@ -67,6 +67,7 @@ pub(crate) static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
         ("dependentSchemas", POS_PROP),
         ("unevaluatedProperties", POS_SELF),
         ("unevaluatedItems", POS_SELF),
+        ("contentSchema", POS_SELF),
     ]);
     Draft {
         version: 2019,

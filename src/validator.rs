@@ -428,6 +428,12 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         };
 
         let s = self.schema;
+        macro_rules! add_err {
+            ($result:expr) => {
+                let result = $result;
+                self.errors.extend(result.err().into_iter());
+            };
+        }
         let mut len = None;
 
         // minLength --
@@ -467,11 +473,20 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
 
         // contentMediaType --
+        let mut deserialized = None;
         if let Some((media_type, check)) = &s.content_media_type {
-            if let Err(e) = check(decoded.as_ref()) {
-                let kind = kind!(ContentMediaType, decoded.into(), media_type.clone(), e);
-                self.add_error("/contentMediaType", &vloc, kind);
+            match check(decoded.as_ref(), s.content_schema.is_some()) {
+                Ok(des) => deserialized = des,
+                Err(e) => {
+                    let kind = kind!(ContentMediaType, decoded.into(), media_type.clone(), e);
+                    self.add_error("/contentMediaType", &vloc, kind);
+                }
             }
+        }
+
+        // contentSchema --
+        if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
+            add_err!(self.schemas.validate(&v, sch));
         }
     }
 

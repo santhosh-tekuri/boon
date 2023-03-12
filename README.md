@@ -32,7 +32,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] uri, uri-reference, uri-template
     - [x] iri, iri-reference
     - [x] period
-- [ ] content assertions
+- [x] content assertions
   - [x] flag to enable in draft >= 2019-09
   - [x] contentEncoding
     - [x] base64
@@ -40,7 +40,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
   - [x] contentMediaType
     - [x] application/json
     - [x] custom
-  - [ ] contentSchema
+  - [x] contentSchema
 - [x] errors
   - [x] introspectable
   - [x] hierarchy

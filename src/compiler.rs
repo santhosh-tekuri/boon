@@ -1,4 +1,9 @@
-use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    error::Error,
+    fmt::Display,
+};
 
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -71,7 +76,6 @@ impl Default for Draft {
 }
 
 /// JsonSchema compiler.
-#[derive(Default)]
 pub struct Compiler {
     roots: Roots,
     assert_format: bool,
@@ -79,6 +83,21 @@ pub struct Compiler {
     formats: HashMap<&'static str, Format>,
     decoders: HashMap<&'static str, Decoder>,
     media_types: HashMap<&'static str, MediaType>,
+    json_compat_media_types: HashSet<&'static str>,
+}
+
+impl Default for Compiler {
+    fn default() -> Self {
+        Self {
+            roots: Roots::default(),
+            assert_format: false,
+            assert_content: false,
+            formats: HashMap::new(),
+            decoders: HashMap::new(),
+            media_types: HashMap::new(),
+            json_compat_media_types: HashSet::from_iter(["application/json"]),
+        }
+    }
 }
 
 impl Compiler {
@@ -159,14 +178,24 @@ impl Compiler {
     /**
     Registers custom `contentMediaType`
 
+    `json_compatible` tells whether this media type can be deserialized to json. If so it can
+    be validated by `contentSchema` keyword.
+
+    The registered function should return `Some` if `deserialize` is `true`, otherwise `None`.
+    `deserialize` is always `false` if `json_compatible` is `false`.
+
     Note that content assertions are disabled by default.
     see [`Compiler::enable_content_assertions`]
     */
     pub fn register_content_media_type(
         &mut self,
         content_media_type: &'static str,
+        json_compatible: bool,
         validator: MediaType,
     ) {
+        if json_compatible {
+            self.json_compat_media_types.insert(content_media_type);
+        }
         self.media_types.insert(content_media_type, validator);
     }
 
@@ -586,6 +615,15 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         }) {
             s.unevaluated_items = self.enqueue_prop("unevaluatedItems");
             s.unevaluated_properties = self.enqueue_prop("unevaluatedProperties");
+        }
+
+        if self.c.assert_content
+            && s.content_media_type
+                .as_ref()
+                .map(|(mt, _)| self.c.json_compat_media_types.contains(mt.as_str()))
+                .unwrap_or(false)
+        {
+            s.content_schema = self.enqueue_prop("contentSchema");
         }
 
         Ok(())

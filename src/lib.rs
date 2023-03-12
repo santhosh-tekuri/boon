@@ -262,6 +262,7 @@ struct Schema {
     pattern: Option<Regex>,
     content_encoding: Option<(String, Decoder)>,
     content_media_type: Option<(String, MediaType)>,
+    content_schema: Option<SchemaIndex>,
 
     // number --
     minimum: Option<Number>,

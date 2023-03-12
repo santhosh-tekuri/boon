@@ -3,6 +3,7 @@ use std::{collections::HashMap, error::Error};
 use base64::Engine;
 use once_cell::sync::Lazy;
 use serde::de::IgnoredAny;
+use serde_json::Value;
 
 // decoders --
 pub(crate) type Decoder = fn(s: &str) -> Result<Vec<u8>, Box<dyn Error>>;
@@ -18,7 +19,8 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 }
 
 // mediatypes --
-pub(crate) type MediaType = fn(bytes: &[u8]) -> Result<(), Box<dyn Error>>;
+pub(crate) type MediaType =
+    fn(bytes: &[u8], deserialize: bool) -> Result<Option<Value>, Box<dyn Error>>;
 
 pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, MediaType>::new();
@@ -26,7 +28,10 @@ pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::ne
     m
 });
 
-fn check_json(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+fn check_json(bytes: &[u8], deserialize: bool) -> Result<Option<Value>, Box<dyn Error>> {
+    if deserialize {
+        return Ok(Some(serde_json::from_slice(bytes)?));
+    }
     serde_json::from_slice::<IgnoredAny>(bytes)?;
-    Ok(())
+    Ok(None)
 }

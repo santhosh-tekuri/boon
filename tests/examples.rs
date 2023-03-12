@@ -174,15 +174,18 @@ fn example_custom_content_media_type() -> Result<(), Box<dyn Error>> {
         serde_json::from_str(r#"{"type": "string", "contentMediaType": "application/yaml"}"#)?;
     let instance: Value = serde_json::from_str(r#""name:foobar""#)?;
 
-    fn check_yaml(bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+    fn check_yaml(bytes: &[u8], deserialize: bool) -> Result<Option<Value>, Box<dyn Error>> {
+        if deserialize {
+            return Ok(Some(serde_yaml::from_slice(bytes)?));
+        }
         serde_yaml::from_slice::<IgnoredAny>(bytes)?;
-        Ok(())
+        Ok(None)
     }
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_content_assertions(); // content assertions are not enabled by default
-    compiler.register_content_media_type("application/yaml", check_yaml);
+    compiler.register_content_media_type("application/yaml", true, check_yaml);
     compiler.add_resource(schema_url, schema)?;
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
