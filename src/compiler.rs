@@ -141,9 +141,14 @@ impl Compiler {
         self.roots.loader.register(scheme, url_loader);
     }
 
-    /// Registers custom `format`
-    pub fn register_format(&mut self, format: &'static str, validator: Format) {
-        self.formats.insert(format, validator);
+    /**
+    Registers custom `format`
+
+    Note that format assertions are disabled for draft >= 2019-09.
+    see [`Compiler::enable_format_assertions`]
+    */
+    pub fn register_format(&mut self, format: Format) {
+        self.formats.insert(format.name, format);
     }
 
     /**
@@ -485,14 +490,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             })
         {
             if let Some(Value::String(format)) = self.value("format") {
-                let func = self
+                s.format = self
                     .c
                     .formats
                     .get(format.as_str())
-                    .or_else(|| FORMATS.get(format.as_str()));
-                if let Some(func) = func {
-                    s.format = Some((format.to_owned(), *func));
-                }
+                    .or_else(|| FORMATS.get(format.as_str()))
+                    .cloned();
             }
         }
 

@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+- signature change in `Compiler.register_XXX` methods
+
 ### Added
+- implement `contentSchema` keyword
 - add example_custom_content_encoding
+- add example_custom_content_media_type
 
 ### Performance
 - contentEncoding: use IgnoredAny instead of Value

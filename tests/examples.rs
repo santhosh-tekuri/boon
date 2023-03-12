@@ -1,6 +1,6 @@
 use std::{error::Error, fs::File};
 
-use boon::{Compiler, Decoder, MediaType, Schemas, UrlLoader};
+use boon::{Compiler, Decoder, Format, MediaType, Schemas, UrlLoader};
 use serde::de::IgnoredAny;
 use serde_json::Value;
 use url::Url;
@@ -116,7 +116,10 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_format_assertions(); // in draft2020-12 format assertions are not enabled by default
-    compiler.register_format("palindrome", is_palindrome);
+    compiler.register_format(Format {
+        name: "palindrome",
+        func: is_palindrome,
+    });
     compiler.add_resource(schema_url, schema)?;
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);

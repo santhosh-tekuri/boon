@@ -131,9 +131,9 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
 
         // format --
-        if let Some((format, check)) = &s.format {
-            if let Err(e) = check(v) {
-                let kind = kind!(Format, v.clone(), format.clone(), e);
+        if let Some(format) = &s.format {
+            if let Err(e) = (format.func)(v) {
+                let kind = kind!(Format, v.clone(), format.name.to_owned(), e);
                 self.add_error("/format", &vloc, kind);
             }
         }

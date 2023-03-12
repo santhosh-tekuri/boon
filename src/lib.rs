@@ -116,7 +116,7 @@ mod validator;
 pub use compiler::Draft;
 pub use compiler::*;
 pub use content::*;
-use formats::Format;
+pub use formats::*;
 pub use loader::*;
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
@@ -228,7 +228,7 @@ struct Schema {
     if_: Option<SchemaIndex>,
     then: Option<SchemaIndex>,
     else_: Option<SchemaIndex>,
-    format: Option<(String, Format)>,
+    format: Option<Format>,
 
     // object --
     min_properties: Option<usize>,

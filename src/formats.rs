@@ -10,30 +10,39 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
-pub(crate) type Format = fn(v: &Value) -> Result<(), Box<dyn Error>>;
+/// Defines format for `format` keyword.
+#[derive(Clone, Copy)]
+pub struct Format {
+    /// Name of the format
+    pub name: &'static str,
+
+    /// validates given value.
+    pub func: fn(v: &Value) -> Result<(), Box<dyn Error>>,
+}
 
 pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Format>::new();
-    m.insert("regex", check_regex);
-    m.insert("ipv4", check_ipv4);
-    m.insert("ipv6", check_ipv6);
-    m.insert("hostname", check_hostname_value);
-    m.insert("idn-hostname", check_idn_hostname_value);
-    m.insert("email", check_email_value);
-    m.insert("idn-email", check_idn_email);
-    m.insert("date", check_date_value);
-    m.insert("time", check_time_value);
-    m.insert("date-time", check_date_time_value);
-    m.insert("duration", check_duration_value);
-    m.insert("period", check_period);
-    m.insert("json-pointer", check_json_pointer_value);
-    m.insert("relative-json-pointer", check_relative_json_pointer);
-    m.insert("uuid", check_uuid);
-    m.insert("uri", check_uri);
-    m.insert("iri", check_uri);
-    m.insert("uri-reference", check_uri_reference);
-    m.insert("iri-reference", check_uri_reference);
-    m.insert("uri-template", check_uri_template);
+    let mut register = |name, func| m.insert(name, Format { name, func });
+    register("regex", check_regex);
+    register("ipv4", check_ipv4);
+    register("ipv6", check_ipv6);
+    register("hostname", check_hostname_value);
+    register("idn-hostname", check_idn_hostname_value);
+    register("email", check_email_value);
+    register("idn-email", check_idn_email);
+    register("date", check_date_value);
+    register("time", check_time_value);
+    register("date-time", check_date_time_value);
+    register("duration", check_duration_value);
+    register("period", check_period);
+    register("json-pointer", check_json_pointer_value);
+    register("relative-json-pointer", check_relative_json_pointer);
+    register("uuid", check_uuid);
+    register("uri", check_uri);
+    register("iri", check_uri);
+    register("uri-reference", check_uri_reference);
+    register("iri-reference", check_uri_reference);
+    register("uri-template", check_uri_template);
     m
 });
 
