@@ -19,12 +19,27 @@ fn decode_base64(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 }
 
 // mediatypes --
-pub(crate) type MediaType =
+
+pub(crate) type CheckMediaType =
     fn(bytes: &[u8], deserialize: bool) -> Result<Option<Value>, Box<dyn Error>>;
+
+#[derive(Clone, Copy)]
+pub(crate) struct MediaType {
+    pub(crate) name: &'static str,
+    pub(crate) json_compatible: bool,
+    pub(crate) func: CheckMediaType,
+}
 
 pub(crate) static MEDIA_TYPES: Lazy<HashMap<&'static str, MediaType>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, MediaType>::new();
-    m.insert("application/json", check_json);
+    m.insert(
+        "application/json",
+        MediaType {
+            name: "application/json",
+            json_compatible: true,
+            func: check_json,
+        },
+    );
     m
 });
 

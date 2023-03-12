@@ -1,9 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    error::Error,
-    fmt::Display,
-};
+use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -76,6 +71,7 @@ impl Default for Draft {
 }
 
 /// JsonSchema compiler.
+#[derive(Default)]
 pub struct Compiler {
     roots: Roots,
     assert_format: bool,
@@ -83,21 +79,6 @@ pub struct Compiler {
     formats: HashMap<&'static str, Format>,
     decoders: HashMap<&'static str, Decoder>,
     media_types: HashMap<&'static str, MediaType>,
-    json_compat_media_types: HashSet<&'static str>,
-}
-
-impl Default for Compiler {
-    fn default() -> Self {
-        Self {
-            roots: Roots::default(),
-            assert_format: false,
-            assert_content: false,
-            formats: HashMap::new(),
-            decoders: HashMap::new(),
-            media_types: HashMap::new(),
-            json_compat_media_types: HashSet::from_iter(["application/json"]),
-        }
-    }
 }
 
 impl Compiler {
@@ -191,12 +172,16 @@ impl Compiler {
         &mut self,
         content_media_type: &'static str,
         json_compatible: bool,
-        validator: MediaType,
+        validator: CheckMediaType,
     ) {
-        if json_compatible {
-            self.json_compat_media_types.insert(content_media_type);
-        }
-        self.media_types.insert(content_media_type, validator);
+        self.media_types.insert(
+            content_media_type,
+            MediaType {
+                name: content_media_type,
+                json_compatible,
+                func: validator,
+            },
+        );
     }
 
     /**
@@ -571,14 +556,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             }
 
             if let Some(Value::String(media_type)) = self.value("contentMediaType") {
-                let func = self
+                s.content_media_type = self
                     .c
                     .media_types
                     .get(media_type.as_str())
-                    .or_else(|| MEDIA_TYPES.get(media_type.as_str()));
-                if let Some(func) = func {
-                    s.content_media_type = Some((media_type.to_owned(), *func));
-                }
+                    .or_else(|| MEDIA_TYPES.get(media_type.as_str()))
+                    .cloned();
             }
         }
 
@@ -619,8 +602,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
         if self.c.assert_content
             && s.content_media_type
-                .as_ref()
-                .map(|(mt, _)| self.c.json_compat_media_types.contains(mt.as_str()))
+                .map(|mt| mt.json_compatible)
                 .unwrap_or(false)
         {
             s.content_schema = self.enqueue_prop("contentSchema");

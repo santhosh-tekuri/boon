@@ -474,11 +474,11 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // contentMediaType --
         let mut deserialized = None;
-        if let Some((media_type, check)) = &s.content_media_type {
-            match check(decoded.as_ref(), s.content_schema.is_some()) {
+        if let Some(mt) = &s.content_media_type {
+            match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
                 Ok(des) => deserialized = des,
                 Err(e) => {
-                    let kind = kind!(ContentMediaType, decoded.into(), media_type.clone(), e);
+                    let kind = kind!(ContentMediaType, decoded.into(), mt.name.to_owned(), e);
                     self.add_error("/contentMediaType", &vloc, kind);
                 }
             }
