@@ -159,29 +159,11 @@ impl Compiler {
     /**
     Registers custom `contentMediaType`
 
-    `json_compatible` tells whether this media type can be deserialized to json. If so it can
-    be validated by `contentSchema` keyword.
-
-    The registered function should return `Some` if `deserialize` is `true`, otherwise `None`.
-    `deserialize` is always `false` if `json_compatible` is `false`.
-
     Note that content assertions are disabled by default.
     see [`Compiler::enable_content_assertions`]
     */
-    pub fn register_content_media_type(
-        &mut self,
-        content_media_type: &'static str,
-        json_compatible: bool,
-        validator: CheckMediaType,
-    ) {
-        self.media_types.insert(
-            content_media_type,
-            MediaType {
-                name: content_media_type,
-                json_compatible,
-                func: validator,
-            },
-        );
+    pub fn register_content_media_type(&mut self, media_type: MediaType) {
+        self.media_types.insert(media_type.name, media_type);
     }
 
     /**

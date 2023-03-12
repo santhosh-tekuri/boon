@@ -1,6 +1,6 @@
 use std::{error::Error, fs::File};
 
-use boon::{Compiler, Schemas, UrlLoader};
+use boon::{Compiler, MediaType, Schemas, UrlLoader};
 use serde::de::IgnoredAny;
 use serde_json::Value;
 use url::Url;
@@ -185,7 +185,11 @@ fn example_custom_content_media_type() -> Result<(), Box<dyn Error>> {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_content_assertions(); // content assertions are not enabled by default
-    compiler.register_content_media_type("application/yaml", true, check_yaml);
+    compiler.register_content_media_type(MediaType {
+        name: "application/yaml",
+        json_compatible: true,
+        func: check_yaml,
+    });
     compiler.add_resource(schema_url, schema)?;
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);

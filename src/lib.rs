@@ -115,7 +115,8 @@ mod validator;
 
 pub use compiler::Draft;
 pub use compiler::*;
-use content::{Decoder, MediaType};
+use content::Decoder;
+pub use content::*;
 use formats::Format;
 pub use loader::*;
 
