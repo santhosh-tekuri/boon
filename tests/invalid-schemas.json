@@ -67,7 +67,7 @@
                 "^(abc]": { "type": "string" }
             }
         },
-        "errors": ["InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\" }"]
+        "errors": ["InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\", "]
     },
     {
         "description": "DuplicateId",

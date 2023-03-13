@@ -812,7 +812,11 @@ pub enum CompileError {
     UnsupprtedVocabulary { url: String, vocabulary: String },
 
     /// Invalid Regex `regex` at `url`.
-    InvalidRegex { url: String, regex: String },
+    InvalidRegex {
+        url: String,
+        regex: String,
+        src: Box<dyn Error>,
+    },
 
     /// Encountered bug in compiler implementation. Please report
     /// this as an issue for this crate.
@@ -898,8 +902,12 @@ impl Display for CompileError {
             Self::UnsupprtedVocabulary { url, vocabulary } => {
                 write!(f, "unsupported vocabulary {vocabulary} in {url}")
             }
-            Self::InvalidRegex { url, regex } => {
-                write!(f, "invalid regex {} at {}", quote(regex), url)
+            Self::InvalidRegex { url, regex, src } => {
+                if f.alternate() {
+                    write!(f, "invalid regex {} at {url}: {src}", quote(regex))
+                } else {
+                    write!(f, "invalid regex {} at {url}", quote(regex))
+                }
             }
             Self::Bug(src) => {
                 write!(
