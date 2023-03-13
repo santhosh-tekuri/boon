@@ -19,6 +19,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
   - [x] validation cycle
 - [x] custom `$schema` url
 - [x] vocabulary based validation
+- [x] ECMA-262 regex compatibility (pass tests from `optional/ecmascript-regex.json`)
 - [x] format assertions
   - [x] flag to enable in draft >= 2019-09
   - [x] custom format registration

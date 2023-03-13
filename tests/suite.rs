@@ -4,10 +4,9 @@ use boon::{Compiler, Draft, Schemas, UrlLoader};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-static SKIP: [&str; 3] = [
+static SKIP: [&str; 2] = [
     "zeroTerminatedFloats.json", // only draft4: this behavior is changed in later drafts
     "float-overflow.json",
-    "ecmascript-regex.json",
 ];
 
 #[derive(Debug, Serialize, Deserialize)]

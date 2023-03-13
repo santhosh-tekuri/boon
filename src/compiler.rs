@@ -144,11 +144,16 @@ impl Compiler {
     /**
     Registers custom `format`
 
-    Note that format assertions are disabled for draft >= 2019-09.
-    see [`Compiler::enable_format_assertions`]
+    # Note
+
+    - `regex` format cannot be overridden
+    -  format assertions are disabled for draft >= 2019-09.
+       see [`Compiler::enable_format_assertions`]
     */
     pub fn register_format(&mut self, format: Format) {
-        self.formats.insert(format.name, format);
+        if format.name != "regex" {
+            self.formats.insert(format.name, format);
+        }
     }
 
     /**
@@ -394,7 +399,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {
                     for pname in obj.keys() {
-                        let ecma = ecma::convert(pname);
+                        let ecma =
+                            ecma::convert(pname).map_err(|e| CompileError::InvalidRegex {
+                                url: format!("{}/patternProperties", self.loc),
+                                regex: pname.to_owned(),
+                                src: e.into(),
+                            })?;
                         let regex =
                             Regex::new(ecma.as_ref()).map_err(|e| CompileError::InvalidRegex {
                                 url: format!("{}/patternProperties", self.loc),
@@ -469,9 +479,8 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             s.min_length = self.usize("minLength");
 
             if let Some(Value::String(p)) = self.value("pattern") {
-                let ecma = ecma::convert(p);
-                s.pattern =
-                    Some(Regex::new(ecma.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
+                let p = ecma::convert(p).map_err(|e| CompileError::Bug(e.into()))?;
+                s.pattern = Some(Regex::new(p.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
             s.max_items = self.usize("maxItems");

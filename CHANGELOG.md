@@ -9,6 +9,7 @@
 
 ### Added
 - implement `contentSchema` keyword
+- ECMA-262 regex compatibility
 - add example_custom_content_encoding
 - add example_custom_content_media_type
 

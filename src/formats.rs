@@ -52,7 +52,7 @@ fn check_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
-    Regex::new(ecma::convert(s).as_ref())?;
+    Regex::new(ecma::convert(s)?.as_ref())?;
     Ok(())
 }
 
