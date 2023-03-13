@@ -249,6 +249,26 @@ impl<'a> Display for Loc<'a> {
     }
 }
 
+// covert ecma regex to rust regex if possible
+pub(crate) fn ecma_compat(pattern: &str) -> Cow<str> {
+    let mut pattern = Cow::Borrowed(pattern);
+
+    use regex_syntax::ast::parse::Parser;
+    use regex_syntax::ast::ErrorKind;
+
+    let Err(e) = Parser::new().parse(pattern.as_ref()) else {
+        return pattern
+    };
+    if let ErrorKind::EscapeUnrecognized = e.kind() {
+        let (start, end) = (e.span().start.offset, e.span().end.offset);
+        let s = &e.pattern()[start..end];
+        if s == r#"\/"# {
+            pattern = Cow::Owned(format!("{}/{}", &e.pattern()[..start], &e.pattern()[end..],));
+        }
+    }
+    pattern
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,5 +316,10 @@ mod tests {
             let b = serde_json::from_str(b).unwrap();
             assert!(equals(&a, &b));
         }
+    }
+
+    #[test]
+    fn test_ecma_compat() {
+        assert_eq!(ecma_compat(r#"ab\/cde"#), r#"ab/cde"#); // '/' can be escaped
     }
 }

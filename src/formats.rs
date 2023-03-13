@@ -10,6 +10,8 @@ use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
+use crate::util::ecma_compat;
+
 /// Defines format for `format` keyword.
 #[derive(Clone, Copy)]
 pub struct Format {
@@ -50,7 +52,7 @@ fn check_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
-    Regex::new(s)?;
+    Regex::new(ecma_compat(s).as_ref())?;
     Ok(())
 }
 

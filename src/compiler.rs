@@ -394,10 +394,13 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {
                     for pname in obj.keys() {
-                        let regex = Regex::new(pname).map_err(|_| CompileError::InvalidRegex {
-                            url: format!("{}/patternProperties", self.loc),
-                            regex: pname.clone(),
-                        })?;
+                        let ecma = ecma_compat(pname);
+                        let regex =
+                            Regex::new(ecma.as_ref()).map_err(|e| CompileError::InvalidRegex {
+                                url: format!("{}/patternProperties", self.loc),
+                                regex: ecma.into_owned(),
+                                src: e.into(),
+                            })?;
                         let sch = self.enqueue_path(format!("patternProperties/{}", escape(pname)));
                         v.push((regex, sch));
                     }
