@@ -34,7 +34,7 @@ see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/exam
     - [x] iri, iri-reference
     - [x] period
 - [x] content assertions
-  - [x] flag to enable in draft >= 2019-09
+  - [x] flag to enable in draft >= 7
   - [x] contentEncoding
     - [x] base64
     - [x] custom
