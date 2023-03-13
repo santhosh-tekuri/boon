@@ -4,7 +4,7 @@ use regex::Regex;
 use serde_json::{Map, Value};
 use url::Url;
 
-use crate::{content::*, draft::*, formats::*, root::*, roots::*, util::*, *};
+use crate::{content::*, draft::*, ecma, formats::*, root::*, roots::*, util::*, *};
 
 /// Supported draft versions
 #[non_exhaustive]
@@ -394,7 +394,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {
                     for pname in obj.keys() {
-                        let ecma = ecma_compat(pname);
+                        let ecma = ecma::convert(pname);
                         let regex =
                             Regex::new(ecma.as_ref()).map_err(|e| CompileError::InvalidRegex {
                                 url: format!("{}/patternProperties", self.loc),
@@ -469,7 +469,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             s.min_length = self.usize("minLength");
 
             if let Some(Value::String(p)) = self.value("pattern") {
-                let ecma = ecma_compat(p);
+                let ecma = ecma::convert(p);
                 s.pattern =
                     Some(Regex::new(ecma.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
             }

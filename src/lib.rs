@@ -105,6 +105,7 @@ println!("{output:#}"); // prints indented json
 mod compiler;
 mod content;
 mod draft;
+mod ecma;
 mod formats;
 mod loader;
 mod output;
