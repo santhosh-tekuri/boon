@@ -469,7 +469,9 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             s.min_length = self.usize("minLength");
 
             if let Some(Value::String(p)) = self.value("pattern") {
-                s.pattern = Some(Regex::new(p).map_err(|e| CompileError::Bug(e.into()))?);
+                let ecma = ecma_compat(p);
+                s.pattern =
+                    Some(Regex::new(ecma.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
             s.max_items = self.usize("maxItems");
