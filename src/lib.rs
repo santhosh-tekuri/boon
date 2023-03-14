@@ -536,6 +536,10 @@ pub enum ErrorKind {
     Required {
         want: Vec<String>,
     },
+    Dependency {
+        got: String,
+        want: Vec<String>,
+    },
     DependentRequired {
         got: String,
         want: Vec<String>,
@@ -682,6 +686,18 @@ impl Display for ErrorKind {
                 "missing properties {}",
                 join_iter(want.iter().map(quote), ", ")
             ),
+            Self::Dependency { got, want } => {
+                if want.is_empty() {
+                    write!(f, "dependency of property {} failed", quote(got))
+                } else {
+                    write!(
+                        f,
+                        "properties {} required, if {} property exists",
+                        join_iter(want.iter().map(quote), ", "),
+                        quote(got)
+                    )
+                }
+            }
             Self::DependentRequired { got, want } => write!(
                 f,
                 "properties {} required, if {} property exists",

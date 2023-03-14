@@ -217,12 +217,20 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                             .collect::<Vec<String>>();
                         if !missing.is_empty() {
                             let kw_path = format!("/dependencies/{}", escape(pname));
-                            let kind = kind!(DependentRequired, pname.clone(), missing);
+                            let kind = kind!(Dependency, pname.clone(), missing);
                             self.add_error(&kw_path, &vloc, kind);
                         }
                     }
                     Dependency::SchemaRef(sch) => {
-                        add_err!(self.validate_self(*sch, None, vloc.copy()));
+                        if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
+                            if let ErrorKind::Group = e.kind {
+                                let kw_path = format!("/dependencies/{}", escape(pname));
+                                let kind = kind!(Dependency, pname.clone(), vec![]);
+                                self.add_errors(e.causes, &kw_path, &vloc, kind);
+                            } else {
+                                self.errors.push(e);
+                            };
+                        }
                     }
                 }
             }
