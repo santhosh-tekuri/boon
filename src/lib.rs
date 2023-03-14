@@ -644,7 +644,7 @@ impl Display for ErrorKind {
                     if want.len() == 1 {
                         write!(f, "value must be {want:?}")
                     } else {
-                        let want = join_iter(want.iter().map(|e| format!("{e:?}")), " or ");
+                        let want = join_iter(want.iter().map(|v| format!("{v}")), ", ");
                         write!(f, "value must be one of {want}")
                     }
                 } else {
