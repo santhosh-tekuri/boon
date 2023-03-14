@@ -326,10 +326,11 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // uniqueItems --
         if s.unique_items {
-            for i in 1..arr.len() {
+            'outer: for i in 1..arr.len() {
                 for j in 0..i {
                     if equals(&arr[i], &arr[j]) {
                         self.add_error("/uniqueItems", &vloc, kind!(UniqueItems, got: [j, i]));
+                        break 'outer;
                     }
                 }
             }
