@@ -428,12 +428,6 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         };
 
         let s = self.schema;
-        macro_rules! add_err {
-            ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err().into_iter());
-            };
-        }
         let mut len = None;
 
         // minLength --
@@ -486,7 +480,10 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
         // contentSchema --
         if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
-            add_err!(self.schemas.validate(&v, sch));
+            if let Err(mut e) = self.schemas.validate(&v, sch) {
+                e.kind = kind!(ContentSchema);
+                self.errors.push(e);
+            }
         }
     }
 

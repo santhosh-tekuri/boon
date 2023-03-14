@@ -495,6 +495,7 @@ pub enum ErrorKind {
     Schema {
         url: String,
     },
+    ContentSchema,
     Reference {
         url: String,
     },
@@ -620,6 +621,7 @@ impl Display for ErrorKind {
         match self {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
+            Self::ContentSchema => write!(f, "contentSchema failed"),
             Self::Reference { url } => write!(f, "validation failed with {url}"),
             Self::RefCycle {
                 url,
