@@ -3,6 +3,7 @@
 [![docs.rs](https://docs.rs/boon/badge.svg)](https://docs.rs/boon/)
 [![Build Status](https://github.com/santhosh-tekuri/boon/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/santhosh-tekuri/boon/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/santhosh-tekuri/boon/branch/main/graph/badge.svg?token=A2YC4A0BLG)](https://codecov.io/gh/santhosh-tekuri/boon)
+[![dependency status](https://deps.rs/repo/github/Santhosh-tekuri/boon/status.svg)](https://deps.rs/repo/github/Santhosh-tekuri/boon)
 
 see examples [here](https://github.com/santhosh-tekuri/boon/blob/main/tests/examples.rs)
 
