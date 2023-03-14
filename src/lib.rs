@@ -547,6 +547,7 @@ pub enum ErrorKind {
     DependentSchemas {
         got: String,
     },
+    Items,
     MinItems {
         got: usize,
         want: usize,
@@ -707,6 +708,7 @@ impl Display for ErrorKind {
             Self::DependentSchemas { got } => {
                 write!(f, "dependentSchema of property {} failed", quote(got))
             }
+            Self::Items => write!(f, "items failed"),
             Self::MinItems { got, want } => {
                 write!(f, "minimum {want} items required, but got {got} items")
             }

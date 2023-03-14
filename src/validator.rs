@@ -357,7 +357,12 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             match items {
                 Items::SchemaRef(sch) => {
                     for (i, item) in arr.iter().enumerate() {
-                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
+                        if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
+                            if let ErrorKind::Group = e.kind {
+                                e.kind = kind!(Items);
+                            }
+                            self.errors.push(e);
+                        }
                     }
                     self.uneval.items.clear();
                 }
