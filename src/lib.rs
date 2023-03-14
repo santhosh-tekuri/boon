@@ -540,6 +540,9 @@ pub enum ErrorKind {
         got: String,
         want: Vec<String>,
     },
+    DependentSchemas {
+        got: String,
+    },
     MinItems {
         got: usize,
         want: usize,
@@ -685,6 +688,9 @@ impl Display for ErrorKind {
                 join_iter(want.iter().map(quote), ", "),
                 quote(got)
             ),
+            Self::DependentSchemas { got } => {
+                write!(f, "dependentSchema of property {} failed", quote(got))
+            }
             Self::MinItems { got, want } => {
                 write!(f, "minimum {want} items required, but got {got} items")
             }

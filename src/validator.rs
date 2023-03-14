@@ -231,7 +231,15 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // dependentSchemas --
         for (pname, sch) in &s.dependent_schemas {
             if obj.contains_key(pname) {
-                add_err!(self.validate_self(*sch, None, vloc.copy()));
+                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
+                    if let ErrorKind::Group = e.kind {
+                        let kw_path = format!("/dependentSchemas/{}", escape(pname));
+                        let kind = kind!(DependentSchemas, got:pname.clone());
+                        self.add_errors(e.causes, &kw_path, &vloc, kind);
+                    } else {
+                        self.errors.push(e);
+                    };
+                }
             }
         }
 
