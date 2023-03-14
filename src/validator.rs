@@ -26,22 +26,26 @@ pub(crate) fn validate(
     }
     .validate(JsonPointer::new(&mut vloc));
     match result {
-        Err(e) => {
-            let mut err = ValidationError {
-                keyword_location: String::new(),
-                absolute_keyword_location: schema.loc.clone(),
-                instance_location: String::new(),
-                kind: ErrorKind::Schema {
+        Err(mut e) => {
+            if e.keyword_location.is_empty()
+                && e.instance_location.is_empty()
+                && matches!(e.kind, ErrorKind::Group)
+            {
+                e.kind = ErrorKind::Schema {
                     url: schema.loc.clone(),
-                },
-                causes: vec![],
-            };
-            if let ErrorKind::Group = e.kind {
-                err.causes = e.causes;
+                };
             } else {
-                err.causes.push(e);
+                e = ValidationError {
+                    keyword_location: String::new(),
+                    absolute_keyword_location: schema.loc.clone(),
+                    instance_location: String::new(),
+                    kind: ErrorKind::Schema {
+                        url: schema.loc.clone(),
+                    },
+                    causes: vec![e],
+                };
             }
-            Err(err)
+            Err(e)
         }
         Ok(_) => Ok(()),
     }
