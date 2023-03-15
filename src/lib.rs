@@ -528,7 +528,6 @@ pub enum OneOf {
 
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // todo: use single quote for strings
         match self {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
@@ -555,9 +554,10 @@ impl Display for ErrorKind {
             Self::Enum { want, .. } => {
                 if want.iter().all(Type::primitive) {
                     if want.len() == 1 {
-                        write!(f, "value must be {}", want[0])
+                        write!(f, "value must be ")?;
+                        display(f, &want[0])
                     } else {
-                        let want = join_iter(want.iter().map(|v| format!("{v}")), ", ");
+                        let want = join_iter(want.iter().map(string), ", ");
                         write!(f, "value must be one of {want}")
                     }
                 } else {
@@ -571,7 +571,10 @@ impl Display for ErrorKind {
                     write!(f, "const failed")
                 }
             }
-            Self::Format { got, want, err } => write!(f, "{got} is not valid {want}: {err}"),
+            Self::Format { got, want, err } => {
+                display(f, got)?;
+                write!(f, " is not valid {want}: {err}")
+            }
             Self::MinProperties { got, want } => write!(
                 f,
                 "minimum {want} properties required, but got {got} properties"
@@ -671,5 +674,21 @@ impl Display for ErrorKind {
             Self::OneOf(OneOf::Subschema(i)) => write!(f, "oneOf subschema {i} failed"),
             Self::OneOf(OneOf::MultiMatch(i, j)) => write!(f, "oneOf subschemas {i}, {j} matched"),
         }
+    }
+}
+
+fn display(f: &mut std::fmt::Formatter, v: &Value) -> std::fmt::Result {
+    match v {
+        Value::String(s) => write!(f, "{}", quote(s)),
+        Value::Array(_) | Value::Object(_) => write!(f, "value"),
+        _ => write!(f, "{v}"),
+    }
+}
+
+fn string(primitive: &Value) -> String {
+    if let Value::String(s) = primitive {
+        quote(s)
+    } else {
+        format!("{primitive}")
     }
 }
