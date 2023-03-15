@@ -27,6 +27,13 @@ impl ValidationError {
         mut unwrap: bool,
         indent: usize,
     ) -> std::fmt::Result {
+        if let ErrorKind::Schema { .. } = &self.kind {
+            debug_assert_eq!(indent, 0, "ErrorKind::Schema must have zero indent");
+            write!(f, "jsonschema {}", self.kind)?;
+            writeln!(f)?;
+            return self.display_causes(f, unwrap, indent + 1);
+        }
+
         if !f.alternate() {
             // unwrap if Reference with single cause
             if matches!(self.kind, ErrorKind::Reference { .. }) && self.causes.len() == 1 {
@@ -49,6 +56,7 @@ impl ValidationError {
             unwrap = unwrap_causes;
         }
 
+        // indent --
         if indent > 0 {
             for _ in 0..indent - 1 {
                 write!(f, "  ")?;
@@ -56,43 +64,39 @@ impl ValidationError {
             write!(f, "- ")?;
         }
 
-        match &self.kind {
-            ErrorKind::Schema { .. } if indent == 0 => {
-                write!(f, "jsonschema {}", self.kind)?;
-            }
-            _ => {
-                let inst = &self.instance_location;
-                write!(f, "at {}", quote(inst))?;
-                let (s, frag) = split(&self.absolute_keyword_location);
-                if f.alternate() {
-                    write!(f, " [S#{frag}]")?;
-                }
-                write!(f, ": ")?;
+        // location --
+        let inst = &self.instance_location;
+        write!(f, "at {}", quote(inst))?;
+        let (s, frag) = split(&self.absolute_keyword_location);
+        if f.alternate() {
+            write!(f, " [S#{frag}]")?;
+        }
+        write!(f, ": ")?;
 
-                // message
-                if f.alternate() {
-                    match &self.kind {
-                        ErrorKind::Reference { url } => {
-                            let (u, frag) = split(url);
-                            if u == s {
-                                write!(f, "validation failed with S#{frag}")?;
-                            } else {
-                                write!(f, "{}", self.kind)?;
-                            }
-                        }
-                        _ => write!(f, "{}", self.kind)?,
-                    }
-                } else {
-                    match &self.kind {
-                        ErrorKind::Reference { .. } => {
-                            let kw = self.keyword_location.rsplit('/').next().unwrap_or_default();
-                            write!(f, "{kw} failed")?
-                        }
-                        _ => write!(f, "{}", self.kind)?,
+        // message --
+        if f.alternate() {
+            match &self.kind {
+                ErrorKind::Reference { url } => {
+                    let (u, frag) = split(url);
+                    if u == s {
+                        write!(f, "validation failed with S#{frag}")?;
+                    } else {
+                        write!(f, "{}", self.kind)?;
                     }
                 }
+                _ => write!(f, "{}", self.kind)?,
+            }
+        } else {
+            match &self.kind {
+                ErrorKind::Reference { .. } => {
+                    let kw = self.keyword_location.rsplit('/').next().unwrap_or_default();
+                    write!(f, "{kw} failed")?
+                }
+                _ => write!(f, "{}", self.kind)?,
             }
         }
+
+        // causes --
         if !self.causes.is_empty() {
             writeln!(f)?;
         }
