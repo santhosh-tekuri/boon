@@ -726,21 +726,21 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             for (i, sch) in s.one_of.iter().enumerate() {
                 if let Err(mut e) = self.validate_self(*sch, None, vloc.copy()) {
                     if let ErrorKind::Group = e.kind {
-                        e.kind = kind!(OneOf, subschemas: [Some(i), None]);
+                        e.kind = ErrorKind::OneOf(OneOf::Subschema(i));
                     }
                     oneof_errors.push(e);
                 } else {
                     match matched {
                         None => _ = matched.replace(i),
                         Some(j) => {
-                            let kind = kind!(OneOf, subschemas: [Some(i), Some(j)]);
+                            let kind = ErrorKind::OneOf(OneOf::MultiMatch(j, i));
                             self.add_error("/oneOf", &vloc, kind);
                         }
                     }
                 }
             }
             if matched.is_none() {
-                let kind = kind!(OneOf, subschemas:[None, None]);
+                let kind = ErrorKind::OneOf(OneOf::NoneMatch);
                 self.add_errors(oneof_errors, "/oneOf", &vloc, kind);
             }
         }

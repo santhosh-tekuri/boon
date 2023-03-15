@@ -516,9 +516,14 @@ pub enum ErrorKind {
     AnyOf {
         subschema: Option<usize>,
     },
-    OneOf {
-        subschemas: [Option<usize>; 2],
-    },
+    OneOf(OneOf),
+}
+
+#[derive(Debug)]
+pub enum OneOf {
+    NoneMatch,
+    Subschema(usize),
+    MultiMatch(usize, usize),
 }
 
 impl Display for ErrorKind {
@@ -662,11 +667,9 @@ impl Display for ErrorKind {
             Self::AllOf { subschema: Some(i) } => write!(f, "allOf subschema {i} failed",),
             Self::AnyOf { subschema: None } => write!(f, "anyOf failed, none matched"),
             Self::AnyOf { subschema: Some(i) } => write!(f, "anyOf subschema {i} failed"),
-            Self::OneOf { subschemas } => match subschemas {
-                [None, None] => write!(f, "oneOf failed, none matched"),
-                [Some(i), None] | [None, Some(i)] => write!(f, "oneOf subschema {i} failed"),
-                [Some(i), Some(j)] => write!(f, "valid against oneOf subschemas {i} and {j}",),
-            },
+            Self::OneOf(OneOf::NoneMatch) => write!(f, "oneOf failed, none matched"),
+            Self::OneOf(OneOf::Subschema(i)) => write!(f, "oneOf subschema {i} failed"),
+            Self::OneOf(OneOf::MultiMatch(i, j)) => write!(f, "oneOf subschemas {i}, {j} matched"),
         }
     }
 }
