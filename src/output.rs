@@ -35,9 +35,14 @@ impl ValidationError {
         }
 
         // unwrap --
-        if !f.alternate() {
-            // unwrap if Reference with single cause
-            if matches!(self.kind, ErrorKind::Reference { .. }) && self.causes.len() == 1 {
+        let (s, frag) = split(&self.absolute_keyword_location);
+        if let ErrorKind::Reference { url } = &self.kind {
+            if self.causes.len() == 1
+                && (!f.alternate() || {
+                    let (u, _) = split(url);
+                    u == s // ref within root
+                })
+            {
                 return self.causes[0].display(f, unwrap, indent);
             }
         }
@@ -47,6 +52,7 @@ impl ValidationError {
             && !matches!(
                 self.kind,
                 ErrorKind::Schema { .. }
+                    | ErrorKind::Reference { .. }
                     | ErrorKind::AnyOf { .. }
                     | ErrorKind::OneOf(_)
                     | ErrorKind::ContentSchema
@@ -67,7 +73,6 @@ impl ValidationError {
         // location --
         let inst = &self.instance_location;
         write!(f, "at {}", quote(inst))?;
-        let (s, frag) = split(&self.absolute_keyword_location);
         if f.alternate() {
             write!(f, " [S#{frag}]")?;
         }
