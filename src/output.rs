@@ -34,27 +34,27 @@ impl ValidationError {
             return self.display_causes(f, unwrap, indent + 1);
         }
 
+        // unwrap --
         if !f.alternate() {
             // unwrap if Reference with single cause
             if matches!(self.kind, ErrorKind::Reference { .. }) && self.causes.len() == 1 {
                 return self.causes[0].display(f, unwrap, indent);
             }
-
-            let unwrap_causes = !matches!(self.kind, ErrorKind::AnyOf { .. } | ErrorKind::OneOf(_));
-            if unwrap
-                && !self.causes.is_empty()
-                && !matches!(
-                    self.kind,
-                    ErrorKind::Schema { .. }
-                        | ErrorKind::AnyOf { .. }
-                        | ErrorKind::OneOf(_)
-                        | ErrorKind::ContentSchema
-                )
-            {
-                return self.display_causes(f, unwrap_causes, indent);
-            }
-            unwrap = unwrap_causes;
         }
+        let unwrap_causes = !matches!(self.kind, ErrorKind::AnyOf { .. } | ErrorKind::OneOf(_));
+        if unwrap
+            && !self.causes.is_empty()
+            && !matches!(
+                self.kind,
+                ErrorKind::Schema { .. }
+                    | ErrorKind::AnyOf { .. }
+                    | ErrorKind::OneOf(_)
+                    | ErrorKind::ContentSchema
+            )
+        {
+            return self.display_causes(f, unwrap_causes, indent);
+        }
+        unwrap = unwrap_causes;
 
         // indent --
         if indent > 0 {
