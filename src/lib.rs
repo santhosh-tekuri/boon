@@ -614,17 +614,13 @@ pub enum ErrorKind {
         want: Number,
     },
     Not,
-    AllOf(AllOf),
+    AllOf {
+        subschema: Option<usize>,
+    },
     AnyOf,
     OneOf {
         got: Vec<usize>,
     },
-}
-
-#[derive(Debug)]
-pub enum AllOf {
-    Group,
-    Subschema(usize),
 }
 
 impl Display for ErrorKind {
@@ -762,8 +758,10 @@ impl Display for ErrorKind {
             Self::ExclusiveMaximum { got, want } => write!(f, "must be < {want} but got {got}"),
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
             Self::Not => write!(f, "not failed"),
-            Self::AllOf(AllOf::Group) => write!(f, "allOf failed",),
-            Self::AllOf(AllOf::Subschema(index)) => write!(f, "allOf subschema {index} failed",),
+            Self::AllOf { subschema: None } => write!(f, "allOf failed",),
+            Self::AllOf {
+                subschema: Some(index),
+            } => write!(f, "allOf subschema {index} failed",),
             Self::AnyOf => write!(f, "anyOf failed, none matched"),
             Self::OneOf { got } => {
                 if got.is_empty() {

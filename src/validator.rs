@@ -697,13 +697,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             for (i, sch) in s.all_of.iter().enumerate() {
                 if let Err(mut e) = self.validate_self(*sch, None, vloc.copy()) {
                     if let ErrorKind::Group = e.kind {
-                        e.kind = ErrorKind::AllOf(AllOf::Subschema(i));
+                        e.kind = ErrorKind::AllOf { subschema: Some(i) };
                     }
                     allof_errors.push(e);
                 }
             }
             if !allof_errors.is_empty() {
-                let kind = ErrorKind::AllOf(AllOf::Group);
+                let kind = ErrorKind::AllOf { subschema: None };
                 self.add_errors(allof_errors, "/allOf", &vloc, kind);
             }
         }
