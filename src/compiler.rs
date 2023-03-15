@@ -881,7 +881,7 @@ impl Display for CompileError {
             }
             Self::ValidationError { url, src } => {
                 if f.alternate() {
-                    write!(f, "{url} is not valid against metaschema: {src:#}")
+                    write!(f, "{url} is not valid against metaschema: {src}")
                 } else {
                     write!(f, "{url} is not valid against metaschema")
                 }
