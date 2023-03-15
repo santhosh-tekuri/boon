@@ -392,13 +392,7 @@ pub enum ErrorKind {
         url: String,
     },
     ContentSchema,
-    Ref {
-        url: String,
-    },
-    RecursiveRef {
-        url: String,
-    },
-    DynamicRef {
+    Reference {
         url: String,
     },
     RefCycle {
@@ -534,7 +528,7 @@ impl Display for ErrorKind {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::ContentSchema => write!(f, "contentSchema failed"),
-            Self::Ref { url } | Self::RecursiveRef { url } | Self::DynamicRef { url } => {
+            Self::Reference { url } => {
                 write!(f, "validation failed with {url}")
             }
             Self::RefCycle {

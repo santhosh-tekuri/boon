@@ -216,6 +216,7 @@ where
     f.write_str(s.map_err(|_| std::fmt::Error)?.as_str())
 }
 
+/*
 // Loc --
 
 pub(crate) enum Loc<'a> {
@@ -248,6 +249,7 @@ impl<'a> Display for Loc<'a> {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

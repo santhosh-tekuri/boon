@@ -620,15 +620,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     ) -> Result<(), ValidationError> {
         if let Err(ref_err) = self.validate_self(sch, kw.into(), vloc.copy()) {
             let url = self.schemas.get(sch).loc.clone();
-            let mut err = self.error(
-                kw,
-                &vloc,
-                match kw {
-                    "$recursiveRef" => ErrorKind::RecursiveRef { url },
-                    "$dynamicRef" => ErrorKind::DynamicRef { url },
-                    _ => ErrorKind::Ref { url },
-                },
-            );
+            let mut err = self.error(kw, &vloc, ErrorKind::Reference { url });
             if let ErrorKind::Group = ref_err.kind {
                 err.causes = ref_err.causes;
             } else {

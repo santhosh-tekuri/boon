@@ -35,9 +35,7 @@ impl ValidationError {
                 // message
                 if f.alternate() {
                     match &self.kind {
-                        ErrorKind::Ref { url }
-                        | ErrorKind::RecursiveRef { url }
-                        | ErrorKind::DynamicRef { url } => {
+                        ErrorKind::Reference { url } => {
                             let (u, frag) = split(url);
                             if u == s {
                                 write!(f, "validation failed with S#{frag}")?;
@@ -49,9 +47,10 @@ impl ValidationError {
                     }
                 } else {
                     match &self.kind {
-                        ErrorKind::Ref { .. } => write!(f, "$ref failed")?,
-                        ErrorKind::RecursiveRef { .. } => write!(f, "$recursiveRef failed")?,
-                        ErrorKind::DynamicRef { .. } => write!(f, "$dynamicRef failed")?,
+                        ErrorKind::Reference { .. } => {
+                            let kw = self.keyword_location.rsplit('/').next().unwrap_or_default();
+                            write!(f, "{kw} failed")?
+                        }
                         _ => write!(f, "{}", self.kind)?,
                     }
                 }
@@ -69,16 +68,9 @@ impl ValidationError {
         FlagOutput { valid: false }
     }
 
-    fn is_reference(&self) -> bool {
-        matches!(
-            &self.kind,
-            ErrorKind::Ref { .. } | ErrorKind::RecursiveRef { .. } | ErrorKind::DynamicRef { .. }
-        )
-    }
-
     pub fn basic_output(&self) -> OutputUnit {
         fn flatten<'a>(err: &'a ValidationError, mut in_ref: bool, v: &mut Vec<OutputUnit<'a>>) {
-            in_ref = in_ref || err.is_reference();
+            in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
                 Some(err.absolute_keyword_location.as_str())
             } else {
@@ -115,7 +107,7 @@ impl ValidationError {
 
     pub fn detailed_output(&self) -> OutputUnit {
         fn output_unit(err: &ValidationError, mut in_ref: bool) -> OutputUnit {
-            in_ref = in_ref || err.is_reference();
+            in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let error = if err.causes.is_empty() {
                 OutputError::Single(&err.kind)
             } else {
