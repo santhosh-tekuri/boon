@@ -376,115 +376,11 @@ pub struct ValidationError {
     pub causes: Vec<ValidationError>,
 }
 
-impl ValidationError {
-    fn print_alternate<'a>(
-        &'a self,
-        f: &mut std::fmt::Formatter,
-        inst_loc: &'a str,
-        mut sch_loc: &'a str,
-        indent: usize,
-    ) -> std::fmt::Result {
-        for _ in 0..indent {
-            write!(f, "  ")?;
-        }
-        if let ErrorKind::Schema { .. } = &self.kind {
-            write!(f, "jsonschema {}", self.kind)?;
-        } else {
-            if f.sign_minus() {
-                let inst_ptr = Loc::locate(inst_loc, &self.instance_location);
-                let sch_ptr = Loc::locate(sch_loc, &self.absolute_keyword_location);
-                write!(f, "I[{inst_ptr}] S[{sch_ptr}] ")?;
-            } else {
-                let inst_ptr = &self.instance_location;
-                let (_, sch_ptr) = split(&self.absolute_keyword_location);
-                write!(f, "[I#{inst_ptr}] [S#{sch_ptr}] ")?;
-            }
-            if let ErrorKind::Reference { url } = &self.kind {
-                let (a, _) = split(sch_loc);
-                let (b, ptr) = split(url);
-                if a == b {
-                    write!(f, "validation failed with {ptr}")?;
-                } else {
-                    write!(f, "{}", self.kind)?;
-                }
-            } else {
-                write!(f, "{}", self.kind)?;
-            }
-            // NOTE: this code used to check relative path correctness
-            // let (_, ptr) = split(&self.absolute_keyword_location);
-            // write!(
-            //     f,
-            //     "[I{inst_ptr}] [I{}] [S{sch_ptr}] [S{}]{}",
-            //     self.instance_location, ptr, self.kind
-            // )?;
-        }
-        sch_loc = if let ErrorKind::Reference { url } = &self.kind {
-            url
-        } else {
-            &self.absolute_keyword_location
-        };
-        for cause in &self.causes {
-            writeln!(f)?;
-            cause.print_alternate(f, &self.instance_location, sch_loc, indent + 1)?;
-        }
-        Ok(())
-    }
-}
-
 impl Error for ValidationError {}
 
 impl Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            // NOTE: only root validationError supports altername display
-            if let ErrorKind::Schema { url } = &self.kind {
-                return self.print_alternate(f, "", url, 0);
-            }
-        }
-
-        // non-alternate --
-        fn fmt_leaves(
-            e: &ValidationError,
-            f: &mut std::fmt::Formatter,
-            mut newline: bool,
-        ) -> Result<bool, std::fmt::Error> {
-            if e.causes.is_empty() {
-                if newline {
-                    writeln!(f)?;
-                }
-                write!(f, "  at {}: {}", quote(&e.instance_location), &e.kind)?;
-                newline = true;
-            } else {
-                for cause in &e.causes {
-                    newline = fmt_leaves(cause, f, newline)?;
-                }
-            }
-            Ok(newline)
-        }
-        writeln!(
-            f,
-            "jsonschema validation failed with {}",
-            &self.absolute_keyword_location
-        )?;
-        fmt_leaves(self, f, false).map(|_| ())
-
-        // let mut leaf = self;
-        // while let [cause, ..] = leaf.causes.as_slice() {
-        //     leaf = cause;
-        // }
-        // if leaf.instance_location.is_empty() {
-        //     write!(
-        //         f,
-        //         "jsonschema: validation failed with {}",
-        //         &leaf.absolute_keyword_location
-        //     )
-        // } else {
-        //     write!(
-        //         f,
-        //         "jsonschema: {} does not validate with {}: {}",
-        //         &leaf.instance_location, &leaf.absolute_keyword_location, &leaf.kind
-        //     )
-        // }
+        self.display(f, 0)
     }
 }
 
@@ -496,7 +392,13 @@ pub enum ErrorKind {
         url: String,
     },
     ContentSchema,
-    Reference {
+    Ref {
+        url: String,
+    },
+    RecursiveRef {
+        url: String,
+    },
+    DynamicRef {
         url: String,
     },
     RefCycle {
@@ -617,9 +519,11 @@ pub enum ErrorKind {
     AllOf {
         subschema: Option<usize>,
     },
-    AnyOf,
+    AnyOf {
+        subschema: Option<usize>,
+    },
     OneOf {
-        got: Vec<usize>,
+        subschemas: [Option<usize>; 2],
     },
 }
 
@@ -630,7 +534,9 @@ impl Display for ErrorKind {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::ContentSchema => write!(f, "contentSchema failed"),
-            Self::Reference { url } => write!(f, "validation failed with {url}"),
+            Self::Ref { url } | Self::RecursiveRef { url } | Self::DynamicRef { url } => {
+                write!(f, "validation failed with {url}")
+            }
             Self::RefCycle {
                 url,
                 kw_loc1,
@@ -650,7 +556,7 @@ impl Display for ErrorKind {
             Self::Enum { want, .. } => {
                 if want.iter().all(Type::primitive) {
                     if want.len() == 1 {
-                        write!(f, "value must be {want:?}")
+                        write!(f, "value must be {}", want[0])
                     } else {
                         let want = join_iter(want.iter().map(|v| format!("{v}")), ", ");
                         write!(f, "value must be one of {want}")
@@ -740,7 +646,7 @@ impl Display for ErrorKind {
                     )
             }
             Self::UniqueItems { got: [i, j] } => write!(f, "items at {i} and {j} are equal"),
-            Self::AdditionalItems { got } => write!(f, "got {got} additionalItems"),
+            Self::AdditionalItems { got } => write!(f, "last {got} additionalItems not allowed"),
             Self::MinLength { got, want } => write!(f, "length must be >={want}, but got {got}"),
             Self::MaxLength { got, want } => write!(f, "length must be <={want}, but got {got}"),
             Self::Pattern { got, want } => {
@@ -759,21 +665,14 @@ impl Display for ErrorKind {
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
             Self::Not => write!(f, "not failed"),
             Self::AllOf { subschema: None } => write!(f, "allOf failed",),
-            Self::AllOf {
-                subschema: Some(index),
-            } => write!(f, "allOf subschema {index} failed",),
-            Self::AnyOf => write!(f, "anyOf failed, none matched"),
-            Self::OneOf { got } => {
-                if got.is_empty() {
-                    write!(f, "oneOf failed, none matched")
-                } else {
-                    write!(
-                        f,
-                        "want valid against oneOf subschema, but valid against subschemas {}",
-                        join_iter(got, " and "),
-                    )
-                }
-            }
+            Self::AllOf { subschema: Some(i) } => write!(f, "allOf subschema {i} failed",),
+            Self::AnyOf { subschema: None } => write!(f, "anyOf failed, none matched"),
+            Self::AnyOf { subschema: Some(i) } => write!(f, "anyOf subschema {i} failed"),
+            Self::OneOf { subschemas } => match subschemas {
+                [None, None] => write!(f, "oneOf failed, none matched"),
+                [Some(i), None] | [None, Some(i)] => write!(f, "oneOf subschema {i} failed"),
+                [Some(i), Some(j)] => write!(f, "valid against oneOf subschemas {i} and {j}",),
+            },
         }
     }
 }

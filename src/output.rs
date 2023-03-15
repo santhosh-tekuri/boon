@@ -1,20 +1,84 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 use serde::{
     ser::{SerializeMap, SerializeSeq},
     Serialize,
 };
 
-use crate::{util::write_json_to_fmt, ErrorKind, ValidationError};
+use crate::{
+    util::{quote, split, write_json_to_fmt},
+    ErrorKind, ValidationError,
+};
 
 impl ValidationError {
+    pub(crate) fn display(&self, f: &mut Formatter, indent: usize) -> std::fmt::Result {
+        if indent > 0 {
+            for _ in 0..indent - 1 {
+                write!(f, "  ")?;
+            }
+            write!(f, "- ")?;
+        }
+
+        match &self.kind {
+            ErrorKind::Schema { .. } if indent == 0 => {
+                write!(f, "jsonschema {}", self.kind)?;
+            }
+            _ => {
+                let inst = &self.instance_location;
+                write!(f, "at {}", quote(inst))?;
+                let (s, frag) = split(&self.absolute_keyword_location);
+                if f.alternate() {
+                    write!(f, " [S#{frag}]")?;
+                }
+                write!(f, ": ")?;
+
+                // message
+                if f.alternate() {
+                    match &self.kind {
+                        ErrorKind::Ref { url }
+                        | ErrorKind::RecursiveRef { url }
+                        | ErrorKind::DynamicRef { url } => {
+                            let (u, frag) = split(url);
+                            if u == s {
+                                write!(f, "validation failed with S#{frag}")?;
+                            } else {
+                                write!(f, "{}", self.kind)?;
+                            }
+                        }
+                        _ => write!(f, "{}", self.kind)?,
+                    }
+                } else {
+                    match &self.kind {
+                        ErrorKind::Ref { .. } => write!(f, "$ref failed")?,
+                        ErrorKind::RecursiveRef { .. } => write!(f, "$recursiveRef failed")?,
+                        ErrorKind::DynamicRef { .. } => write!(f, "$dynamicRef failed")?,
+                        _ => write!(f, "{}", self.kind)?,
+                    }
+                }
+            }
+        }
+
+        for cause in &self.causes {
+            writeln!(f)?;
+            cause.display(f, indent + 1)?;
+        }
+        Ok(())
+    }
+
     pub fn flag_output(&self) -> FlagOutput {
         FlagOutput { valid: false }
     }
 
+    fn is_reference(&self) -> bool {
+        matches!(
+            &self.kind,
+            ErrorKind::Ref { .. } | ErrorKind::RecursiveRef { .. } | ErrorKind::DynamicRef { .. }
+        )
+    }
+
     pub fn basic_output(&self) -> OutputUnit {
         fn flatten<'a>(err: &'a ValidationError, mut in_ref: bool, v: &mut Vec<OutputUnit<'a>>) {
-            in_ref = in_ref || matches!(&err.kind, ErrorKind::Reference { .. });
+            in_ref = in_ref || err.is_reference();
             let absolute_keyword_location = if in_ref {
                 Some(err.absolute_keyword_location.as_str())
             } else {
@@ -51,7 +115,7 @@ impl ValidationError {
 
     pub fn detailed_output(&self) -> OutputUnit {
         fn output_unit(err: &ValidationError, mut in_ref: bool) -> OutputUnit {
-            in_ref = in_ref || matches!(&err.kind, ErrorKind::Reference { .. });
+            in_ref = in_ref || err.is_reference();
             let error = if err.causes.is_empty() {
                 OutputError::Single(&err.kind)
             } else {
@@ -94,7 +158,7 @@ impl Serialize for FlagOutput {
 }
 
 impl Display for FlagOutput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write_json_to_fmt(f, self)
     }
 }
@@ -130,7 +194,7 @@ impl<'a> Serialize for OutputUnit<'a> {
 }
 
 impl<'a> Display for OutputUnit<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write_json_to_fmt(f, self)
     }
 }

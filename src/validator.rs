@@ -303,8 +303,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                 Additional::SchemaRef(sch) => {
                     for &pname in self.uneval.props.iter() {
                         if let Some(pvalue) = obj.get(pname) {
-                            let result = self.validate_val(*sch, pvalue, vloc.prop(pname));
-                            add_err!(result);
+                            add_err!(self.validate_val(*sch, pvalue, vloc.prop(pname)));
                         }
                     }
                 }
@@ -620,11 +619,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         mut vloc: JsonPointer,
     ) -> Result<(), ValidationError> {
         if let Err(ref_err) = self.validate_self(sch, kw.into(), vloc.copy()) {
+            let url = self.schemas.get(sch).loc.clone();
             let mut err = self.error(
                 kw,
                 &vloc,
-                ErrorKind::Reference {
-                    url: self.schemas.get(sch).loc.clone(),
+                match kw {
+                    "$recursiveRef" => ErrorKind::RecursiveRef { url },
+                    "$dynamicRef" => ErrorKind::DynamicRef { url },
+                    _ => ErrorKind::Ref { url },
                 },
             );
             if let ErrorKind::Group = ref_err.kind {
@@ -712,35 +714,42 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if !s.any_of.is_empty() {
             // NOTE: all schemas must be checked
             let mut anyof_errors = vec![];
-            for sch in s.any_of.iter() {
-                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
+            for (i, sch) in s.any_of.iter().enumerate() {
+                if let Err(mut e) = self.validate_self(*sch, None, vloc.copy()) {
+                    if let ErrorKind::Group = e.kind {
+                        e.kind = ErrorKind::AnyOf { subschema: Some(i) };
+                    }
                     anyof_errors.push(e);
                 }
             }
             if anyof_errors.len() == s.any_of.len() {
-                // none matched
-                self.add_errors(anyof_errors, "/anyOf", &vloc, kind!(AnyOf));
+                let kind = ErrorKind::AnyOf { subschema: None };
+                self.add_errors(anyof_errors, "/anyOf", &vloc, kind);
             }
         }
 
         // oneOf --
         if !s.one_of.is_empty() {
-            let (mut matched, mut oneof_errors) = (vec![], vec![]);
+            let (mut matched, mut oneof_errors) = (None, vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
-                if let Err(e) = self.validate_self(*sch, None, vloc.copy()) {
+                if let Err(mut e) = self.validate_self(*sch, None, vloc.copy()) {
+                    if let ErrorKind::Group = e.kind {
+                        e.kind = kind!(OneOf, subschemas: [Some(i), None]);
+                    }
                     oneof_errors.push(e);
                 } else {
-                    matched.push(i);
-                    if matched.len() == 2 {
-                        break;
+                    match matched {
+                        None => _ = matched.replace(i),
+                        Some(j) => {
+                            let kind = kind!(OneOf, subschemas: [Some(i), Some(j)]);
+                            self.add_error("/oneOf", &vloc, kind);
+                        }
                     }
                 }
             }
-            if matched.is_empty() {
-                // none matched
-                self.add_errors(oneof_errors, "/oneOf", &vloc, kind!(OneOf, got: matched));
-            } else if matched.len() > 1 {
-                self.add_error("/oneOf", &vloc, kind!(OneOf, got: matched));
+            if matched.is_none() {
+                let kind = kind!(OneOf, subschemas:[None, None]);
+                self.add_errors(oneof_errors, "/oneOf", &vloc, kind);
             }
         }
 
