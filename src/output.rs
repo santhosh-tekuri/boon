@@ -12,6 +12,13 @@ use crate::{
 
 impl ValidationError {
     pub(crate) fn display(&self, f: &mut Formatter, indent: usize) -> std::fmt::Result {
+        if !f.alternate()
+            && matches!(self.kind, ErrorKind::Reference { .. })
+            && self.causes.len() == 1
+        {
+            return self.causes[0].display(f, indent);
+        }
+
         if indent > 0 {
             for _ in 0..indent - 1 {
                 write!(f, "  ")?;
