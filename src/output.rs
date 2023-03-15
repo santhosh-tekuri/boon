@@ -11,12 +11,42 @@ use crate::{
 };
 
 impl ValidationError {
-    pub(crate) fn display(&self, f: &mut Formatter, indent: usize) -> std::fmt::Result {
-        if !f.alternate()
-            && matches!(self.kind, ErrorKind::Reference { .. })
-            && self.causes.len() == 1
-        {
-            return self.causes[0].display(f, indent);
+    fn display_causes(&self, f: &mut Formatter, unwrap: bool, indent: usize) -> std::fmt::Result {
+        for (i, cause) in self.causes.iter().enumerate() {
+            if i != 0 {
+                writeln!(f)?;
+            };
+            cause.display(f, unwrap, indent)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn display(
+        &self,
+        f: &mut Formatter,
+        mut unwrap: bool,
+        indent: usize,
+    ) -> std::fmt::Result {
+        if !f.alternate() {
+            // unwrap if Reference with single cause
+            if matches!(self.kind, ErrorKind::Reference { .. }) && self.causes.len() == 1 {
+                return self.causes[0].display(f, unwrap, indent);
+            }
+
+            let unwrap_causes = !matches!(self.kind, ErrorKind::AnyOf { .. } | ErrorKind::OneOf(_));
+            if unwrap
+                && !self.causes.is_empty()
+                && !matches!(
+                    self.kind,
+                    ErrorKind::Schema { .. }
+                        | ErrorKind::AnyOf { .. }
+                        | ErrorKind::OneOf(_)
+                        | ErrorKind::ContentSchema
+                )
+            {
+                return self.display_causes(f, unwrap_causes, indent);
+            }
+            unwrap = unwrap_causes;
         }
 
         if indent > 0 {
@@ -63,12 +93,10 @@ impl ValidationError {
                 }
             }
         }
-
-        for cause in &self.causes {
+        if !self.causes.is_empty() {
             writeln!(f)?;
-            cause.display(f, indent + 1)?;
         }
-        Ok(())
+        self.display_causes(f, unwrap, indent + 1)
     }
 
     pub fn flag_output(&self) -> FlagOutput {

@@ -380,7 +380,7 @@ impl Error for ValidationError {}
 
 impl Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.display(f, 0)
+        self.display(f, true, 0)
     }
 }
 
