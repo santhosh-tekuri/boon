@@ -125,20 +125,20 @@ impl ValidationError {
                 keyword_location: &err.keyword_location,
                 absolute_keyword_location,
                 instance_location: &err.instance_location,
-                error: OutputError::Single(&err.kind),
+                error: OutputError::Leaf(&err.kind),
             });
             for cause in &err.causes {
                 flatten(cause, in_ref, v);
             }
         }
         let error = if self.causes.is_empty() {
-            OutputError::Single(&self.kind)
+            OutputError::Leaf(&self.kind)
         } else {
             let mut v = vec![];
             for cause in &self.causes {
                 flatten(cause, false, &mut v);
             }
-            OutputError::Multiple(v)
+            OutputError::Branch(v)
         };
         OutputUnit {
             valid: false,
@@ -153,13 +153,13 @@ impl ValidationError {
         fn output_unit(err: &ValidationError, mut in_ref: bool) -> OutputUnit {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let error = if err.causes.is_empty() {
-                OutputError::Single(&err.kind)
+                OutputError::Leaf(&err.kind)
             } else {
                 let mut v = vec![];
                 for cause in &err.causes {
                     v.push(output_unit(cause, in_ref));
                 }
-                OutputError::Multiple(v)
+                OutputError::Branch(v)
             };
             let absolute_keyword_location = if in_ref {
                 Some(err.absolute_keyword_location.as_str())
@@ -221,8 +221,8 @@ impl<'a> Serialize for OutputUnit<'a> {
         }
         map.serialize_entry("instanceLocation", &self.instance_location)?;
         let pname = match self.error {
-            OutputError::Single(_) => "error",
-            OutputError::Multiple(_) => "errors",
+            OutputError::Leaf(_) => "error",
+            OutputError::Branch(_) => "errors",
         };
         map.serialize_entry(pname, &self.error)?;
         map.end()
@@ -236,8 +236,8 @@ impl<'a> Display for OutputUnit<'a> {
 }
 
 pub enum OutputError<'a> {
-    Single(&'a ErrorKind),
-    Multiple(Vec<OutputUnit<'a>>),
+    Leaf(&'a ErrorKind),
+    Branch(Vec<OutputUnit<'a>>),
 }
 
 impl<'a> Serialize for OutputError<'a> {
@@ -246,8 +246,8 @@ impl<'a> Serialize for OutputError<'a> {
         S: serde::Serializer,
     {
         match self {
-            OutputError::Single(kind) => serializer.serialize_str(&kind.to_string()),
-            OutputError::Multiple(units) => {
+            OutputError::Leaf(kind) => serializer.serialize_str(&kind.to_string()),
+            OutputError::Branch(units) => {
                 let mut seq = serializer.serialize_seq(Some(units.len()))?;
                 for unit in units {
                     seq.serialize_element(unit)?;
