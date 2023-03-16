@@ -119,6 +119,7 @@ pub use compiler::*;
 pub use content::*;
 pub use formats::*;
 pub use loader::*;
+pub use output::*;
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 

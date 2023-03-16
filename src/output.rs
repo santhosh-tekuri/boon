@@ -5,10 +5,7 @@ use serde::{
     Serialize,
 };
 
-use crate::{
-    util::{quote, split, write_json_to_fmt},
-    ErrorKind, ValidationError,
-};
+use crate::{util::*, ErrorKind, ValidationError};
 
 impl ValidationError {
     fn display_causes(&self, f: &mut Formatter, unwrap: bool, indent: usize) -> std::fmt::Result {
@@ -187,7 +184,7 @@ impl ValidationError {
 }
 
 pub struct FlagOutput {
-    valid: bool,
+    pub valid: bool,
 }
 
 impl Serialize for FlagOutput {
