@@ -152,6 +152,14 @@ impl ValidationError {
     pub fn detailed_output(&self) -> OutputUnit {
         fn output_unit(err: &ValidationError, mut in_ref: bool) -> OutputUnit {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
+
+            // single cause
+            if !matches!(err.kind, ErrorKind::ContentSchema) {
+                if let [cause] = &err.causes[..] {
+                    return output_unit(cause, in_ref);
+                }
+            }
+
             let error = if err.causes.is_empty() {
                 OutputError::Leaf(&err.kind)
             } else {
