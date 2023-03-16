@@ -113,14 +113,14 @@ impl ValidationError {
     }
 
     pub fn basic_output(&self) -> OutputUnit {
-        fn flatten<'a>(err: &'a ValidationError, mut in_ref: bool, v: &mut Vec<OutputUnit<'a>>) {
+        fn flatten<'a>(err: &'a ValidationError, mut in_ref: bool, tgt: &mut Vec<OutputUnit<'a>>) {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
                 Some(err.absolute_keyword_location.as_str())
             } else {
                 None
             };
-            v.push(OutputUnit {
+            tgt.push(OutputUnit {
                 valid: false,
                 keyword_location: &err.keyword_location,
                 absolute_keyword_location,
@@ -128,7 +128,7 @@ impl ValidationError {
                 error: OutputError::Leaf(&err.kind),
             });
             for cause in &err.causes {
-                flatten(cause, in_ref, v);
+                flatten(cause, in_ref, tgt);
             }
         }
         let error = if self.causes.is_empty() {
