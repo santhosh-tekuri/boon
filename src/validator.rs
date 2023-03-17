@@ -1,6 +1,6 @@
 use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::{util::*, *};
 
@@ -139,10 +139,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
         }
 
-        self.obj_validate(vloc.copy());
-        self.arr_validate(vloc.copy());
-        self.str_validate(vloc.copy());
-        self.num_validate(vloc.copy());
+        match v {
+            Value::Object(obj) => self.obj_validate(obj, vloc.copy()),
+            Value::Array(arr) => self.arr_validate(arr, vloc.copy()),
+            Value::String(str) => self.str_validate(str, vloc.copy()),
+            Value::Number(num) => self.num_validate(num, vloc.copy()),
+            _ => {}
+        }
 
         self.refs_validate(vloc.copy());
         self.cond_validate(vloc.copy());
@@ -162,11 +165,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // type specific validations
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn obj_validate(&mut self, mut vloc: JsonPointer) {
-        let Value::Object(obj) = self.v else {
-            return;
-        };
-
+    fn obj_validate(&mut self, obj: &Map<String, Value>, mut vloc: JsonPointer) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -312,11 +311,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
     }
 
-    fn arr_validate(&mut self, mut vloc: JsonPointer) {
-        let Value::Array(arr) = self.v else {
-            return;
-        };
-
+    fn arr_validate(&mut self, arr: &Vec<Value>, mut vloc: JsonPointer) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -457,11 +452,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
     }
 
-    fn str_validate(&mut self, vloc: JsonPointer) {
-        let Value::String(str) = self.v else {
-            return;
-        };
-
+    fn str_validate(&mut self, str: &String, vloc: JsonPointer) {
         let s = self.schema;
         let mut len = None;
 
@@ -522,11 +513,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
     }
 
-    fn num_validate(&mut self, vloc: JsonPointer) {
-        let Value::Number(num) = self.v else {
-            return;
-        };
-
+    fn num_validate(&mut self, num: &Number, vloc: JsonPointer) {
         let s = self.schema;
 
         // minimum --
