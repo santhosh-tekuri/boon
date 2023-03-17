@@ -220,7 +220,7 @@ struct Schema {
     recursive_anchor: bool,
     dynamic_ref: Option<DynamicRef>,
     dynamic_anchor: Option<String>,
-    types: Vec<Type>,
+    types: Types,
     enum_: Vec<Value>,
     constant: Option<Value>,
     not: Option<SchemaIndex>,
@@ -307,16 +307,15 @@ impl Schema {
 }
 
 /// JSON data types for JSONSchema
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
-    Null,
-    Bool,
-    Number,
-    /// Matches any number with a zero fractional part
-    Integer,
-    String,
-    Array,
-    Object,
+    Null = 1,
+    Bool = 2,
+    Number = 4,
+    Integer = 8,
+    String = 16,
+    Array = 32,
+    Object = 64,
 }
 
 impl Type {
@@ -330,6 +329,7 @@ impl Type {
             Value::Object(_) => Type::Object,
         }
     }
+
     fn from_str(value: &str) -> Option<Self> {
         match value {
             "null" => Some(Self::Null),
@@ -359,6 +359,36 @@ impl Display for Type {
             Type::Array => write!(f, "array"),
             Type::Object => write!(f, "object"),
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Types(u8);
+
+impl Types {
+    fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    fn add(&mut self, t: Type) {
+        self.0 |= t as u8;
+    }
+
+    fn contains(&self, t: Type) -> bool {
+        self.0 & t as u8 != 0
+    }
+
+    fn iter(&self) -> impl Iterator<Item = Type> + '_ {
+        static TYPES: [Type; 7] = [
+            Type::Null,
+            Type::Bool,
+            Type::Number,
+            Type::Integer,
+            Type::String,
+            Type::Array,
+            Type::Object,
+        ];
+        TYPES.iter().cloned().filter(|t| self.contains(*t))
     }
 }
 
@@ -404,7 +434,7 @@ pub enum ErrorKind {
     FalseSchema,
     Type {
         got: Type,
-        want: Vec<Type>,
+        want: Types,
     },
     Enum {
         got: Value,
@@ -549,7 +579,7 @@ impl Display for ErrorKind {
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {
                 // todo: why join not working for Type struct ??
-                let want = join_iter(want, ", ");
+                let want = join_iter(want.iter(), " or ");
                 write!(f, "want {want}, but got {got}",)
             }
             Self::Enum { want, .. } => {

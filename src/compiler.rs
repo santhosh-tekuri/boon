@@ -438,15 +438,19 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
         if self.has_vocab("validation") {
             match self.value("type") {
-                Some(Value::String(t)) => s.types.extend(Type::from_str(t)),
-                Some(Value::Array(tt)) => {
-                    s.types.extend(tt.iter().filter_map(|t| {
+                Some(Value::String(t)) => {
+                    if let Some(t) = Type::from_str(t) {
+                        s.types.add(t)
+                    }
+                }
+                Some(Value::Array(arr)) => {
+                    for t in arr {
                         if let Value::String(t) = t {
-                            Type::from_str(t)
-                        } else {
-                            None
+                            if let Some(t) = Type::from_str(t) {
+                                s.types.add(t)
+                            }
                         }
-                    }));
+                    }
                 }
                 _ => {}
             }

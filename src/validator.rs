@@ -107,18 +107,15 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // type --
         if !s.types.is_empty() {
             let v_type = Type::of(v);
-            let matched = self.schema.types.iter().any(|t| {
-                if *t == Type::Integer && v_type == Type::Number {
-                    if let Value::Number(n) = v {
-                        return n.is_i64()
-                            || n.is_u64()
-                            || n.as_f64().filter(|n| n.fract() == 0.0).is_some();
-                    }
+            let matched = s.types.contains(v_type) || {
+                if let Value::Number(n) = v {
+                    s.types.contains(Type::Integer) && is_integer(n)
+                } else {
+                    false
                 }
-                *t == v_type
-            });
+            };
             if !matched {
-                self.add_error("/type", &vloc, kind!(Type, v_type, s.types.clone()));
+                self.add_error("/type", &vloc, kind!(Type, v_type, s.types));
             }
         }
 

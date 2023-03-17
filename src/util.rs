@@ -2,10 +2,14 @@ use std::{borrow::Cow, fmt::Display, path::Path, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Number, Value};
 use url::Url;
 
 use crate::CompileError;
+
+pub(crate) fn is_integer(n: &Number) -> bool {
+    n.is_i64() || n.is_u64() || n.as_f64().filter(|n| n.fract() == 0.0).is_some()
+}
 
 fn starts_with_windows_drive(p: &str) -> bool {
     p.chars().next().filter(char::is_ascii_uppercase).is_some() && p[1..].starts_with(":\\")
