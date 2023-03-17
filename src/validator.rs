@@ -15,7 +15,7 @@ pub(crate) fn validate(
         vid: 0,
         parent: None,
     };
-    let mut vloc = String::new();
+    let mut vloc = Vec::new();
     let result = Validator {
         v,
         schema,
@@ -83,7 +83,7 @@ struct Validator<'v, 'a, 'b, 'd> {
 }
 
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn validate(mut self, mut vloc: JsonPointer) -> Result<Uneval<'v>, ValidationError> {
+    fn validate(mut self, mut vloc: JsonPointer<'_, 'v>) -> Result<Uneval<'v>, ValidationError> {
         let s = self.schema;
         let v = self.v;
 
@@ -165,7 +165,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // type specific validations
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn obj_validate(&mut self, obj: &Map<String, Value>, mut vloc: JsonPointer) {
+    fn obj_validate(&mut self, obj: &'v Map<String, Value>, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -194,7 +194,9 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let Some(sch) = &s.property_names {
             for pname in obj.keys() {
                 let v = Value::String(pname.to_owned());
-                add_err!(self.validate_val(*sch, &v, vloc.prop(pname)));
+                let path = vloc.prop(pname).to_string();
+                let mut vloc = vec![Token::Path(path)];
+                add_err!(self.validate_val(*sch, &v, JsonPointer::new(&mut vloc)));
             }
         }
 
@@ -311,7 +313,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
     }
 
-    fn arr_validate(&mut self, arr: &Vec<Value>, mut vloc: JsonPointer) {
+    fn arr_validate(&mut self, arr: &'v Vec<Value>, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -568,7 +570,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // references validation
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn refs_validate(&mut self, mut vloc: JsonPointer) {
+    fn refs_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -608,7 +610,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         &mut self,
         sch: SchemaIndex,
         kw: &'static str,
-        mut vloc: JsonPointer,
+        mut vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError> {
         if let Err(ref_err) = self.validate_self(sch, kw.into(), vloc.copy()) {
             let url = self.schemas.get(sch).loc.clone();
@@ -661,7 +663,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // conditional validation
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn cond_validate(&mut self, mut vloc: JsonPointer) {
+    fn cond_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -752,7 +754,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // uneval validation
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn uneval_validate(&mut self, mut vloc: JsonPointer) {
+    fn uneval_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         let v = self.v;
         macro_rules! add_err {
@@ -789,8 +791,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn validate_val(
         &self,
         sch: SchemaIndex,
-        v: &Value,
-        vloc: JsonPointer,
+        v: &'v Value,
+        vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError> {
         let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
         let schema = &self.schemas.get(sch);
@@ -810,7 +812,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         &mut self,
         sch: SchemaIndex,
         kw_path: Option<&'static str>,
-        vloc: JsonPointer,
+        vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError> {
         let scope = Scope::child(sch, kw_path, self.scope.vid, &self.scope);
         let schema = &self.schemas.get(sch);
@@ -960,47 +962,56 @@ impl<'a> Scope<'a> {
     }
 }
 
-// JsonPointer --
+enum Token<'v> {
+    Path(String),
+    String(&'v str),
+    Int(usize),
+}
 
-struct JsonPointer<'a> {
-    str: &'a mut String,
+struct JsonPointer<'a, 'v> {
+    vec: &'a mut Vec<Token<'v>>,
     len: usize,
 }
 
-impl<'a> JsonPointer<'a> {
-    fn new(str: &'a mut String) -> Self {
-        let len = str.len();
-        Self { str, len }
+impl<'a, 'v> JsonPointer<'a, 'v> {
+    fn new(vec: &'a mut Vec<Token<'v>>) -> Self {
+        let len = vec.len();
+        Self { vec, len }
     }
 
-    fn as_str(&self) -> &str {
-        &self.str[..self.len]
-    }
-
-    fn copy(&mut self) -> JsonPointer {
+    fn copy<'x>(&'x mut self) -> JsonPointer<'x, 'v> {
         JsonPointer {
-            str: self.str,
+            vec: &mut *self.vec,
             len: self.len,
         }
     }
 
-    fn prop(&mut self, name: &str) -> JsonPointer {
-        self.str.truncate(self.len);
-        self.str.push('/');
-        self.str.push_str(&escape(name));
-        JsonPointer::new(self.str)
+    fn prop<'x>(&'x mut self, name: &'v str) -> JsonPointer<'x, 'v> {
+        self.vec.truncate(self.len);
+        self.vec.push(Token::String(name));
+        JsonPointer::new(self.vec)
     }
 
-    fn item(&mut self, i: usize) -> JsonPointer {
-        self.str.truncate(self.len);
-        self.str.push('/');
-        write!(self.str, "{i}").expect("write to String should never fail"); // todo: can itoa create better perform
-        JsonPointer::new(self.str)
+    fn item<'x>(&'x mut self, i: usize) -> JsonPointer<'x, 'v> {
+        self.vec.truncate(self.len);
+        self.vec.push(Token::Int(i));
+        JsonPointer::new(self.vec)
     }
 }
 
-impl<'a> ToString for JsonPointer<'a> {
+impl<'a, 'v> ToString for JsonPointer<'a, 'v> {
     fn to_string(&self) -> String {
-        self.as_str().to_string()
+        let mut result = String::new();
+        for tok in self.vec.iter() {
+            result.push('/');
+            match tok {
+                Token::Path(p) => result.push_str(p),
+                Token::String(s) => result.push_str(escape(s).as_ref()),
+                Token::Int(i) => {
+                    write!(&mut result, "{i}").expect("write to String should never fail")
+                }
+            }
+        }
+        result
     }
 }
