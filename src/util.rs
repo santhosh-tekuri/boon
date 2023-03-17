@@ -70,8 +70,13 @@ where
 //     url_escape::encode_path(s).into_owned()
 // }
 
-pub(crate) fn escape(token: &str) -> String {
-    token.replace('~', "~0").replace('/', "~1")
+pub(crate) fn escape(token: &str) -> Cow<str> {
+    const SPECIAL: [char; 2] = ['~', '/'];
+    if token.contains(SPECIAL) {
+        token.replace('~', "~0").replace('/', "~1").into()
+    } else {
+        token.into()
+    }
 }
 
 pub(crate) fn path_unescape(s: &str) -> Result<String, Utf8Error> {
