@@ -212,6 +212,8 @@ struct Schema {
     loc: String,
     resource: SchemaIndex,
     dynamic_anchors: HashMap<String, SchemaIndex>,
+    all_props_evaluated: bool,
+    all_items_evaluated: bool,
 
     // type agnostic --
     boolean: Option<bool>, // boolean schema

@@ -1,9 +1,4 @@
-use std::{
-    borrow::Cow,
-    cmp::{min, Ordering::Less},
-    collections::HashSet,
-    fmt::Write,
-};
+use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
 
 use serde_json::Value;
 
@@ -26,7 +21,7 @@ pub(crate) fn validate(
         schema,
         schemas,
         scope,
-        uneval: Uneval::from(v, schema),
+        uneval: Uneval::from(v, schema, false),
         errors: vec![],
     }
     .validate(JsonPointer::new(&mut vloc));
@@ -817,7 +812,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(v, schema),
+            uneval: Uneval::from(v, schema, false),
             errors: vec![],
         }
         .validate(vloc)
@@ -837,7 +832,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(self.v, schema),
+            uneval: Uneval::from(self.v, schema, !self.uneval.is_empty()),
             errors: vec![],
         }
         .validate(vloc);
@@ -904,23 +899,22 @@ struct Uneval<'v> {
 }
 
 impl<'v> Uneval<'v> {
-    fn from(v: &'v Value, sch: &Schema) -> Self {
+    fn is_empty(&self) -> bool {
+        self.props.is_empty() && self.items.is_empty()
+    }
+
+    fn from(v: &'v Value, sch: &Schema, caller_needs: bool) -> Self {
         let mut uneval = Self::default();
         match v {
             Value::Object(obj) => {
-                if sch.additional_properties.is_none() {
+                if !sch.all_props_evaluated
+                    && (caller_needs || sch.unevaluated_properties.is_some())
+                {
                     uneval.props = obj.keys().collect();
                 }
             }
             Value::Array(arr) => {
-                let skip = match sch.draft_version.cmp(&2020) {
-                    Less => {
-                        sch.additional_items.is_some()
-                            || matches!(sch.items, Some(Items::SchemaRef(_)))
-                    }
-                    _ => sch.items2020.is_some(),
-                };
-                if !skip {
+                if !sch.all_items_evaluated && (caller_needs || sch.unevaluated_items.is_some()) {
                     uneval.items = (0..arr.len()).collect();
                 }
             }

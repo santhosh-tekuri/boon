@@ -337,6 +337,14 @@ impl Compiler {
             Value::Bool(b) => s.boolean = Some(*b),
             _ => {}
         }
+
+        s.all_props_evaluated = s.additional_properties.is_some();
+        s.all_items_evaluated = if s.draft_version < 2020 {
+            s.additional_items.is_some() || matches!(s.items, Some(Items::SchemaRef(_)))
+        } else {
+            s.items2020.is_some()
+        };
+
         Ok(s)
     }
 }
