@@ -1,4 +1,9 @@
-use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
+use std::{
+    borrow::Cow,
+    cmp::{min, Ordering::Less},
+    collections::HashSet,
+    fmt::Write,
+};
 
 use serde_json::Value;
 
@@ -21,7 +26,7 @@ pub(crate) fn validate(
         schema,
         schemas,
         scope,
-        uneval: Uneval::from(v),
+        uneval: Uneval::from(v, schema),
         errors: vec![],
     }
     .validate(JsonPointer::new(&mut vloc));
@@ -367,7 +372,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                             }
                         }
                         evaluated = arr.len();
-                        self.uneval.items.clear();
+                        debug_assert!(self.uneval.items.is_empty());
                     }
                     Items::SchemaRefs(list) => {
                         for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
@@ -394,7 +399,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                         }
                     }
                 }
-                self.uneval.items.clear();
+                debug_assert!(self.uneval.items.is_empty());
             }
         } else {
             // prefixItems --
@@ -414,7 +419,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                         self.errors.push(e);
                     }
                 }
-                self.uneval.items.clear();
+                debug_assert!(self.uneval.items.is_empty());
             }
         }
 
@@ -806,12 +811,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         vloc: JsonPointer,
     ) -> Result<(), ValidationError> {
         let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
+        let schema = &self.schemas.get(sch);
         Validator {
             v,
-            schema: self.schemas.get(sch),
+            schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(v),
+            uneval: Uneval::from(v, schema),
             errors: vec![],
         }
         .validate(vloc)
@@ -825,12 +831,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         vloc: JsonPointer,
     ) -> Result<(), ValidationError> {
         let scope = Scope::child(sch, kw_path, self.scope.vid, &self.scope);
+        let schema = &self.schemas.get(sch);
         let result = Validator {
             v: self.v,
-            schema: self.schemas.get(sch),
+            schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(self.v),
+            uneval: Uneval::from(self.v, schema),
             errors: vec![],
         }
         .validate(vloc);
@@ -897,21 +904,34 @@ struct Uneval<'v> {
 }
 
 impl<'v> Uneval<'v> {
-    fn merge(&mut self, other: &Uneval) {
-        self.props.retain(|p| other.props.contains(p));
-        self.items.retain(|i| other.items.contains(i));
-    }
-}
-
-impl<'v> From<&'v Value> for Uneval<'v> {
-    fn from(v: &'v Value) -> Self {
+    fn from(v: &'v Value, sch: &Schema) -> Self {
         let mut uneval = Self::default();
         match v {
-            Value::Object(obj) => uneval.props = obj.keys().collect(),
-            Value::Array(arr) => uneval.items = (0..arr.len()).collect(),
+            Value::Object(obj) => {
+                if sch.additional_properties.is_none() {
+                    uneval.props = obj.keys().collect();
+                }
+            }
+            Value::Array(arr) => {
+                let skip = match sch.draft_version.cmp(&2020) {
+                    Less => {
+                        sch.additional_items.is_some()
+                            || matches!(sch.items, Some(Items::SchemaRef(_)))
+                    }
+                    _ => sch.items2020.is_some(),
+                };
+                if !skip {
+                    uneval.items = (0..arr.len()).collect();
+                }
+            }
             _ => (),
         }
         uneval
+    }
+
+    fn merge(&mut self, other: &Uneval) {
+        self.props.retain(|p| other.props.contains(p));
+        self.items.retain(|i| other.items.contains(i));
     }
 }
 
