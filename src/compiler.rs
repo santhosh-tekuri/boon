@@ -652,7 +652,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 // enqueue helpers
 impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     fn enqueue_path(&mut self, path: String) -> SchemaIndex {
-        let loc = format!("{}/{path}", self.loc);
+        let loc = format!("{}/{path}", self.loc); // todo: path needs url-encode
         self.schemas.enqueue(self.queue, loc)
     }
 
