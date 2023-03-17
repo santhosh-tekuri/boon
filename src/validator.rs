@@ -191,6 +191,14 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
         }
 
+        // propertyNames --
+        if let Some(sch) = &s.property_names {
+            for pname in obj.keys() {
+                let v = Value::String(pname.to_owned());
+                add_err!(self.validate_val(*sch, &v, vloc.prop(pname)));
+            }
+        }
+
         let find_missing = |required: &Vec<String>| {
             required
                 .iter()
@@ -259,48 +267,48 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
         }
 
-        // properties --
-        for (pname, &psch) in &s.properties {
-            if let Some(pvalue) = obj.get(pname) {
-                self.uneval.props.remove(pname);
-                add_err!(self.validate_val(psch, pvalue, vloc.prop(pname)));
-            }
-        }
+        for (pname, pvalue) in obj {
+            let mut evaluated = false;
 
-        // patternProperties --
-        for (regex, psch) in &s.pattern_properties {
-            for (pname, pvalue) in obj.iter().filter(|(pname, _)| regex.is_match(pname)) {
-                self.uneval.props.remove(pname);
-                add_err!(self.validate_val(*psch, pvalue, vloc.prop(pname)));
+            // properties --
+            if let Some(&sch) = s.properties.get(pname) {
+                match self.validate_val(sch, pvalue, vloc.prop(pname)) {
+                    Ok(_) => evaluated = true,
+                    Err(e) => self.errors.push(e),
+                }
             }
-        }
 
-        // propertyNames --
-        if let Some(sch) = &s.property_names {
-            for pname in obj.keys() {
-                let v = Value::String(pname.to_owned());
-                add_err!(self.validate_val(*sch, &v, vloc.prop(pname)));
-            }
-        }
-
-        // additionalProperties --
-        if let Some(additional) = &s.additional_properties {
-            match additional {
-                Additional::Bool(allowed) => {
-                    if !allowed && !self.uneval.props.is_empty() {
-                        let kind = kind!(AdditionalProperties, got: self.uneval.props.iter().cloned().cloned().collect());
-                        self.add_error("/additionalProperties", &vloc, kind);
+            // patternProperties --
+            for (regex, sch) in &s.pattern_properties {
+                if regex.is_match(pname) {
+                    match self.validate_val(*sch, pvalue, vloc.prop(pname)) {
+                        Ok(_) => evaluated = true,
+                        Err(e) => self.errors.push(e),
                     }
                 }
-                Additional::SchemaRef(sch) => {
-                    for &pname in self.uneval.props.iter() {
-                        if let Some(pvalue) = obj.get(pname) {
+            }
+
+            if !evaluated {
+                // additionalProperties --
+                if let Some(additional) = &s.additional_properties {
+                    match additional {
+                        Additional::Bool(allowed) => {
+                            if !allowed {
+                                let kind = kind!(AdditionalProperties, got: self.uneval.props.iter().cloned().cloned().collect());
+                                self.add_error("/additionalProperties", &vloc, kind);
+                            }
+                        }
+                        Additional::SchemaRef(sch) => {
                             add_err!(self.validate_val(*sch, pvalue, vloc.prop(pname)));
                         }
                     }
+                    evaluated = true;
                 }
             }
-            self.uneval.props.clear();
+
+            if evaluated {
+                self.uneval.props.remove(pname);
+            }
         }
     }
 
