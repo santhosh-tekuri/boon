@@ -352,6 +352,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
 
         if s.draft_version < 2020 {
+            let mut evaluated = 0;
+
             // items --
             if let Some(items) = &s.items {
                 match items {
@@ -364,6 +366,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                                 self.errors.push(e);
                             }
                         }
+                        evaluated = arr.len();
                         self.uneval.items.clear();
                     }
                     Items::SchemaRefs(list) => {
@@ -371,6 +374,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
                             self.uneval.items.remove(&i);
                             add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
+                        evaluated = min(list.len(), arr.len());
                     }
                 }
             }
@@ -379,15 +383,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if let Some(additional) = &s.additional_items {
                 match additional {
                     Additional::Bool(allowed) => {
-                        if !allowed && !self.uneval.items.is_empty() {
-                            let kind =
-                                kind!(AdditionalItems, got: arr.len() - self.uneval.items.len());
+                        if !allowed && evaluated != arr.len() {
+                            let kind = kind!(AdditionalItems, got: arr.len() - evaluated);
                             self.add_error("/additionalItems", &vloc, kind);
                         }
                     }
                     Additional::SchemaRef(sch) => {
-                        let from = arr.len() - self.uneval.items.len();
-                        for (i, item) in arr[from..].iter().enumerate() {
+                        for (i, item) in arr[evaluated..].iter().enumerate() {
                             add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
                     }
@@ -403,8 +405,8 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
             // items2020 --
             if let Some(sch) = &s.items2020 {
-                let from = min(arr.len(), s.prefix_items.len());
-                for (i, item) in arr[from..].iter().enumerate() {
+                let evaluated = min(s.prefix_items.len(), arr.len());
+                for (i, item) in arr[evaluated..].iter().enumerate() {
                     if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
                         if let ErrorKind::Group = e.kind {
                             e.kind = kind!(Items);
