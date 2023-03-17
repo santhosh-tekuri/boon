@@ -835,7 +835,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
     fn error(&self, kw_path: &str, vloc: &JsonPointer, kind: ErrorKind) -> ValidationError {
         ValidationError {
             keyword_location: self.kw_loc(&self.scope, kw_path),
-            absolute_keyword_location: format!("{}{kw_path}", self.schema.loc),
+            absolute_keyword_location: format!("{}{kw_path}", self.schema.loc), //todo: kw_path needs url-encode
             instance_location: vloc.to_string(),
             kind,
             causes: vec![],

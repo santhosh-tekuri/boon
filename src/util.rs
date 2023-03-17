@@ -66,12 +66,12 @@ where
         .join(sep)
 }
 
-fn path_escape(s: &str) -> String {
-    url_escape::encode_path(s).into_owned()
-}
+// fn path_escape(s: &str) -> String {
+//     url_escape::encode_path(s).into_owned()
+// }
 
 pub(crate) fn escape(token: &str) -> String {
-    path_escape(&token.replace('~', "~0").replace('/', "~1"))
+    token.replace('~', "~0").replace('/', "~1")
 }
 
 pub(crate) fn path_unescape(s: &str) -> Result<String, Utf8Error> {
@@ -264,16 +264,16 @@ mod tests {
         assert_eq!(quote(r#"abc"def'ghi"#), r#"'abc"def\'ghi'"#);
     }
 
-    #[test]
-    fn test_path_escape() {
-        let tests = [
-            ("my%2Fcool+blog&about,stuff", "my%2Fcool+blog&about,stuff"),
-            ("a\nb", "a%0Ab"),
-        ];
-        for (raw, want) in tests {
-            assert_eq!(path_escape(raw), want);
-        }
-    }
+    // #[test]
+    // fn test_path_escape() {
+    //     let tests = [
+    //         ("my%2Fcool+blog&about,stuff", "my%2Fcool+blog&about,stuff"),
+    //         ("a\nb", "a%0Ab"),
+    //     ];
+    //     for (raw, want) in tests {
+    //         assert_eq!(path_escape(raw), want);
+    //     }
+    // }
 
     #[test]
     fn test_path_unescape() {
