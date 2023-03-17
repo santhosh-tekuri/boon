@@ -191,13 +191,16 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
         }
 
+        let find_missing = |required: &Vec<String>| {
+            required
+                .iter()
+                .filter(|p| !obj.contains_key(p.as_str()))
+                .cloned()
+                .collect::<Vec<String>>()
+        };
+
         // required --
-        let missing = s
-            .required
-            .iter()
-            .filter(|p| !obj.contains_key(p.as_str()))
-            .cloned()
-            .collect::<Vec<String>>();
+        let missing = find_missing(&s.required);
         if !missing.is_empty() {
             self.add_error("/required", &vloc, kind!(Required, want: missing));
         }
@@ -207,11 +210,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             if obj.contains_key(pname) {
                 match dependency {
                     Dependency::Props(required) => {
-                        let missing = required
-                            .iter()
-                            .filter(|p| !obj.contains_key(p.as_str()))
-                            .cloned()
-                            .collect::<Vec<String>>();
+                        let missing = find_missing(required);
                         if !missing.is_empty() {
                             let kw_path = format!("/dependencies/{}", escape(pname));
                             let kind = kind!(Dependency, pname.clone(), missing);
@@ -251,11 +250,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // dependentRequired --
         for (pname, required) in &s.dependent_required {
             if obj.contains_key(pname) {
-                let missing = required
-                    .iter()
-                    .filter(|p| !obj.contains_key(p.as_str()))
-                    .cloned()
-                    .collect::<Vec<String>>();
+                let missing = find_missing(required);
                 if !missing.is_empty() {
                     let kw_path = format!("/dependentRequired/{}", escape(pname));
                     let kind = kind!(DependentRequired, pname.clone(), missing);
