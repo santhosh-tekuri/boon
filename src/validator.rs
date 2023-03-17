@@ -351,66 +351,69 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
             }
         }
 
-        // items --
-        if let Some(items) = &s.items {
-            match items {
-                Items::SchemaRef(sch) => {
-                    for (i, item) in arr.iter().enumerate() {
-                        if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
-                            if let ErrorKind::Group = e.kind {
-                                e.kind = kind!(Items);
+        if s.draft_version < 2020 {
+            // items --
+            if let Some(items) = &s.items {
+                match items {
+                    Items::SchemaRef(sch) => {
+                        for (i, item) in arr.iter().enumerate() {
+                            if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
+                                if let ErrorKind::Group = e.kind {
+                                    e.kind = kind!(Items);
+                                }
+                                self.errors.push(e);
                             }
-                            self.errors.push(e);
+                        }
+                        self.uneval.items.clear();
+                    }
+                    Items::SchemaRefs(list) => {
+                        for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
+                            self.uneval.items.remove(&i);
+                            add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
                     }
-                    self.uneval.items.clear();
-                }
-                Items::SchemaRefs(list) => {
-                    for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
-                        self.uneval.items.remove(&i);
-                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
-                    }
                 }
             }
-        }
 
-        // additionalItems --
-        if let Some(additional) = &s.additional_items {
-            match additional {
-                Additional::Bool(allowed) => {
-                    if !allowed && !self.uneval.items.is_empty() {
-                        let kind = kind!(AdditionalItems, got: arr.len() - self.uneval.items.len());
-                        self.add_error("/additionalItems", &vloc, kind);
+            // additionalItems --
+            if let Some(additional) = &s.additional_items {
+                match additional {
+                    Additional::Bool(allowed) => {
+                        if !allowed && !self.uneval.items.is_empty() {
+                            let kind =
+                                kind!(AdditionalItems, got: arr.len() - self.uneval.items.len());
+                            self.add_error("/additionalItems", &vloc, kind);
+                        }
+                    }
+                    Additional::SchemaRef(sch) => {
+                        let from = arr.len() - self.uneval.items.len();
+                        for (i, item) in arr[from..].iter().enumerate() {
+                            add_err!(self.validate_val(*sch, item, vloc.item(i)));
+                        }
                     }
                 }
-                Additional::SchemaRef(sch) => {
-                    let from = arr.len() - self.uneval.items.len();
-                    for (i, item) in arr[from..].iter().enumerate() {
-                        add_err!(self.validate_val(*sch, item, vloc.item(i)));
-                    }
-                }
+                self.uneval.items.clear();
             }
-            self.uneval.items.clear();
-        }
-
-        // prefixItems --
-        for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
-            self.uneval.items.remove(&i);
-            add_err!(self.validate_val(*sch, item, vloc.item(i)));
-        }
-
-        // items2020 --
-        if let Some(sch) = &s.items2020 {
-            let from = min(arr.len(), s.prefix_items.len());
-            for (i, item) in arr[from..].iter().enumerate() {
-                if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
-                    if let ErrorKind::Group = e.kind {
-                        e.kind = kind!(Items);
-                    }
-                    self.errors.push(e);
-                }
+        } else {
+            // prefixItems --
+            for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
+                self.uneval.items.remove(&i);
+                add_err!(self.validate_val(*sch, item, vloc.item(i)));
             }
-            self.uneval.items.clear();
+
+            // items2020 --
+            if let Some(sch) = &s.items2020 {
+                let from = min(arr.len(), s.prefix_items.len());
+                for (i, item) in arr[from..].iter().enumerate() {
+                    if let Err(mut e) = self.validate_val(*sch, item, vloc.item(i)) {
+                        if let ErrorKind::Group = e.kind {
+                            e.kind = kind!(Items);
+                        }
+                        self.errors.push(e);
+                    }
+                }
+                self.uneval.items.clear();
+            }
         }
 
         // contains --
