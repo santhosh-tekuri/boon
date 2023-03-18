@@ -106,7 +106,7 @@ impl Roots {
                 STD_METASCHEMAS.validate(&doc, std_sch).map_err(|src| {
                     CompileError::ValidationError {
                         url: url.to_string(),
-                        src,
+                        src: src.clone_static(),
                     }
                 })?;
             } else {

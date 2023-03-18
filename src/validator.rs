@@ -4,11 +4,11 @@ use serde_json::{Map, Value};
 
 use crate::{util::*, *};
 
-pub(crate) fn validate(
-    v: &Value,
+pub(crate) fn validate<'v>(
+    v: &'v Value,
     schema: &Schema,
     schemas: &Schemas,
-) -> Result<(), ValidationError> {
+) -> Result<(), ValidationError<'v>> {
     let scope = Scope {
         sch: schema.idx,
         kw_path: None,
@@ -38,7 +38,7 @@ pub(crate) fn validate(
                 e = ValidationError {
                     keyword_location: String::new(),
                     absolute_keyword_location: schema.loc.clone(),
-                    instance_location: String::new(),
+                    instance_location: InstanceLocation::new(),
                     kind: ErrorKind::Schema {
                         url: schema.loc.clone(),
                     },
@@ -79,11 +79,14 @@ struct Validator<'v, 'a, 'b, 'd> {
     schemas: &'b Schemas,
     scope: Scope<'d>,
     uneval: Uneval<'v>,
-    errors: Vec<ValidationError>,
+    errors: Vec<ValidationError<'v>>,
 }
 
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn validate(mut self, mut vloc: JsonPointer<'_, 'v>) -> Result<Uneval<'v>, ValidationError> {
+    fn validate(
+        mut self,
+        mut vloc: JsonPointer<'_, 'v>,
+    ) -> Result<Uneval<'v>, ValidationError<'v>> {
         let s = self.schema;
         let v = self.v;
 
@@ -193,10 +196,13 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         // propertyNames --
         if let Some(sch) = &s.property_names {
             for pname in obj.keys() {
+                //todo: use pname as value(tip: use enum{PropName|Value})
                 let v = Value::String(pname.to_owned());
-                let path = vloc.prop(pname).to_string();
-                let mut vloc = vec![Token::Path(path)];
-                add_err!(self.validate_val(*sch, &v, JsonPointer::new(&mut vloc)));
+                let mut vec = Vec::with_capacity(vloc.len);
+                let vloc = vloc.clone_static(&mut vec);
+                if let Err(e) = self.validate_val(*sch, &v, vloc) {
+                    self.errors.push(e.clone_static());
+                }
             }
         }
 
@@ -454,7 +460,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         }
     }
 
-    fn str_validate(&mut self, str: &String, vloc: JsonPointer) {
+    fn str_validate(&mut self, str: &'v String, vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         let mut len = None;
 
@@ -510,12 +516,12 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
             if let Err(mut e) = self.schemas.validate(&v, sch) {
                 e.kind = kind!(ContentSchema);
-                self.errors.push(e);
+                self.errors.push(e.clone_static());
             }
         }
     }
 
-    fn num_validate(&mut self, num: &Number, vloc: JsonPointer) {
+    fn num_validate(&mut self, num: &'v Number, vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
 
         // minimum --
@@ -611,7 +617,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         sch: SchemaIndex,
         kw: &'static str,
         mut vloc: JsonPointer<'_, 'v>,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError<'v>> {
         if let Err(ref_err) = self.validate_self(sch, kw.into(), vloc.copy()) {
             let url = self.schemas.get(sch).loc.clone();
             let mut err = self.error(kw, &vloc, ErrorKind::Reference { url });
@@ -793,7 +799,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         sch: SchemaIndex,
         v: &'v Value,
         vloc: JsonPointer<'_, 'v>,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError<'v>> {
         let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
         let schema = &self.schemas.get(sch);
         Validator {
@@ -813,7 +819,7 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
         sch: SchemaIndex,
         kw_path: Option<&'static str>,
         vloc: JsonPointer<'_, 'v>,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError<'v>> {
         let scope = Scope::child(sch, kw_path, self.scope.vid, &self.scope);
         let schema = &self.schemas.get(sch);
         let result = Validator {
@@ -834,25 +840,30 @@ impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
 
 // error helpers
 impl<'v, 'a, 'b, 'd> Validator<'v, 'a, 'b, 'd> {
-    fn error(&self, kw_path: &str, vloc: &JsonPointer, kind: ErrorKind) -> ValidationError {
+    fn error(
+        &self,
+        kw_path: &str,
+        vloc: &JsonPointer<'_, 'v>,
+        kind: ErrorKind,
+    ) -> ValidationError<'v> {
         ValidationError {
             keyword_location: self.kw_loc(&self.scope, kw_path),
             absolute_keyword_location: format!("{}{kw_path}", self.schema.loc), //todo: kw_path needs url-encode
-            instance_location: vloc.to_string(),
+            instance_location: vloc.into(),
             kind,
             causes: vec![],
         }
     }
 
-    fn add_error(&mut self, kw_path: &str, vloc: &JsonPointer, kind: ErrorKind) {
+    fn add_error(&mut self, kw_path: &str, vloc: &JsonPointer<'_, 'v>, kind: ErrorKind) {
         self.errors.push(self.error(kw_path, vloc, kind));
     }
 
     fn add_errors(
         &mut self,
-        errors: Vec<ValidationError>,
+        errors: Vec<ValidationError<'v>>,
         kw_path: &str,
-        vloc: &JsonPointer,
+        vloc: &JsonPointer<'_, 'v>,
         kind: ErrorKind,
     ) {
         if errors.len() == 1 {
@@ -962,10 +973,42 @@ impl<'a> Scope<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
 enum Token<'v> {
-    Path(String),
-    String(&'v str),
-    Int(usize),
+    Prop(Cow<'v, str>),
+    Item(usize),
+}
+
+impl<'v> Token<'v> {
+    fn to_string(tokens: &[Token]) -> String {
+        let mut r = String::new();
+        for tok in tokens {
+            r.push('/');
+            match tok {
+                Token::Prop(s) => r.push_str(&escape(s)),
+                Token::Item(i) => write!(&mut r, "{i}").expect("write to String should never fail"),
+            }
+        }
+        r
+    }
+}
+
+impl<'v> From<String> for Token<'v> {
+    fn from(prop: String) -> Self {
+        Token::Prop(prop.into())
+    }
+}
+
+impl<'v> From<&'v str> for Token<'v> {
+    fn from(prop: &'v str) -> Self {
+        Token::Prop(prop.into())
+    }
+}
+
+impl<'v> From<usize> for Token<'v> {
+    fn from(index: usize) -> Self {
+        Token::Item(index)
+    }
 }
 
 struct JsonPointer<'a, 'v> {
@@ -988,30 +1031,84 @@ impl<'a, 'v> JsonPointer<'a, 'v> {
 
     fn prop<'x>(&'x mut self, name: &'v str) -> JsonPointer<'x, 'v> {
         self.vec.truncate(self.len);
-        self.vec.push(Token::String(name));
+        self.vec.push(name.into());
         JsonPointer::new(self.vec)
     }
 
     fn item<'x>(&'x mut self, i: usize) -> JsonPointer<'x, 'v> {
         self.vec.truncate(self.len);
-        self.vec.push(Token::Int(i));
+        self.vec.push(i.into());
         JsonPointer::new(self.vec)
+    }
+
+    fn clone_static<'aa, 'vv>(&self, vec: &'aa mut Vec<Token<'vv>>) -> JsonPointer<'aa, 'vv> {
+        for tok in self.vec[..self.len].iter() {
+            match tok {
+                Token::Prop(p) => vec.push(p.as_ref().to_owned().into()),
+                Token::Item(i) => vec.push((*i).into()),
+            }
+        }
+        JsonPointer::new(vec)
     }
 }
 
 impl<'a, 'v> ToString for JsonPointer<'a, 'v> {
     fn to_string(&self) -> String {
-        let mut result = String::new();
-        for tok in self.vec.iter() {
-            result.push('/');
-            match tok {
-                Token::Path(p) => result.push_str(p),
-                Token::String(s) => result.push_str(escape(s).as_ref()),
-                Token::Int(i) => {
-                    write!(&mut result, "{i}").expect("write to String should never fail")
-                }
-            }
+        Token::to_string(&self.vec[..self.len])
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct InstanceLocation<'v>(Vec<Token<'v>>);
+
+impl<'v> InstanceLocation<'v> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn clone_static(self) -> InstanceLocation<'static> {
+        let mut vec = Vec::with_capacity(self.0.len());
+        for tok in self.0 {
+            let tok = match tok {
+                Token::Prop(p) => Token::Prop(p.into_owned().into()),
+                Token::Item(i) => Token::Item(i),
+            };
+            vec.push(tok);
         }
-        result
+        InstanceLocation(vec)
+    }
+}
+
+impl<'a, 'v> From<&JsonPointer<'a, 'v>> for InstanceLocation<'v> {
+    fn from(value: &JsonPointer<'a, 'v>) -> Self {
+        let mut vec = Vec::with_capacity(value.len);
+        for tok in &value.vec[..value.len] {
+            vec.push(tok.clone());
+        }
+        Self(vec)
+    }
+}
+
+impl<'v> ToString for InstanceLocation<'v> {
+    fn to_string(&self) -> String {
+        Token::to_string(&self.0)
+    }
+}
+
+impl<'v> ValidationError<'v> {
+    pub(crate) fn clone_static(self) -> ValidationError<'static> {
+        let mut causes = Vec::with_capacity(self.causes.len());
+        for cause in self.causes {
+            causes.push(cause.clone_static());
+        }
+        ValidationError {
+            instance_location: self.instance_location.clone_static(),
+            causes,
+            ..self
+        }
     }
 }

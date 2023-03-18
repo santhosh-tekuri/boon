@@ -801,7 +801,10 @@ pub enum CompileError {
     MetaSchemaCycle { url: String },
 
     /// `url` is not valid against metaschema.
-    ValidationError { url: String, src: ValidationError },
+    ValidationError {
+        url: String,
+        src: ValidationError<'static>,
+    },
 
     /// Error in parsing `$id` at `loc`
     ParseIdError { loc: String },
