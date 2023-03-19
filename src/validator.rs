@@ -126,11 +126,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // enum --
         if !s.enum_.is_empty() && !s.enum_.iter().any(|e| equals(e, v)) {
-            self.add_error(
-                &sloc.kw("enum"),
-                &vloc,
-                kind!(Enum, v.clone(), s.enum_.clone()),
-            );
+            let kind = kind!(Enum, v.clone(), s.enum_.clone());
+            self.add_error(&sloc.kw("enum"), &vloc, kind);
         }
 
         // constant --
@@ -390,11 +387,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             'outer: for i in 1..arr.len() {
                 for j in 0..i {
                     if equals(&arr[i], &arr[j]) {
-                        self.add_error(
-                            &sloc.kw("uniqueItems"),
-                            &vloc,
-                            kind!(UniqueItems, got: [j, i]),
-                        );
+                        let kind = kind!(UniqueItems, got: [j, i]);
+                        self.add_error(&sloc.kw("uniqueItems"), &vloc, kind);
                         break 'outer;
                     }
                 }
@@ -605,11 +599,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(min) = &s.minimum {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
-                    self.add_error(
-                        &sloc.kw("minimum"),
-                        &vloc,
-                        kind!(Minimum, num.clone(), min.clone()),
-                    );
+                    let kind = kind!(Minimum, num.clone(), min.clone());
+                    self.add_error(&sloc.kw("minimum"), &vloc, kind);
                 }
             }
         }
@@ -618,11 +609,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(max) = &s.maximum {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
-                    self.add_error(
-                        &sloc.kw("maximum"),
-                        &vloc,
-                        kind!(Maximum, num.clone(), max.clone()),
-                    );
+                    let kind = kind!(Maximum, num.clone(), max.clone());
+                    self.add_error(&sloc.kw("maximum"), &vloc, kind);
                 }
             }
         }
