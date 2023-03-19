@@ -410,7 +410,7 @@ pub struct ValidationError<'s, 'v> {
     /// The location of the JSON value within the instance being validated
     pub instance_location: InstanceLocation<'v>,
     /// kind of error
-    pub kind: ErrorKind,
+    pub kind: ErrorKind<'s>,
     /// Holds nested errors
     pub causes: Vec<ValidationError<'s, 'v>>,
 }
@@ -425,7 +425,7 @@ impl<'s, 'v> Display for ValidationError<'s, 'v> {
 
 /// A list specifying general categories of validation errors.
 #[derive(Debug)]
-pub enum ErrorKind {
+pub enum ErrorKind<'s> {
     Group,
     Schema {
         url: String,
@@ -436,8 +436,8 @@ pub enum ErrorKind {
     },
     RefCycle {
         url: String,
-        kw_loc1: String,
-        kw_loc2: String,
+        kw_loc1: KeywordLocation<'s>,
+        kw_loc2: KeywordLocation<'s>,
     },
     FalseSchema,
     Type {
@@ -565,7 +565,7 @@ pub enum OneOf {
     MultiMatch(usize, usize),
 }
 
-impl Display for ErrorKind {
+impl<'s> Display for ErrorKind<'s> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Group => write!(f, "validation failed"),
@@ -581,8 +581,8 @@ impl Display for ErrorKind {
             } => write!(
                 f,
                 "both {} and {} resolve to {url} causing reference cycle",
-                quote(kw_loc1),
-                quote(kw_loc2)
+                quote(&kw_loc1.to_string()),
+                quote(&kw_loc2.to_string())
             ),
             Self::FalseSchema => write!(f, "false schema"),
             Self::Type { got, want } => {

@@ -255,7 +255,7 @@ impl<'e, 's, 'v> Display for OutputUnit<'e, 's, 'v> {
 }
 
 pub enum OutputError<'e, 's, 'v> {
-    Leaf(&'e ErrorKind),
+    Leaf(&'e ErrorKind<'s>),
     Branch(Vec<OutputUnit<'e, 's, 'v>>),
 }
 

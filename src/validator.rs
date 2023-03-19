@@ -11,7 +11,6 @@ pub(crate) fn validate<'s, 'v>(
 ) -> Result<(), ValidationError<'s, 'v>> {
     let scope = Scope {
         sch: schema.idx,
-        kw_path: None,
         sloc_len: 0,
         vid: 0,
         parent: None,
@@ -96,14 +95,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
                 url: self.schema.loc.clone(),
-                kw_loc1: self.kw_loc(&self.scope, ""),
-                kw_loc2: self.kw_loc(scp, ""),
+                kw_loc1: (&sloc).into(),
+                kw_loc2: (&sloc.with_len(scp.sloc_len)).into(),
             };
-            assert_eq!(sloc.to_string(), self.kw_loc(&self.scope, ""));
-            assert_eq!(
-                SchemaToken::to_string(&sloc.vec[..scp.sloc_len]),
-                self.kw_loc(scp, "")
-            );
             return Err(self.error("", &sloc, &vloc, kind));
         }
 
@@ -283,7 +277,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Dependency::SchemaRef(sch) => {
                         if let Err(e) = self.validate_self(
                             *sch,
-                            None,
                             sloc.keyword("dependencies").prop(pname),
                             vloc.copy(),
                         ) {
@@ -311,7 +304,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if obj.contains_key(pname) {
                 if let Err(e) = self.validate_self(
                     *sch,
-                    None,
                     sloc.keyword("dependentSchemas").prop(pname),
                     vloc.copy(),
                 ) {
@@ -826,7 +818,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         mut sloc: SchemaPointer<'_, 's>,
         mut vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        if let Err(ref_err) = self.validate_self(sch, kw.into(), sloc.copy(), vloc.copy()) {
+        if let Err(ref_err) = self.validate_self(sch, sloc.copy(), vloc.copy()) {
             let url = self.schemas.get(sch).loc.clone();
             let mut err = self.error(kw, &sloc, &vloc, ErrorKind::Reference { url });
             if let ErrorKind::Group = ref_err.kind {
@@ -889,7 +881,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // not --
         if let Some(not) = s.not {
             if self
-                .validate_self(not, None, sloc.keyword("not"), vloc.copy())
+                .validate_self(not, sloc.keyword("not"), vloc.copy())
                 .is_ok()
             {
                 self.add_error("/not", &sloc.keyword("not"), &vloc, kind!(Not));
@@ -901,7 +893,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             let mut allof_errors = vec![];
             for (i, sch) in s.all_of.iter().enumerate() {
                 if let Err(mut e) =
-                    self.validate_self(*sch, None, sloc.keyword("allOf").item(i), vloc.copy())
+                    self.validate_self(*sch, sloc.keyword("allOf").item(i), vloc.copy())
                 {
                     if let ErrorKind::Group = e.kind {
                         e.kind = ErrorKind::AllOf { subschema: Some(i) };
@@ -920,7 +912,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             // NOTE: all schemas must be checked for uneval
             let mut anyof_errors = vec![];
             for (i, sch) in s.any_of.iter().enumerate() {
-                match self.validate_self(*sch, None, sloc.keyword("anyOf").item(i), vloc.copy()) {
+                match self.validate_self(*sch, sloc.keyword("anyOf").item(i), vloc.copy()) {
                     Ok(_) => {
                         if self.uneval.is_empty() {
                             break;
@@ -945,7 +937,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             let (mut matched, mut oneof_errors) = (None, vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
                 if let Err(mut e) =
-                    self.validate_self(*sch, None, sloc.keyword("oneOf").item(i), vloc.copy())
+                    self.validate_self(*sch, sloc.keyword("oneOf").item(i), vloc.copy())
                 {
                     if let ErrorKind::Group = e.kind {
                         e.kind = ErrorKind::OneOf(OneOf::Subschema(i));
@@ -970,14 +962,14 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // if, then, else --
         if let Some(if_) = s.if_ {
             if self
-                .validate_self(if_, None, sloc.keyword("if"), vloc.copy())
+                .validate_self(if_, sloc.keyword("if"), vloc.copy())
                 .is_ok()
             {
                 if let Some(then) = s.then {
-                    add_err!(self.validate_self(then, None, sloc.keyword("then"), vloc.copy()));
+                    add_err!(self.validate_self(then, sloc.keyword("then"), vloc.copy()));
                 }
             } else if let Some(else_) = s.else_ {
-                add_err!(self.validate_self(else_, None, sloc.keyword("else"), vloc.copy()));
+                add_err!(self.validate_self(else_, sloc.keyword("else"), vloc.copy()));
             }
         }
     }
@@ -1036,7 +1028,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         v: &'v Value,
         vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, None, sloc.len, self.scope.vid + 1, &self.scope);
+        let scope = Scope::child(sch, sloc.len, self.scope.vid + 1, &self.scope);
         let schema = &self.schemas.get(sch);
         Validator {
             v,
@@ -1053,11 +1045,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
     fn validate_self(
         &mut self,
         sch: SchemaIndex,
-        kw_path: Option<&'static str>,
         sloc: SchemaPointer<'_, 's>,
         vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, kw_path, sloc.len, self.scope.vid, &self.scope);
+        let scope = Scope::child(sch, sloc.len, self.scope.vid, &self.scope);
         let schema = &self.schemas.get(sch);
         let result = Validator {
             v: self.v,
@@ -1082,7 +1073,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         kw_path: &str,
         sloc: &SchemaPointer<'_, 's>,
         vloc: &JsonPointer<'_, 'v>,
-        kind: ErrorKind,
+        kind: ErrorKind<'s>,
     ) -> ValidationError<'s, 'v> {
         ValidationError {
             keyword_location: sloc.into(),
@@ -1098,7 +1089,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         kw_path: &str,
         sloc: &SchemaPointer<'_, 's>,
         vloc: &JsonPointer<'_, 'v>,
-        kind: ErrorKind,
+        kind: ErrorKind<'s>,
     ) {
         self.errors.push(self.error(kw_path, sloc, vloc, kind));
     }
@@ -1109,7 +1100,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         kw_path: &str,
         sloc: &SchemaPointer<'_, 's>,
         vloc: &JsonPointer<'_, 'v>,
-        kind: ErrorKind,
+        kind: ErrorKind<'s>,
     ) {
         if errors.len() == 1 {
             self.errors.extend(errors);
@@ -1118,20 +1109,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             err.causes = errors;
             self.errors.push(err);
         }
-    }
-
-    fn kw_loc(&self, mut scope: &Scope, kw_path: &str) -> String {
-        let mut loc = kw_path.to_string();
-        while let Some(parent) = scope.parent {
-            let kw_path = scope.kw_path.unwrap_or_else(|| {
-                let cur = &self.schemas.get(scope.sch).loc;
-                let parent = &self.schemas.get(parent.sch).loc;
-                &cur[parent.len()..]
-            });
-            loc.insert_str(0, kw_path);
-            scope = parent;
-        }
-        loc
     }
 }
 
@@ -1179,9 +1156,6 @@ impl<'v> Uneval<'v> {
 #[derive(Debug)]
 struct Scope<'a> {
     sch: SchemaIndex,
-    // if None, compute from self.sch and self.parent.sh
-    // not None only when there is jump i.e $ref, $XXXRef
-    kw_path: Option<&'static str>,
     sloc_len: usize,
     /// unique id of value being validated
     // if two scope validate same value, they will have same vid
@@ -1190,16 +1164,9 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(
-        sch: SchemaIndex,
-        kw_path: Option<&'static str>,
-        sloc_len: usize,
-        vid: usize,
-        parent: &'a Scope,
-    ) -> Self {
+    fn child(sch: SchemaIndex, sloc_len: usize, vid: usize, parent: &'a Scope) -> Self {
         Self {
             sch,
-            kw_path,
             sloc_len,
             vid,
             parent: Some(parent),
@@ -1429,6 +1396,10 @@ impl<'a, 's> SchemaPointer<'a, 's> {
         self.vec.truncate(self.len);
         self.vec.push(SchemaToken::Item(i));
         SchemaPointer::new(self.vec)
+    }
+
+    fn with_len<'x>(&'x mut self, len: usize) -> SchemaPointer<'x, 's> {
+        SchemaPointer { vec: self.vec, len }
     }
 }
 
