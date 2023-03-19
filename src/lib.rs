@@ -429,14 +429,14 @@ impl<'s, 'v> Display for ValidationError<'s, 'v> {
 pub enum ErrorKind<'s> {
     Group,
     Schema {
-        url: String,
+        url: &'s str,
     },
     ContentSchema,
     Reference {
         url: &'s str,
     },
     RefCycle {
-        url: String,
+        url: &'s str,
         kw_loc1: KeywordLocation<'s>,
         kw_loc2: KeywordLocation<'s>,
     },
@@ -447,11 +447,11 @@ pub enum ErrorKind<'s> {
     },
     Enum {
         got: Value,
-        want: Vec<Value>,
+        want: &'s Vec<Value>,
     },
     Const {
         got: Value,
-        want: Value,
+        want: &'s Value,
     },
     Format {
         got: Value,
@@ -470,18 +470,18 @@ pub enum ErrorKind<'s> {
         got: Vec<String>,
     },
     Required {
-        want: Vec<String>,
+        want: Vec<&'s str>,
     },
     Dependency {
-        got: String,
-        want: Vec<String>,
+        got: &'s str,
+        want: Vec<&'s str>,
     },
     DependentRequired {
-        got: String,
-        want: Vec<String>,
+        got: &'s str,
+        want: Vec<&'s str>,
     },
     DependentSchemas {
-        got: String,
+        got: &'s str,
     },
     Items,
     MinItems {
@@ -517,7 +517,7 @@ pub enum ErrorKind<'s> {
     },
     Pattern {
         got: String,
-        want: String,
+        want: &'s str,
     },
     ContentEncoding {
         got: String,

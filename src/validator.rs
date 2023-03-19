@@ -32,17 +32,13 @@ pub(crate) fn validate<'s, 'v>(
                 && e.instance_location.is_empty()
                 && matches!(e.kind, ErrorKind::Group)
             {
-                e.kind = ErrorKind::Schema {
-                    url: schema.loc.clone(),
-                };
+                e.kind = ErrorKind::Schema { url: &schema.loc };
             } else {
                 e = ValidationError {
                     keyword_location: KeywordLocation::new(),
                     absolute_keyword_location: AbsoluteKeywordLocation::new(schema),
                     instance_location: InstanceLocation::new(),
-                    kind: ErrorKind::Schema {
-                        url: schema.loc.clone(),
-                    },
+                    kind: ErrorKind::Schema { url: &schema.loc },
                     causes: vec![e],
                 };
             }
@@ -94,7 +90,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
-                url: self.schema.loc.clone(),
+                url: &self.schema.loc,
                 kw_loc1: (&sloc).into(),
                 kw_loc2: (&sloc.with_len(scp.sloc_len)).into(),
             };
@@ -126,14 +122,14 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // enum --
         if !s.enum_.is_empty() && !s.enum_.iter().any(|e| equals(e, v)) {
-            let kind = kind!(Enum, v.clone(), s.enum_.clone());
+            let kind = kind!(Enum, v.clone(), &s.enum_);
             self.add_error(&sloc.kw("enum"), &vloc, kind);
         }
 
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                self.add_error(&sloc.kw("const"), &vloc, kind!(Const, v.clone(), c.clone()));
+                self.add_error(&sloc.kw("const"), &vloc, kind!(Const, v.clone(), c));
             }
         }
 
@@ -214,12 +210,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             }
         }
 
-        let find_missing = |required: &Vec<String>| {
+        let find_missing = |required: &'s Vec<String>| -> Vec<&'s str> {
             required
                 .iter()
                 .filter(|p| !obj.contains_key(p.as_str()))
-                .cloned()
-                .collect::<Vec<String>>()
+                .map(|p| p.as_str())
+                .collect()
         };
 
         // required --
@@ -235,7 +231,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Dependency::Props(required) => {
                         let missing = find_missing(required);
                         if !missing.is_empty() {
-                            let kind = kind!(Dependency, pname.clone(), missing);
+                            let kind = kind!(Dependency, pname, missing);
                             self.add_error(&sloc.kw("dependencies").prop(pname), &vloc, kind);
                         }
                     }
@@ -246,7 +242,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                             vloc.copy(),
                         ) {
                             if let ErrorKind::Group = e.kind {
-                                let kind = kind!(Dependency, pname.clone(), vec![]);
+                                let kind = kind!(Dependency, pname, vec![]);
                                 self.add_errors(
                                     e.causes,
                                     &sloc.kw("dependencies").prop(pname),
@@ -269,7 +265,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     self.validate_self(*sch, sloc.kw("dependentSchemas").prop(pname), vloc.copy())
                 {
                     if let ErrorKind::Group = e.kind {
-                        let kind = kind!(DependentSchemas, got:pname.clone());
+                        let kind = kind!(DependentSchemas, got: pname);
                         self.add_errors(
                             e.causes,
                             &sloc.kw("dependentSchemas").prop(pname),
@@ -288,7 +284,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if obj.contains_key(pname) {
                 let missing = find_missing(required);
                 if !missing.is_empty() {
-                    let kind = kind!(DependentRequired, pname.clone(), missing);
+                    let kind = kind!(DependentRequired, pname, missing);
                     self.add_error(&sloc.kw("dependentRequired").prop(pname), &vloc, kind);
                 }
             }
@@ -548,7 +544,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // pattern --
         if let Some(regex) = &s.pattern {
             if !regex.is_match(str) {
-                let kind = kind!(Pattern, str.clone(), regex.as_str().to_string());
+                let kind = kind!(Pattern, str.clone(), regex.as_str());
                 self.add_error(&sloc.kw("pattern"), &vloc, kind);
             }
         }
