@@ -15,8 +15,8 @@ pub(crate) fn validate<'s, 'v>(
         vid: 0,
         parent: None,
     };
-    let mut vloc = Vec::new();
-    let mut sloc = Vec::new();
+    let mut vloc = Vec::with_capacity(8);
+    let mut sloc = Vec::with_capacity(10);
     let result = Validator {
         v,
         schema,
@@ -1236,7 +1236,7 @@ impl<'a, 's> SchemaPointer<'a, 's> {
 
     fn copy<'x>(&'x mut self) -> SchemaPointer<'x, 's> {
         SchemaPointer {
-            vec: &mut *self.vec,
+            vec: self.vec,
             len: self.len,
         }
     }
@@ -1309,7 +1309,7 @@ impl<'s> ToString for KeywordLocation<'s> {
 
 #[derive(Debug, Clone)]
 pub struct AbsoluteKeywordLocation<'s> {
-    pub url: &'s String,
+    pub url: &'s str,
     pub keyword_location: KeywordLocation<'s>,
 }
 
