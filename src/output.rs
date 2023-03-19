@@ -6,7 +6,9 @@ use serde::{
 };
 
 use crate::{
-    util::*, validator::SchemaToken, ErrorKind, InstanceLocation, KeywordLocation, ValidationError,
+    util::*,
+    validator::{AbsoluteKeywordLocation, SchemaToken},
+    ErrorKind, InstanceLocation, KeywordLocation, ValidationError,
 };
 
 impl<'s, 'v> ValidationError<'s, 'v> {
@@ -34,7 +36,8 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         }
 
         // unwrap --
-        let (s, frag) = split(&self.absolute_keyword_location);
+        let tmp = self.absolute_keyword_location.to_string();
+        let (s, frag) = split(&tmp);
         if let ErrorKind::Reference { url } = &self.kind {
             if self.causes.len() == 1
                 && (!f.alternate() || {
@@ -124,7 +127,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         ) {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
-                Some(err.absolute_keyword_location.as_str())
+                Some(&err.absolute_keyword_location)
             } else {
                 None
             };
@@ -181,7 +184,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
                 OutputError::Branch(v)
             };
             let absolute_keyword_location = if in_ref {
-                Some(err.absolute_keyword_location.as_str())
+                Some(&err.absolute_keyword_location)
             } else {
                 None
             };
@@ -221,7 +224,7 @@ impl Display for FlagOutput {
 pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
     pub keyword_location: &'e KeywordLocation<'s>,
-    pub absolute_keyword_location: Option<&'e str>,
+    pub absolute_keyword_location: Option<&'e AbsoluteKeywordLocation<'s>>,
     pub instance_location: &'e InstanceLocation<'v>,
     pub error: OutputError<'e, 's, 'v>,
 }
@@ -236,7 +239,7 @@ impl<'e, 's, 'v> Serialize for OutputUnit<'e, 's, 'v> {
         map.serialize_entry("valid", &self.valid)?;
         map.serialize_entry("keywordLocation", &self.keyword_location.to_string())?;
         if let Some(s) = &self.absolute_keyword_location {
-            map.serialize_entry("absoluteKeywordLocation", s)?;
+            map.serialize_entry("absoluteKeywordLocation", &s.to_string())?;
         }
         map.serialize_entry("instanceLocation", &self.instance_location.to_string())?;
         let pname = match self.error {

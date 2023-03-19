@@ -120,6 +120,7 @@ pub use content::*;
 pub use formats::*;
 pub use loader::*;
 pub use output::*;
+use validator::AbsoluteKeywordLocation;
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 
@@ -406,7 +407,7 @@ pub struct ValidationError<'s, 'v> {
     /// The relative location of the validating keyword that follows the validation path
     pub keyword_location: KeywordLocation<'s>,
     /// The absolute, dereferenced location of the validating keyword
-    pub absolute_keyword_location: String,
+    pub absolute_keyword_location: AbsoluteKeywordLocation<'s>,
     /// The location of the JSON value within the instance being validated
     pub instance_location: InstanceLocation<'v>,
     /// kind of error
