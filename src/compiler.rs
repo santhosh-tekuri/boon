@@ -803,7 +803,7 @@ pub enum CompileError {
     /// `url` is not valid against metaschema.
     ValidationError {
         url: String,
-        src: ValidationError<'static>,
+        src: ValidationError<'static, 'static>,
     },
 
     /// Error in parsing `$id` at `loc`

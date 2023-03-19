@@ -127,6 +127,7 @@ use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
 pub use validator::InstanceLocation;
+pub use validator::KeywordLocation;
 
 /// Identifier to compiled schema.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -198,11 +199,11 @@ impl Schemas {
     Panics if `sch_index` is not generated for this instance.
     [`Schemas::contains`] can be used too ensure that it does not panic.
     */
-    pub fn validate<'v>(
-        &self,
+    pub fn validate<'s, 'v>(
+        &'s self,
         v: &'v Value,
         sch_index: SchemaIndex,
-    ) -> Result<(), ValidationError<'v>> {
+    ) -> Result<(), ValidationError<'s, 'v>> {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
@@ -401,9 +402,9 @@ impl Types {
 
 /// Error type for validation failures.
 #[derive(Debug)]
-pub struct ValidationError<'v> {
+pub struct ValidationError<'s, 'v> {
     /// The relative location of the validating keyword that follows the validation path
-    pub keyword_location: String,
+    pub keyword_location: KeywordLocation<'s>,
     /// The absolute, dereferenced location of the validating keyword
     pub absolute_keyword_location: String,
     /// The location of the JSON value within the instance being validated
@@ -411,12 +412,12 @@ pub struct ValidationError<'v> {
     /// kind of error
     pub kind: ErrorKind,
     /// Holds nested errors
-    pub causes: Vec<ValidationError<'v>>,
+    pub causes: Vec<ValidationError<'s, 'v>>,
 }
 
-impl<'v> Error for ValidationError<'v> {}
+impl<'s, 'v> Error for ValidationError<'s, 'v> {}
 
-impl<'v> Display for ValidationError<'v> {
+impl<'s, 'v> Display for ValidationError<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.display(f, true, 0)
     }

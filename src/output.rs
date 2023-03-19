@@ -5,9 +5,11 @@ use serde::{
     Serialize,
 };
 
-use crate::{util::*, ErrorKind, InstanceLocation, ValidationError};
+use crate::{
+    util::*, validator::SchemaToken, ErrorKind, InstanceLocation, KeywordLocation, ValidationError,
+};
 
-impl<'v> ValidationError<'v> {
+impl<'s, 'v> ValidationError<'s, 'v> {
     fn display_causes(&self, f: &mut Formatter, unwrap: bool, indent: usize) -> std::fmt::Result {
         for (i, cause) in self.causes.iter().enumerate() {
             if i != 0 {
@@ -91,7 +93,12 @@ impl<'v> ValidationError<'v> {
         } else {
             match &self.kind {
                 ErrorKind::Reference { .. } => {
-                    let kw = self.keyword_location.rsplit('/').next().unwrap_or_default();
+                    let kw = self
+                        .keyword_location
+                        .0
+                        .iter()
+                        .last()
+                        .unwrap_or(&SchemaToken::Keyword(""));
                     write!(f, "{kw} failed")?
                 }
                 _ => write!(f, "{}", self.kind)?,
@@ -110,10 +117,10 @@ impl<'v> ValidationError<'v> {
     }
 
     pub fn basic_output(&self) -> OutputUnit {
-        fn flatten<'e, 'v>(
-            err: &'e ValidationError<'v>,
+        fn flatten<'e, 's, 'v>(
+            err: &'e ValidationError<'s, 'v>,
             mut in_ref: bool,
-            tgt: &mut Vec<OutputUnit<'e, 'v>>,
+            tgt: &mut Vec<OutputUnit<'e, 's, 'v>>,
         ) {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
@@ -151,10 +158,10 @@ impl<'v> ValidationError<'v> {
     }
 
     pub fn detailed_output(&self) -> OutputUnit {
-        fn output_unit<'e, 'v>(
-            err: &'e ValidationError<'v>,
+        fn output_unit<'e, 's, 'v>(
+            err: &'e ValidationError<'s, 'v>,
             mut in_ref: bool,
-        ) -> OutputUnit<'e, 'v> {
+        ) -> OutputUnit<'e, 's, 'v> {
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
 
             // single cause
@@ -211,15 +218,15 @@ impl Display for FlagOutput {
     }
 }
 
-pub struct OutputUnit<'e, 'v> {
+pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
-    pub keyword_location: &'e str,
+    pub keyword_location: &'e KeywordLocation<'s>,
     pub absolute_keyword_location: Option<&'e str>,
     pub instance_location: &'e InstanceLocation<'v>,
-    pub error: OutputError<'e, 'v>,
+    pub error: OutputError<'e, 's, 'v>,
 }
 
-impl<'e, 'v> Serialize for OutputUnit<'e, 'v> {
+impl<'e, 's, 'v> Serialize for OutputUnit<'e, 's, 'v> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -227,7 +234,7 @@ impl<'e, 'v> Serialize for OutputUnit<'e, 'v> {
         let n = 4 + self.absolute_keyword_location.map_or(0, |_| 1);
         let mut map = serializer.serialize_map(Some(n))?;
         map.serialize_entry("valid", &self.valid)?;
-        map.serialize_entry("keywordLocation", &self.keyword_location)?;
+        map.serialize_entry("keywordLocation", &self.keyword_location.to_string())?;
         if let Some(s) = &self.absolute_keyword_location {
             map.serialize_entry("absoluteKeywordLocation", s)?;
         }
@@ -241,18 +248,18 @@ impl<'e, 'v> Serialize for OutputUnit<'e, 'v> {
     }
 }
 
-impl<'e, 'v> Display for OutputUnit<'e, 'v> {
+impl<'e, 's, 'v> Display for OutputUnit<'e, 's, 'v> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write_json_to_fmt(f, self)
     }
 }
 
-pub enum OutputError<'e, 'v> {
+pub enum OutputError<'e, 's, 'v> {
     Leaf(&'e ErrorKind),
-    Branch(Vec<OutputUnit<'e, 'v>>),
+    Branch(Vec<OutputUnit<'e, 's, 'v>>),
 }
 
-impl<'e, 'v> Serialize for OutputError<'e, 'v> {
+impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
