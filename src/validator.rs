@@ -692,7 +692,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         mut vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
         if let Err(ref_err) = self.validate_self(sch, sloc.copy(), vloc.copy()) {
-            let url = self.schemas.get(sch).loc.clone();
+            let url = &self.schemas.get(sch).loc;
             let mut err = self.error(&sloc, &vloc, ErrorKind::Reference { url });
             if let ErrorKind::Group = ref_err.kind {
                 err.causes = ref_err.causes;

@@ -433,7 +433,7 @@ pub enum ErrorKind<'s> {
     },
     ContentSchema,
     Reference {
-        url: String,
+        url: &'s str,
     },
     RefCycle {
         url: String,
