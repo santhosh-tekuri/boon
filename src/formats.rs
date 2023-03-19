@@ -772,20 +772,13 @@ fn check_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     }
 }
 
+static TEMP_URL: Lazy<Url> = Lazy::new(|| Url::parse("http://temp.com").unwrap());
+
 fn parse_uri_reference(s: &str) -> Result<Url, Box<dyn Error>> {
-    match Url::parse(s) {
-        Ok(url) => Ok(url),
-        Err(url::ParseError::RelativeUrlWithoutBase) => match Url::parse("http://temp.com") {
-            Ok(url) => {
-                if s.contains('\\') {
-                    Err("contains \\\\")?;
-                }
-                Ok(url)
-            }
-            Err(e) => Err(e)?,
-        },
-        Err(e) => Err(e)?,
+    if s.contains('\\') {
+        Err("contains \\\\")?;
     }
+    Ok(TEMP_URL.join(s)?)
 }
 
 fn check_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
