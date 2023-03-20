@@ -402,14 +402,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 match items {
                     Items::SchemaRef(sch) => {
                         for (i, item) in arr.iter().enumerate() {
-                            if let Err(mut e) =
-                                self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i))
-                            {
-                                if let ErrorKind::Group = e.kind {
-                                    e.kind = kind!(Items);
-                                }
-                                self.errors.push(e);
-                            }
+                            add_err!(self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i)));
                         }
                         evaluated = arr.len();
                         debug_assert!(self.uneval.items.is_empty());
@@ -467,14 +460,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let Some(sch) = &s.items2020 {
                 let evaluated = min(s.prefix_items.len(), arr.len());
                 for (i, item) in arr[evaluated..].iter().enumerate() {
-                    if let Err(mut e) =
-                        self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i))
-                    {
-                        if let ErrorKind::Group = e.kind {
-                            e.kind = kind!(Items);
-                        }
-                        self.errors.push(e);
-                    }
+                    add_err!(self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i)));
                 }
                 debug_assert!(self.uneval.items.is_empty());
             }
