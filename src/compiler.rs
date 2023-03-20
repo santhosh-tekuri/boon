@@ -464,7 +464,14 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             }
 
             if let Some(Value::Array(e)) = self.value("enum") {
-                s.enum_ = e.clone();
+                let mut types = Types::default();
+                for item in e {
+                    types.add(Type::of(item));
+                }
+                s.enum_ = Some(Enum {
+                    types,
+                    values: e.clone(),
+                });
             }
 
             s.multiple_of = self.num("multipleOf");

@@ -230,7 +230,7 @@ struct Schema {
     dynamic_ref: Option<DynamicRef>,
     dynamic_anchor: Option<String>,
     types: Types,
-    enum_: Vec<Value>,
+    enum_: Option<Enum>,
     constant: Option<Value>,
     not: Option<SchemaIndex>,
     all_of: Vec<SchemaIndex>,
@@ -281,6 +281,14 @@ struct Schema {
     exclusive_minimum: Option<Number>,
     exclusive_maximum: Option<Number>,
     multiple_of: Option<Number>,
+}
+
+#[derive(Debug)]
+struct Enum {
+    /// types that occur in enum
+    types: Types,
+    /// values in enum
+    values: Vec<Value>,
 }
 
 #[derive(Debug)]

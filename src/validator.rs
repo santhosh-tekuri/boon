@@ -130,9 +130,11 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         // enum --
-        if !s.enum_.is_empty() && !s.enum_.iter().any(|e| equals(e, v)) {
-            let kind = kind!(Enum, v.clone(), &s.enum_);
-            self.add_error(&sloc.kw("enum"), &vloc, kind);
+        if let Some(Enum { types, values }) = &s.enum_ {
+            if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
+                let kind = kind!(Enum, v.clone(), values);
+                self.add_error(&sloc.kw("enum"), &vloc, kind);
+            }
         }
 
         // constant --
