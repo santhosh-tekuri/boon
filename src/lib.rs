@@ -558,16 +558,13 @@ pub enum ErrorKind<'s> {
         want: Number,
     },
     Not,
+    /// none of the subschemas matched
     AllOf,
+    /// none of the subschemas matched.
     AnyOf,
-    OneOf(OneOf),
-}
-
-#[derive(Debug)]
-pub enum OneOf {
-    NoneMatch,
-    Subschema(usize),
-    MultiMatch(usize, usize),
+    /// - `None`: none of the schemas matched.
+    /// - Some(i, j): subschemas at i, j matched
+    OneOf(Option<(usize, usize)>),
 }
 
 impl<'s> Display for ErrorKind<'s> {
@@ -708,9 +705,8 @@ impl<'s> Display for ErrorKind<'s> {
             Self::Not => write!(f, "not failed"),
             Self::AllOf => write!(f, "allOf failed",),
             Self::AnyOf => write!(f, "anyOf failed"),
-            Self::OneOf(OneOf::NoneMatch) => write!(f, "oneOf failed, none matched"),
-            Self::OneOf(OneOf::Subschema(i)) => write!(f, "oneOf subschema {i} failed"),
-            Self::OneOf(OneOf::MultiMatch(i, j)) => write!(f, "oneOf subschemas {i}, {j} matched"),
+            Self::OneOf(None) => write!(f, "oneOf failed, none matched"),
+            Self::OneOf(Some((i, j))) => write!(f, "oneOf failed, subschemas {i}, {j} matched"),
         }
     }
 }

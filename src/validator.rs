@@ -781,26 +781,22 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if !s.one_of.is_empty() {
             let (mut matched, mut oneof_errors) = (None, vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
-                if let Err(mut e) = self.validate_self(*sch, sloc.kw("oneOf").item(i), vloc.copy())
-                {
+                if let Err(e) = self.validate_self(*sch, sloc.kw("oneOf").item(i), vloc.copy()) {
                     if matched.is_none() {
-                        if let ErrorKind::Group = e.kind {
-                            e.kind = ErrorKind::OneOf(OneOf::Subschema(i));
-                        }
                         oneof_errors.push(e);
                     }
                 } else {
                     match matched {
                         None => _ = matched.replace(i),
                         Some(prev) => {
-                            let kind = ErrorKind::OneOf(OneOf::MultiMatch(prev, i));
+                            let kind = ErrorKind::OneOf(Some((prev, i)));
                             self.add_error(&sloc.kw("oneOf"), &vloc, kind);
                         }
                     }
                 }
             }
             if matched.is_none() {
-                let kind = ErrorKind::OneOf(OneOf::NoneMatch);
+                let kind = ErrorKind::OneOf(None);
                 self.add_errors(oneof_errors, &sloc.kw("oneOf"), &vloc, kind);
             }
         }
