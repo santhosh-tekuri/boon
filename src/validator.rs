@@ -747,17 +747,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if !s.all_of.is_empty() {
             let mut allof_errors = vec![];
             for (i, sch) in s.all_of.iter().enumerate() {
-                if let Err(mut e) = self.validate_self(*sch, sloc.kw("allOf").item(i), vloc.copy())
-                {
-                    if let ErrorKind::Group = e.kind {
-                        e.kind = ErrorKind::AllOf { subschema: Some(i) };
-                    }
+                if let Err(e) = self.validate_self(*sch, sloc.kw("allOf").item(i), vloc.copy()) {
                     allof_errors.push(e);
                 }
             }
             if !allof_errors.is_empty() {
-                let kind = ErrorKind::AllOf { subschema: None };
-                self.add_errors(allof_errors, &sloc.kw("allOf"), &vloc, kind);
+                self.add_errors(allof_errors, &sloc.kw("allOf"), &vloc, kind!(AllOf));
             }
         }
 

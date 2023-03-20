@@ -558,9 +558,7 @@ pub enum ErrorKind<'s> {
         want: Number,
     },
     Not,
-    AllOf {
-        subschema: Option<usize>,
-    },
+    AllOf,
     AnyOf {
         subschema: Option<usize>,
     },
@@ -710,8 +708,7 @@ impl<'s> Display for ErrorKind<'s> {
             Self::ExclusiveMaximum { got, want } => write!(f, "must be < {want} but got {got}"),
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
             Self::Not => write!(f, "not failed"),
-            Self::AllOf { subschema: None } => write!(f, "allOf failed",),
-            Self::AllOf { subschema: Some(i) } => write!(f, "allOf subschema {i} failed",),
+            Self::AllOf => write!(f, "allOf failed",),
             Self::AnyOf { subschema: None } => write!(f, "anyOf failed, none matched"),
             Self::AnyOf { subschema: Some(i) } => write!(f, "anyOf subschema {i} failed"),
             Self::OneOf(OneOf::NoneMatch) => write!(f, "oneOf failed, none matched"),
