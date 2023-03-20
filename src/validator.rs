@@ -122,7 +122,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // $ref --
         if let Some(ref_) = s.ref_ {
-            let result = self.validate_ref(ref_, sloc.kw("$ref"), vloc.copy());
+            let result = self.validate_self(ref_, sloc.kw("$ref"), vloc.copy());
             if s.draft_version < 2019 {
                 return result.map(|_| self.uneval);
             }
@@ -672,7 +672,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if self.schemas.get(sch).recursive_anchor {
                 sch = self.resolve_recursive_anchor().unwrap_or(sch);
             }
-            add_err!(self.validate_ref(sch, sloc.kw("$recursiveRef"), vloc.copy()));
+            add_err!(self.validate_self(sch, sloc.kw("$recursiveRef"), vloc.copy()));
         }
 
         // $dynamicRef --
@@ -685,27 +685,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     sch = self.resolve_dynamic_anchor(anchor).unwrap_or(sch);
                 }
             }
-            add_err!(self.validate_ref(sch, sloc.kw("$dynamicRef"), vloc.copy()));
+            add_err!(self.validate_self(sch, sloc.kw("$dynamicRef"), vloc.copy()));
         }
-    }
-
-    fn validate_ref(
-        &mut self,
-        sch: SchemaIndex,
-        mut sloc: SchemaPointer<'_, 's>,
-        mut vloc: JsonPointer<'_, 'v>,
-    ) -> Result<(), ValidationError<'s, 'v>> {
-        if let Err(ref_err) = self.validate_self(sch, sloc.copy(), vloc.copy()) {
-            let url = &self.schemas.get(sch).loc;
-            let mut err = self.error(&sloc, &vloc, ErrorKind::Reference { url });
-            if let ErrorKind::Group = ref_err.kind {
-                err.causes = ref_err.causes;
-            } else {
-                err.causes.push(ref_err);
-            }
-            return Err(err);
-        }
-        Ok(())
     }
 
     fn resolve_recursive_anchor(&self) -> Option<SchemaIndex> {

@@ -11,6 +11,8 @@ use crate::{
     ErrorKind, InstanceLocation, KeywordLocation, ValidationError,
 };
 
+// todo: remove ErrorKind::Reference Usage
+
 impl<'s, 'v> ValidationError<'s, 'v> {
     fn display_causes(&self, f: &mut Formatter, unwrap: bool, indent: usize) -> std::fmt::Result {
         for (i, cause) in self.causes.iter().enumerate() {
