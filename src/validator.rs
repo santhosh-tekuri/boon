@@ -160,7 +160,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         self.refs_validate(sloc.copy(), vloc.copy());
         self.cond_validate(sloc.copy(), vloc.copy());
-        self.uneval_validate(sloc.copy(), vloc.copy());
+        if s.draft_version >= 2019 && self.errors.is_empty() {
+            self.uneval_validate(sloc.copy(), vloc.copy());
+        }
 
         match self.errors.len() {
             0 => Ok(self.uneval),
