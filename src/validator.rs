@@ -811,15 +811,17 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             for (i, sch) in s.one_of.iter().enumerate() {
                 if let Err(mut e) = self.validate_self(*sch, sloc.kw("oneOf").item(i), vloc.copy())
                 {
-                    if let ErrorKind::Group = e.kind {
-                        e.kind = ErrorKind::OneOf(OneOf::Subschema(i));
+                    if matched.is_none() {
+                        if let ErrorKind::Group = e.kind {
+                            e.kind = ErrorKind::OneOf(OneOf::Subschema(i));
+                        }
+                        oneof_errors.push(e);
                     }
-                    oneof_errors.push(e);
                 } else {
                     match matched {
                         None => _ = matched.replace(i),
-                        Some(j) => {
-                            let kind = ErrorKind::OneOf(OneOf::MultiMatch(j, i));
+                        Some(prev) => {
+                            let kind = ErrorKind::OneOf(OneOf::MultiMatch(prev, i));
                             self.add_error(&sloc.kw("oneOf"), &vloc, kind);
                         }
                     }
