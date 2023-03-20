@@ -238,33 +238,23 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         // dependencies --
-        for (pname, dependency) in &s.dependencies {
-            if obj.contains_key(pname) {
+        for (prop, dependency) in &s.dependencies {
+            if obj.contains_key(prop) {
                 match dependency {
                     Dependency::Props(required) => {
                         let missing = find_missing(required);
                         if !missing.is_empty() {
-                            let kind = kind!(Dependency, pname, missing);
-                            self.add_error(&sloc.kw("dependencies").prop(pname), &vloc, kind);
+                            let kind = ErrorKind::Dependency { prop, missing };
+                            self.add_error(&sloc.kw("dependencies").prop(prop), &vloc, kind);
                         }
                     }
                     Dependency::SchemaRef(sch) => {
                         if let Err(e) = self.validate_self(
                             *sch,
-                            sloc.kw("dependencies").prop(pname),
+                            sloc.kw("dependencies").prop(prop),
                             vloc.copy(),
                         ) {
-                            if let ErrorKind::Group = e.kind {
-                                let kind = kind!(Dependency, pname, vec![]);
-                                self.add_errors(
-                                    e.causes,
-                                    &sloc.kw("dependencies").prop(pname),
-                                    &vloc,
-                                    kind,
-                                );
-                            } else {
-                                self.errors.push(e);
-                            };
+                            self.errors.push(e);
                         }
                     }
                 }
@@ -293,12 +283,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         // dependentRequired --
-        for (pname, required) in &s.dependent_required {
-            if obj.contains_key(pname) {
+        for (prop, required) in &s.dependent_required {
+            if obj.contains_key(prop) {
                 let missing = find_missing(required);
                 if !missing.is_empty() {
-                    let kind = kind!(DependentRequired, pname, missing);
-                    self.add_error(&sloc.kw("dependentRequired").prop(pname), &vloc, kind);
+                    let kind = ErrorKind::DependentRequired { prop, missing };
+                    self.add_error(&sloc.kw("dependentRequired").prop(prop), &vloc, kind);
                 }
             }
         }

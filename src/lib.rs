@@ -481,12 +481,16 @@ pub enum ErrorKind<'s> {
         want: Vec<&'s str>,
     },
     Dependency {
-        got: &'s str,
-        want: Vec<&'s str>,
+        /// dependency of prop that failed.
+        prop: &'s str,
+        /// missing props.
+        missing: Vec<&'s str>,
     },
     DependentRequired {
-        got: &'s str,
-        want: Vec<&'s str>,
+        /// dependency of prop that failed.
+        prop: &'s str,
+        /// missing props.
+        missing: Vec<&'s str>,
     },
     DependentSchemas {
         got: &'s str,
@@ -632,23 +636,19 @@ impl<'s> Display for ErrorKind<'s> {
                 "missing properties {}",
                 join_iter(want.iter().map(quote), ", ")
             ),
-            Self::Dependency { got, want } => {
-                if want.is_empty() {
-                    write!(f, "dependency of property {} failed", quote(got))
-                } else {
-                    write!(
-                        f,
-                        "properties {} required, if {} property exists",
-                        join_iter(want.iter().map(quote), ", "),
-                        quote(got)
-                    )
-                }
+            Self::Dependency { prop, missing } => {
+                write!(
+                    f,
+                    "properties {} required, if {} property exists",
+                    join_iter(missing.iter().map(quote), ", "),
+                    quote(prop)
+                )
             }
-            Self::DependentRequired { got, want } => write!(
+            Self::DependentRequired { prop, missing } => write!(
                 f,
                 "properties {} required, if {} property exists",
-                join_iter(want.iter().map(quote), ", "),
-                quote(got)
+                join_iter(missing.iter().map(quote), ", "),
+                quote(prop)
             ),
             Self::DependentSchemas { got } => {
                 write!(f, "dependentSchema of property {} failed", quote(got))
