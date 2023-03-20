@@ -709,6 +709,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             for (i, sch) in s.all_of.iter().enumerate() {
                 if let Err(e) = self.validate_self(*sch, sloc.kw("allOf").item(i), vloc.copy()) {
                     allof_errors.push(e);
+                    if self.bool_result {
+                        break;
+                    }
                 }
             }
             if !allof_errors.is_empty() {
