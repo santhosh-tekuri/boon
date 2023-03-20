@@ -105,6 +105,15 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             return Err(self.error(&sloc, &vloc, kind));
         }
 
+        // $ref --
+        if let Some(ref_) = s.ref_ {
+            let result = self.validate_ref(ref_, sloc.kw("$ref"), vloc.copy());
+            if s.draft_version < 2019 {
+                return result.map(|_| self.uneval);
+            }
+            self.errors.extend(result.err());
+        }
+
         // type --
         if !s.types.is_empty() {
             let v_type = Type::of(v);
@@ -652,11 +661,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 let result = $result;
                 self.errors.extend(result.err().into_iter());
             };
-        }
-
-        // $ref --
-        if let Some(ref_) = s.ref_ {
-            add_err!(self.validate_ref(ref_, sloc.kw("$ref"), vloc.copy()));
         }
 
         // $recursiveRef --
