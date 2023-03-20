@@ -27,20 +27,18 @@ pub(crate) fn validate<'s, 'v>(
     }
     .validate(SchemaPointer::new(&mut sloc), JsonPointer::new(&mut vloc));
     match result {
-        Err(mut e) => {
-            if e.keyword_location.is_empty()
-                && e.instance_location.is_empty()
-                && matches!(e.kind, ErrorKind::Group)
-            {
-                e.kind = ErrorKind::Schema { url: &schema.loc };
+        Err(err) => {
+            let mut e = ValidationError {
+                keyword_location: KeywordLocation::new(),
+                absolute_keyword_location: AbsoluteKeywordLocation::new(schema),
+                instance_location: InstanceLocation::new(),
+                kind: ErrorKind::Schema { url: &schema.loc },
+                causes: vec![],
+            };
+            if let ErrorKind::Group = err.kind {
+                e.causes = err.causes;
             } else {
-                e = ValidationError {
-                    keyword_location: KeywordLocation::new(),
-                    absolute_keyword_location: AbsoluteKeywordLocation::new(schema),
-                    instance_location: InstanceLocation::new(),
-                    kind: ErrorKind::Schema { url: &schema.loc },
-                    causes: vec![e],
-                };
+                e.causes.push(err);
             }
             Err(e)
         }
@@ -1086,10 +1084,6 @@ impl<'v> InstanceLocation<'v> {
         Self::default()
     }
 
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
     fn clone_static(self) -> InstanceLocation<'static> {
         let mut vec = Vec::with_capacity(self.0.len());
         for tok in self.0 {
@@ -1228,10 +1222,6 @@ pub struct KeywordLocation<'s>(pub(crate) Vec<SchemaToken<'s>>);
 impl<'v> KeywordLocation<'v> {
     fn new() -> Self {
         Self::default()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 }
 
