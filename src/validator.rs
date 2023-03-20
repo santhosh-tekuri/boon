@@ -88,6 +88,14 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         let s = self.schema;
         let v = self.v;
 
+        // boolean --
+        if let Some(b) = s.boolean {
+            return match b {
+                false => Err(self.error(&sloc, &vloc, kind!(FalseSchema))),
+                true => Ok(self.uneval),
+            };
+        }
+
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
                 url: &self.schema.loc,
@@ -95,14 +103,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 kw_loc2: (&sloc.with_len(scp.sloc_len)).into(),
             };
             return Err(self.error(&sloc, &vloc, kind));
-        }
-
-        // boolean --
-        if let Some(b) = s.boolean {
-            if !b {
-                return Err(self.error(&sloc, &vloc, kind!(FalseSchema)));
-            }
-            return Ok(self.uneval);
         }
 
         // type --
