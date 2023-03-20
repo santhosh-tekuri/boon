@@ -24,6 +24,7 @@ pub(crate) fn validate<'s, 'v>(
         scope,
         uneval: Uneval::from(v, schema, false),
         errors: vec![],
+        bool_result: false,
     }
     .validate(SchemaPointer::new(&mut sloc), JsonPointer::new(&mut vloc));
     match result {
@@ -75,6 +76,7 @@ struct Validator<'v, 's, 'd> {
     scope: Scope<'d>,
     uneval: Uneval<'v>,
     errors: Vec<ValidationError<'s, 'v>>,
+    bool_result: bool,
 }
 
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
@@ -221,17 +223,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             }
         }
 
-        let find_missing = |required: &'s Vec<String>| -> Vec<&'s str> {
-            required
-                .iter()
-                .filter(|p| !obj.contains_key(p.as_str()))
-                .map(|p| p.as_str())
-                .collect()
-        };
-
         // required --
-        let missing = find_missing(&s.required);
-        if !missing.is_empty() {
+        if let Some(missing) = self.find_missing(obj, &s.required) {
             self.add_error(&sloc.kw("required"), &vloc, kind!(Required, want: missing));
         }
 
@@ -240,8 +233,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if obj.contains_key(prop) {
                 match dependency {
                     Dependency::Props(required) => {
-                        let missing = find_missing(required);
-                        if !missing.is_empty() {
+                        if let Some(missing) = self.find_missing(obj, required) {
                             let kind = ErrorKind::Dependency { prop, missing };
                             self.add_error(&sloc.kw("dependencies").prop(prop), &vloc, kind);
                         }
@@ -273,8 +265,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // dependentRequired --
         for (prop, required) in &s.dependent_required {
             if obj.contains_key(prop) {
-                let missing = find_missing(required);
-                if !missing.is_empty() {
+                if let Some(missing) = self.find_missing(obj, required) {
                     let kind = ErrorKind::DependentRequired { prop, missing };
                     self.add_error(&sloc.kw("dependentRequired").prop(prop), &vloc, kind);
                 }
@@ -702,7 +693,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // not --
         if let Some(not) = s.not {
-            if self.validate_self(not, sloc.kw("not"), vloc.copy()).is_ok() {
+            if self
+                ._validate_self(not, sloc.kw("not"), vloc.copy(), true)
+                .is_ok()
+            {
                 self.add_error(&sloc.kw("not"), &vloc, kind!(Not));
             }
         }
@@ -840,16 +834,18 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             scope,
             uneval: Uneval::from(v, schema, false),
             errors: vec![],
+            bool_result: self.bool_result,
         }
         .validate(sloc, vloc)
         .map(|_| ())
     }
 
-    fn validate_self(
+    fn _validate_self(
         &mut self,
         sch: SchemaIndex,
         sloc: SchemaPointer<'_, 's>,
         vloc: JsonPointer<'_, 'v>,
+        bool_result: bool,
     ) -> Result<(), ValidationError<'s, 'v>> {
         let scope = Scope::child(sch, sloc.len, self.scope.vid, &self.scope);
         let schema = &self.schemas.get(sch);
@@ -860,12 +856,23 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             scope,
             uneval: Uneval::from(self.v, schema, !self.uneval.is_empty()),
             errors: vec![],
+            bool_result: self.bool_result || bool_result,
         }
         .validate(sloc, vloc);
         if let Ok(reply) = &result {
             self.uneval.merge(reply);
         }
         result.map(|_| ())
+    }
+
+    #[inline(always)]
+    fn validate_self(
+        &mut self,
+        sch: SchemaIndex,
+        sloc: SchemaPointer<'_, 's>,
+        vloc: JsonPointer<'_, 'v>,
+    ) -> Result<(), ValidationError<'s, 'v>> {
+        self._validate_self(sch, sloc, vloc, false)
     }
 }
 
@@ -877,6 +884,18 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         vloc: &JsonPointer<'_, 'v>,
         kind: ErrorKind<'s>,
     ) -> ValidationError<'s, 'v> {
+        if self.bool_result {
+            return ValidationError {
+                keyword_location: KeywordLocation::new(),
+                absolute_keyword_location: AbsoluteKeywordLocation {
+                    url: "",
+                    keyword_location: KeywordLocation::new(),
+                },
+                instance_location: InstanceLocation::new(),
+                kind: ErrorKind::Group,
+                causes: vec![],
+            };
+        }
         ValidationError {
             keyword_location: sloc.into(),
             absolute_keyword_location: AbsoluteKeywordLocation {
@@ -911,6 +930,27 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             let mut err = self.error(sloc, vloc, kind);
             err.causes = errors;
             self.errors.push(err);
+        }
+    }
+
+    fn find_missing(
+        &self,
+        obj: &'v Map<String, Value>,
+        required: &'s [String],
+    ) -> Option<Vec<&'s str>> {
+        let mut missing = required
+            .iter()
+            .filter(|p| !obj.contains_key(p.as_str()))
+            .map(|p| p.as_str());
+        if self.bool_result {
+            missing.next().map(|_| Vec::new())
+        } else {
+            let missing = missing.collect::<Vec<_>>();
+            if missing.is_empty() {
+                None
+            } else {
+                Some(missing)
+            }
         }
     }
 }
