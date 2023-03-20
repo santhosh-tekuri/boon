@@ -739,7 +739,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if !s.one_of.is_empty() {
             let (mut matched, mut oneof_errors) = (None, vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
-                if let Err(e) = self.validate_self(*sch, sloc.kw("oneOf").item(i), vloc.copy()) {
+                if let Err(e) = self._validate_self(
+                    *sch,
+                    sloc.kw("oneOf").item(i),
+                    vloc.copy(),
+                    matched.is_some(),
+                ) {
                     if matched.is_none() {
                         oneof_errors.push(e);
                     }
