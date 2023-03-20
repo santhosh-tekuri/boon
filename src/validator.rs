@@ -264,21 +264,11 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // dependentSchemas --
         for (pname, sch) in &s.dependent_schemas {
             if obj.contains_key(pname) {
-                if let Err(e) =
-                    self.validate_self(*sch, sloc.kw("dependentSchemas").prop(pname), vloc.copy())
-                {
-                    if let ErrorKind::Group = e.kind {
-                        let kind = kind!(DependentSchemas, got: pname);
-                        self.add_errors(
-                            e.causes,
-                            &sloc.kw("dependentSchemas").prop(pname),
-                            &vloc,
-                            kind,
-                        );
-                    } else {
-                        self.errors.push(e);
-                    };
-                }
+                add_err!(self.validate_self(
+                    *sch,
+                    sloc.kw("dependentSchemas").prop(pname),
+                    vloc.copy()
+                ));
             }
         }
 

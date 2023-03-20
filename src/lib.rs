@@ -492,9 +492,6 @@ pub enum ErrorKind<'s> {
         /// missing props.
         missing: Vec<&'s str>,
     },
-    DependentSchemas {
-        got: &'s str,
-    },
     MinItems {
         got: usize,
         want: usize,
@@ -649,9 +646,6 @@ impl<'s> Display for ErrorKind<'s> {
                 join_iter(missing.iter().map(quote), ", "),
                 quote(prop)
             ),
-            Self::DependentSchemas { got } => {
-                write!(f, "dependentSchema of property {} failed", quote(got))
-            }
             Self::MinItems { got, want } => {
                 write!(f, "minimum {want} items required, but got {got} items")
             }
