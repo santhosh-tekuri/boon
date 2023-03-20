@@ -105,15 +105,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             return Err(self.error(&sloc, &vloc, kind));
         }
 
-        // $ref --
-        if let Some(ref_) = s.ref_ {
-            let result = self.validate_ref(ref_, sloc.kw("$ref"), vloc.copy());
-            if s.draft_version < 2019 {
-                return result.map(|_| self.uneval);
-            }
-            self.errors.extend(result.err());
-        }
-
         // type --
         if !s.types.is_empty() {
             let v_type = Type::of(v);
@@ -125,8 +116,17 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 }
             };
             if !matched {
-                self.add_error(&sloc.kw("type"), &vloc, kind!(Type, v_type, s.types));
+                return Err(self.error(&sloc.kw("type"), &vloc, kind!(Type, v_type, s.types)));
             }
+        }
+
+        // $ref --
+        if let Some(ref_) = s.ref_ {
+            let result = self.validate_ref(ref_, sloc.kw("$ref"), vloc.copy());
+            if s.draft_version < 2019 {
+                return result.map(|_| self.uneval);
+            }
+            self.errors.extend(result.err());
         }
 
         // enum --
