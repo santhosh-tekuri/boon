@@ -186,7 +186,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         macro_rules! add_err {
             ($result:expr) => {
                 let result = $result;
-                self.errors.extend(result.err().into_iter());
+                self.errors.extend(result.err());
             };
         }
 
@@ -369,7 +369,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         macro_rules! add_err {
             ($result:expr) => {
                 let result = $result;
-                self.errors.extend(result.err().into_iter());
+                self.errors.extend(result.err());
             };
         }
 
@@ -659,7 +659,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         macro_rules! add_err {
             ($result:expr) => {
                 let result = $result;
-                self.errors.extend(result.err().into_iter());
+                self.errors.extend(result.err());
             };
         }
 
@@ -747,7 +747,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         macro_rules! add_err {
             ($result:expr) => {
                 let result = $result;
-                self.errors.extend(result.err().into_iter());
+                self.errors.extend(result.err());
             };
         }
 
@@ -848,7 +848,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         macro_rules! add_err {
             ($result:expr) => {
                 let result = $result;
-                self.errors.extend(result.err().into_iter());
+                self.errors.extend(result.err());
             };
         }
 
