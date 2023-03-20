@@ -768,7 +768,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // if, then, else --
         if let Some(if_) = s.if_ {
-            if self.validate_self(if_, sloc.kw("if"), vloc.copy()).is_ok() {
+            if self
+                ._validate_self(if_, sloc.kw("if"), vloc.copy(), true)
+                .is_ok()
+            {
                 if let Some(then) = s.then {
                     add_err!(self.validate_self(then, sloc.kw("then"), vloc.copy()));
                 }
