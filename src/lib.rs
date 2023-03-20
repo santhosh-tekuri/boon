@@ -559,9 +559,7 @@ pub enum ErrorKind<'s> {
     },
     Not,
     AllOf,
-    AnyOf {
-        subschema: Option<usize>,
-    },
+    AnyOf,
     OneOf(OneOf),
 }
 
@@ -709,8 +707,7 @@ impl<'s> Display for ErrorKind<'s> {
             Self::MultipleOf { got, want } => write!(f, "{got} is not multipleOf {want}"),
             Self::Not => write!(f, "not failed"),
             Self::AllOf => write!(f, "allOf failed",),
-            Self::AnyOf { subschema: None } => write!(f, "anyOf failed, none matched"),
-            Self::AnyOf { subschema: Some(i) } => write!(f, "anyOf subschema {i} failed"),
+            Self::AnyOf => write!(f, "anyOf failed"),
             Self::OneOf(OneOf::NoneMatch) => write!(f, "oneOf failed, none matched"),
             Self::OneOf(OneOf::Subschema(i)) => write!(f, "oneOf subschema {i} failed"),
             Self::OneOf(OneOf::MultiMatch(i, j)) => write!(f, "oneOf subschemas {i}, {j} matched"),
