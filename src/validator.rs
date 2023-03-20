@@ -327,7 +327,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed {
-                                let kind = kind!(AdditionalProperties, got: self.uneval.props.iter().cloned().cloned().collect());
+                                let kind = kind!(AdditionalProperty, got: pname.clone());
                                 self.add_error(&sloc.kw("additionalProperties"), &vloc, kind);
                             }
                         }
