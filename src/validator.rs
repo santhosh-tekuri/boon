@@ -783,23 +783,27 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // anyOf --
         if !s.any_of.is_empty() {
             // NOTE: all schemas must be checked for uneval
+            let mut matched = false;
             let mut anyof_errors = vec![];
             for (i, sch) in s.any_of.iter().enumerate() {
                 match self.validate_self(*sch, sloc.kw("anyOf").item(i), vloc.copy()) {
                     Ok(_) => {
+                        matched = true;
                         if self.uneval.is_empty() {
                             break;
                         }
                     }
                     Err(mut e) => {
-                        if let ErrorKind::Group = e.kind {
-                            e.kind = ErrorKind::AnyOf { subschema: Some(i) };
+                        if !matched {
+                            if let ErrorKind::Group = e.kind {
+                                e.kind = ErrorKind::AnyOf { subschema: Some(i) };
+                            }
+                            anyof_errors.push(e);
                         }
-                        anyof_errors.push(e);
                     }
                 }
             }
-            if anyof_errors.len() == s.any_of.len() {
+            if !matched {
                 let kind = ErrorKind::AnyOf { subschema: None };
                 self.add_errors(anyof_errors, &sloc.kw("anyOf"), &vloc, kind);
             }
