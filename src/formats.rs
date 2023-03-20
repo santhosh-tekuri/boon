@@ -608,7 +608,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     if local.starts_with('"') && local.ends_with('"') {
         // quoted
         let local = &local[1..local.len() - 1];
-        if local.contains('\\') || local.contains('"') {
+        if local.contains(|c| matches!(c, '\\' | '"')) {
             Err("backslash and quote not allowed within quoted local part")?;
         }
     } else {
@@ -627,9 +627,10 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
         }
 
         // check allowd chars
-        if let Some(ch) = local.chars().find(|c| {
-            !(matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9') || ".!#$%&'*+-/=?^_`{|}~".contains(*c))
-        }) {
+        if let Some(ch) = local
+            .chars()
+            .find(|c| !(c.is_ascii_alphanumeric() || ".!#$%&'*+-/=?^_`{|}~".contains(*c)))
+        {
             Err(format!("invalid character {ch:?}"))?;
         }
     }
