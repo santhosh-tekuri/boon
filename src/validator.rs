@@ -230,6 +230,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             self.add_error(&sloc.kw("required"), &vloc, kind!(Required, want: missing));
         }
 
+        if self.bool_result && !self.errors.is_empty() {
+            return;
+        }
+
         // dependencies --
         for (prop, dependency) in &s.dependencies {
             if obj.contains_key(prop) {
