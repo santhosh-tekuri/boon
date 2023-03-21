@@ -120,6 +120,21 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             }
         }
 
+        // enum --
+        if let Some(Enum { types, values }) = &s.enum_ {
+            if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
+                let kind = kind!(Enum, v.clone(), values);
+                return Err(self.error(&sloc.kw("enum"), &vloc, kind));
+            }
+        }
+
+        // constant --
+        if let Some(c) = &s.constant {
+            if !equals(v, c) {
+                return Err(self.error(&sloc.kw("const"), &vloc, kind!(Const, v.clone(), c)));
+            }
+        }
+
         // $ref --
         if let Some(ref_) = s.ref_ {
             let result = self.validate_self(ref_, sloc.kw("$ref"), vloc.copy());
@@ -127,21 +142,6 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 return result.map(|_| self.uneval);
             }
             self.errors.extend(result.err());
-        }
-
-        // enum --
-        if let Some(Enum { types, values }) = &s.enum_ {
-            if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
-                let kind = kind!(Enum, v.clone(), values);
-                self.add_error(&sloc.kw("enum"), &vloc, kind);
-            }
-        }
-
-        // constant --
-        if let Some(c) = &s.constant {
-            if !equals(v, c) {
-                self.add_error(&sloc.kw("const"), &vloc, kind!(Const, v.clone(), c));
-            }
         }
 
         // format --
