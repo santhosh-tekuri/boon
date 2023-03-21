@@ -161,7 +161,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         if !self.bool_result || self.errors.is_empty() {
-            self.refs_validate(sloc.copy(), vloc.copy());
+            if s.draft_version >= 2019 {
+                self.refs_validate(sloc.copy(), vloc.copy());
+            }
             self.cond_validate(sloc.copy(), vloc.copy());
             if s.draft_version >= 2019 && self.errors.is_empty() {
                 self.uneval_validate(sloc.copy(), vloc.copy());
@@ -279,6 +281,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         for (pname, pvalue) in obj {
+            if self.bool_result && !self.errors.is_empty() {
+                return;
+            }
             let mut evaluated = false;
 
             // properties --
