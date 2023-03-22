@@ -425,7 +425,7 @@ impl<'s, 'v> Error for ValidationError<'s, 'v> {}
 
 impl<'s, 'v> Display for ValidationError<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.display(f, 0)
+        self.display(f, "", 0)
     }
 }
 

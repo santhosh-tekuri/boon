@@ -1190,7 +1190,7 @@ impl<'s> Display for SchemaToken<'s> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KeywordPath<'s> {
     pub keyword: &'static str,
     pub token: Option<SchemaToken<'s>>,
@@ -1207,7 +1207,7 @@ impl<'s> Display for KeywordPath<'s> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AbsoluteKeywordLocation<'s> {
     pub schema_url: &'s str,
     pub keyword_path: Option<KeywordPath<'s>>,
