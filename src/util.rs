@@ -109,7 +109,7 @@ pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
 pub(crate) struct Fragment<'a>(&'a str);
 
 impl<'a> Fragment<'a> {
-    pub(crate) fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &'a str {
         self.0
     }
 

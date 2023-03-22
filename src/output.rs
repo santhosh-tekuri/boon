@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, Write},
 };
 
 use serde::{
@@ -13,71 +13,8 @@ use crate::{
 };
 
 impl<'s, 'v> ValidationError<'s, 'v> {
-    pub(crate) fn display(
-        &self,
-        f: &mut Formatter,
-        parent_abs: &str,
-        indent: usize,
-    ) -> std::fmt::Result {
-        let tmp;
-        let mut cur_abs;
-        if let ErrorKind::Schema { url } = &self.kind {
-            debug_assert_eq!(indent, 0, "ErrorKind::Schema must have zero indent");
-            write!(f, "jsonschema {}", self.kind)?;
-            cur_abs = *url;
-        } else {
-            tmp = self.absolute_keyword_location.to_string();
-            cur_abs = &tmp;
-
-            if let ErrorKind::Reference { .. } = &self.kind {
-                if self.causes.len() == 1 {
-                    return self.causes[0].display(f, parent_abs, indent);
-                }
-            }
-
-            // indent --
-            if indent > 0 {
-                for _ in 0..indent - 1 {
-                    write!(f, "  ")?;
-                }
-                write!(f, "- ")?;
-            }
-
-            // location --
-            let inst = &self.instance_location;
-            write!(f, "at {}", quote(&inst.to_string()))?;
-            if f.alternate() {
-                if let ErrorKind::Reference { url } = &self.kind {
-                    cur_abs = *url;
-                }
-                let (p, _) = split(parent_abs);
-                let (c, frag) = split(cur_abs);
-                if c == p {
-                    write!(f, " [S#{frag}]")?;
-                } else {
-                    write!(f, " [{cur_abs}]")?;
-                }
-            }
-
-            // message --
-            if let ErrorKind::Reference { .. } = &self.kind {
-                write!(f, "validation failed")?;
-            } else {
-                write!(f, ": {}", self.kind)?;
-            }
-        }
-
-        // causes --
-        if !self.causes.is_empty() {
-            writeln!(f)?;
-        }
-        for (i, cause) in self.causes.iter().enumerate() {
-            if i != 0 {
-                writeln!(f)?;
-            };
-            cause.display(f, cur_abs, indent + 1)?;
-        }
-        Ok(())
+    fn skip(&self) -> bool {
+        self.causes.len() == 1 && matches!(self.kind, ErrorKind::Reference { .. })
     }
 
     pub fn flag_output(&self) -> FlagOutput {
@@ -85,62 +22,52 @@ impl<'s, 'v> ValidationError<'s, 'v> {
     }
 
     pub fn basic_output(&self) -> OutputUnit {
-        fn flatten<'e, 's, 'v>(
-            err: &'e ValidationError<'s, 'v>,
-            kw_loc: &mut String,
-            parent_abs: &str,
-            mut in_ref: bool,
-            tgt: &mut Vec<OutputUnit<'e, 's, 'v>>,
-        ) {
-            let tmp = err.absolute_keyword_location.to_string();
-            let removed = update_keyword_location(kw_loc, parent_abs, &tmp, err);
-            let mut cur_abs = tmp.as_str();
-            let mut is_ref = false;
-            if let ErrorKind::Reference { url } = &err.kind {
-                is_ref = true;
-                in_ref = true;
-                cur_abs = *url;
-            }
-            if !(is_ref && err.causes.len() == 1) {
-                let absolute_keyword_location = if in_ref {
-                    if let ErrorKind::Reference { url } = &err.kind {
-                        Some(Cow::Owned(AbsoluteKeywordLocation {
-                            schema_url: url,
-                            keyword_path: None,
-                        }))
-                    } else {
-                        Some(Cow::Borrowed(&err.absolute_keyword_location))
+        let mut outputs = vec![];
+
+        let mut in_ref = InRef::default();
+        let mut kw_loc = KeywordLocation::default();
+        for node in DfsIterator::new(self) {
+            match node {
+                DfsItem::Pre(e) => {
+                    in_ref.pre(e);
+                    kw_loc.pre(e);
+                    if e.skip() || matches!(e.kind, ErrorKind::Schema { .. }) {
+                        continue;
                     }
-                } else {
-                    None
-                };
-                tgt.push(OutputUnit {
-                    valid: false,
-                    keyword_location: kw_loc.to_string(),
-                    absolute_keyword_location,
-                    instance_location: &err.instance_location,
-                    error: OutputError::Leaf(&err.kind),
-                });
+                    let absolute_keyword_location = if in_ref.get() {
+                        if let ErrorKind::Reference { url } = &e.kind {
+                            Some(Cow::Owned(AbsoluteKeywordLocation {
+                                schema_url: url,
+                                keyword_path: None,
+                            }))
+                        } else {
+                            Some(Cow::Borrowed(&e.absolute_keyword_location))
+                        }
+                    } else {
+                        None
+                    };
+                    outputs.push(OutputUnit {
+                        valid: false,
+                        keyword_location: kw_loc.get(e),
+                        absolute_keyword_location,
+                        instance_location: &e.instance_location,
+                        error: OutputError::Leaf(&e.kind),
+                    });
+                }
+                DfsItem::Post(e) => {
+                    in_ref.post();
+                    kw_loc.post();
+                    if e.skip() || matches!(e.kind, ErrorKind::Schema { .. }) {
+                        continue;
+                    }
+                }
             }
-            let len = kw_loc.len();
-            for cause in &err.causes {
-                flatten(cause, kw_loc, cur_abs, in_ref, tgt);
-                kw_loc.truncate(len);
-            }
-            kw_loc.push_str(&removed);
         }
 
-        let error = if self.causes.is_empty() {
+        let error = if outputs.is_empty() {
             OutputError::Leaf(&self.kind)
         } else {
-            let abs_url = self.absolute_keyword_location.to_string();
-            let mut v = vec![];
-            let mut kw_loc = String::new();
-            for cause in &self.causes {
-                flatten(cause, &mut kw_loc, &abs_url, false, &mut v);
-                kw_loc.truncate(0);
-            }
-            OutputError::Branch(v)
+            OutputError::Branch(outputs)
         };
         OutputUnit {
             valid: false,
@@ -152,67 +79,321 @@ impl<'s, 'v> ValidationError<'s, 'v> {
     }
 
     pub fn detailed_output(&self) -> OutputUnit {
-        fn output_unit<'e, 's, 'v>(
-            err: &'e ValidationError<'s, 'v>,
-            kw_loc: &mut String,
-            parent_abs: &str,
-            mut in_ref: bool,
-        ) -> OutputUnit<'e, 's, 'v> {
-            let temp = err.absolute_keyword_location.to_string();
-            let removed = update_keyword_location(kw_loc, parent_abs, &temp, err);
-            let mut cur_abs = temp.as_str();
-            let mut is_ref = false;
-            if let ErrorKind::Reference { url } = &err.kind {
-                is_ref = true;
-                in_ref = true;
-                cur_abs = *url;
-            }
-            if is_ref && err.causes.len() == 1 {
-                let len = kw_loc.len();
-                let out = output_unit(&err.causes[0], kw_loc, cur_abs, in_ref);
-                kw_loc.truncate(len);
-                kw_loc.push_str(&removed);
-                return out;
-            }
+        let mut root = None;
+        let mut stack: Vec<OutputUnit> = vec![];
 
-            let absolute_keyword_location = if in_ref {
-                if let ErrorKind::Reference { url } = &err.kind {
-                    Some(Cow::Owned(AbsoluteKeywordLocation {
-                        schema_url: url,
-                        keyword_path: None,
-                    }))
-                } else {
-                    Some(Cow::Borrowed(&err.absolute_keyword_location))
+        let mut in_ref = InRef::default();
+        let mut kw_loc = KeywordLocation::default();
+        for node in DfsIterator::new(self) {
+            match node {
+                DfsItem::Pre(e) => {
+                    in_ref.pre(e);
+                    kw_loc.pre(e);
+                    if e.skip() {
+                        continue;
+                    }
+                    let absolute_keyword_location = if in_ref.get() {
+                        if let ErrorKind::Reference { url } = &e.kind {
+                            Some(Cow::Owned(AbsoluteKeywordLocation {
+                                schema_url: url,
+                                keyword_path: None,
+                            }))
+                        } else {
+                            Some(Cow::Borrowed(&e.absolute_keyword_location))
+                        }
+                    } else {
+                        None
+                    };
+                    stack.push(OutputUnit {
+                        valid: false,
+                        keyword_location: kw_loc.get(e),
+                        absolute_keyword_location,
+                        instance_location: &e.instance_location,
+                        error: OutputError::Leaf(&e.kind),
+                    });
                 }
-            } else {
-                None
-            };
-
-            let error = if err.causes.is_empty() {
-                OutputError::Leaf(&err.kind)
-            } else {
-                let mut v = vec![];
-                let len = kw_loc.len();
-                for cause in &err.causes {
-                    v.push(output_unit(cause, kw_loc, cur_abs, in_ref));
-                    kw_loc.truncate(len);
+                DfsItem::Post(e) => {
+                    in_ref.post();
+                    kw_loc.post();
+                    if e.skip() {
+                        continue;
+                    }
+                    let output = stack.pop().unwrap();
+                    if let Some(parent) = stack.last_mut() {
+                        match &mut parent.error {
+                            OutputError::Leaf(_) => {
+                                parent.error = OutputError::Branch(vec![output]);
+                            }
+                            OutputError::Branch(v) => v.push(output),
+                        }
+                    } else {
+                        root.replace(output);
+                    }
                 }
-                OutputError::Branch(v)
-            };
-
-            let out = OutputUnit {
-                valid: false,
-                keyword_location: kw_loc.to_string(),
-                absolute_keyword_location,
-                instance_location: &err.instance_location,
-                error,
-            };
-            kw_loc.push_str(&removed);
-            out
+            }
         }
-        output_unit(self, &mut String::new(), "", false)
+        root.unwrap()
     }
 }
+
+// DfsIterator --
+
+impl<'s, 'v> Display for ValidationError<'s, 'v> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut indent = Indent::default();
+        let mut sloc = SchemaLocation::default();
+        let mut kw_loc = KeywordLocation::default();
+        for node in DfsIterator::new(self) {
+            match node {
+                DfsItem::Pre(e) => {
+                    kw_loc.pre(e);
+                    if e.skip() {
+                        continue;
+                    }
+                    indent.pre(f)?;
+                    if f.alternate() {
+                        sloc.pre(e);
+                    }
+                    if let ErrorKind::Schema { .. } = &e.kind {
+                        write!(f, "jsonschema {}", e.kind)?;
+                    } else {
+                        write!(f, "at {}", quote(&e.instance_location.to_string()))?;
+                        if f.alternate() {
+                            write!(f, " [{}]", sloc)?;
+                            write!(f, " [{}]", kw_loc.get(e))?;
+                            write!(f, " [{}]", e.absolute_keyword_location)?;
+                        }
+                        write!(f, ": {}", e.kind)?;
+                    }
+                }
+                DfsItem::Post(e) => {
+                    kw_loc.post();
+                    if e.skip() {
+                        continue;
+                    }
+                    indent.post();
+                    sloc.post();
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+struct DfsIterator<'a, 'v, 's> {
+    root: Option<&'a ValidationError<'v, 's>>,
+    stack: Vec<Frame<'a, 'v, 's>>,
+}
+
+impl<'a, 'v, 's> DfsIterator<'a, 'v, 's> {
+    fn new(err: &'a ValidationError<'v, 's>) -> Self {
+        DfsIterator {
+            root: Some(err),
+            stack: vec![],
+        }
+    }
+}
+
+impl<'a, 'v, 's> Iterator for DfsIterator<'a, 'v, 's> {
+    type Item = DfsItem<&'a ValidationError<'v, 's>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(mut frame) = self.stack.pop() else {
+            if let Some(err) = self.root.take() {
+                self.stack.push(Frame::from(err));
+                return Some(DfsItem::Pre(err));
+            } else {
+                return None;
+            }
+        };
+
+        if frame.causes.is_empty() {
+            return Some(DfsItem::Post(frame.err));
+        }
+
+        let err = &frame.causes[0];
+        frame.causes = &frame.causes[1..];
+        self.stack.push(frame);
+        self.stack.push(Frame::from(err));
+        Some(DfsItem::Pre(err))
+    }
+}
+
+struct Frame<'a, 'v, 's> {
+    err: &'a ValidationError<'v, 's>,
+    causes: &'a [ValidationError<'v, 's>],
+}
+
+impl<'a, 'v, 's> Frame<'a, 'v, 's> {
+    fn from(err: &'a ValidationError<'v, 's>) -> Self {
+        Self {
+            err,
+            causes: &err.causes,
+        }
+    }
+}
+
+enum DfsItem<T> {
+    Pre(T),
+    Post(T),
+}
+
+// Indent --
+
+#[derive(Default)]
+struct Indent {
+    n: usize,
+}
+
+impl Indent {
+    fn pre(&mut self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.n > 0 {
+            writeln!(f)?;
+            for _ in 0..self.n - 1 {
+                write!(f, "  ")?;
+            }
+            write!(f, "- ")?;
+        }
+        self.n += 1;
+        Ok(())
+    }
+
+    fn post(&mut self) {
+        self.n -= 1;
+    }
+}
+
+// SchemaLocation
+
+#[derive(Default)]
+struct SchemaLocation<'a, 's, 'v> {
+    stack: Vec<&'a ValidationError<'s, 'v>>,
+}
+
+impl<'a, 's, 'v> SchemaLocation<'a, 's, 'v> {
+    fn pre(&mut self, e: &'a ValidationError<'s, 'v>) {
+        self.stack.push(e);
+    }
+
+    fn post(&mut self) {
+        self.stack.pop();
+    }
+}
+
+impl<'a, 's, 'v> Display for SchemaLocation<'a, 's, 'v> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.stack.iter().cloned();
+        let cur = iter.next_back().unwrap();
+        let cur: Cow<str> = match &cur.kind {
+            ErrorKind::Schema { url } => Cow::Borrowed(url),
+            ErrorKind::Reference { url } => Cow::Borrowed(url),
+            _ => Cow::Owned(cur.absolute_keyword_location.to_string()),
+        };
+
+        let Some(prev) = iter.next_back() else {
+            return write!(f, "{cur}")
+        };
+
+        let p = match &prev.kind {
+            ErrorKind::Schema { url } => {
+                let (p, _) = split(url);
+                p
+            }
+            ErrorKind::Reference { url } => {
+                let (p, _) = split(url);
+                p
+            }
+            _ => {
+                let (p, _) = split(prev.absolute_keyword_location.schema_url);
+                p
+            }
+        };
+        let (c, frag) = split(cur.as_ref());
+        if c == p {
+            write!(f, "S#{frag}")
+        } else {
+            write!(f, "{cur}")
+        }
+    }
+}
+
+// KeywordLocation --
+
+#[derive(Default)]
+struct KeywordLocation<'a> {
+    loc: String,
+    stack: Vec<(&'a str, usize)>, // (schema_url, len)
+}
+
+impl<'a> KeywordLocation<'a> {
+    fn pre(&mut self, e: &'a ValidationError) {
+        let cur = match &e.kind {
+            ErrorKind::Schema { url } => url,
+            ErrorKind::Reference { url } => url,
+            _ => e.absolute_keyword_location.schema_url,
+        };
+
+        if let Some((prev, _)) = self.stack.last() {
+            self.loc
+                .push_str(&e.absolute_keyword_location.schema_url[prev.len()..]); // todo: url-decode
+            if let ErrorKind::Reference { .. } = &e.kind {
+                let ref_keyword = e
+                    .absolute_keyword_location
+                    .keyword_path
+                    .as_ref()
+                    .map(|p| p.keyword)
+                    .unwrap_or_default();
+                self.loc.push('/');
+                self.loc.push_str(ref_keyword);
+            }
+        }
+        self.stack.push((cur, self.loc.len()));
+    }
+
+    fn post(&mut self) {
+        self.stack.pop();
+        if let Some((_, len)) = self.stack.last() {
+            self.loc.truncate(*len);
+        }
+    }
+
+    fn get(&mut self, cur: &'a ValidationError) -> String {
+        if let ErrorKind::Reference { .. } = &cur.kind {
+            self.loc.clone()
+        } else if let Some(kw_path) = &cur.absolute_keyword_location.keyword_path {
+            let len = self.loc.len();
+            self.loc.push('/');
+            write!(self.loc, "{}", kw_path).expect("write kw_path to String should not fail");
+            let loc = self.loc.clone();
+            self.loc.truncate(len);
+            loc
+        } else {
+            self.loc.clone()
+        }
+    }
+}
+
+#[derive(Default)]
+struct InRef {
+    stack: Vec<bool>,
+}
+
+impl InRef {
+    fn pre(&mut self, e: &ValidationError) {
+        let in_ref: bool = self.get() || matches!(e.kind, ErrorKind::Reference { .. });
+        self.stack.push(in_ref);
+    }
+
+    fn post(&mut self) {
+        self.stack.pop();
+    }
+
+    fn get(&self) -> bool {
+        self.stack.last().cloned().unwrap_or_default()
+    }
+}
+
+// output formats --
 
 pub struct FlagOutput {
     pub valid: bool,
@@ -291,41 +472,5 @@ impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
                 seq.end()
             }
         }
-    }
-}
-
-fn update_keyword_location(
-    kw_loc: &mut String,
-    mut parent: &str,
-    current: &str,
-    err: &ValidationError,
-) -> String {
-    if parent.is_empty() {
-        return String::new();
-    }
-    if let ErrorKind::Reference { .. } = &err.kind {
-        let Some(kw_path) = &err.absolute_keyword_location.keyword_path else {
-            debug_assert!(false, "ErrorKind::Reference must has KeywordPath");
-            return String::new();
-        };
-        kw_loc.push('/');
-        kw_loc.push_str(kw_path.keyword);
-        String::new()
-    } else {
-        let mut removed = String::new();
-
-        // handle minContains with child contains
-        while !current.starts_with(parent) {
-            let Some(slash) = parent.rfind('/') else {
-                debug_assert!(false, "ErrorKind::Reference must has KeywordPath");
-                return String::new();
-            };
-            removed.insert_str(0, &parent[slash..]);
-            parent = &parent[..slash];
-        }
-
-        let kw_path = &current[parent.len()..]; // todo: url-decode
-        kw_loc.push_str(kw_path);
-        removed
     }
 }
