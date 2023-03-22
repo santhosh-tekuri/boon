@@ -128,7 +128,6 @@ use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
 pub use validator::InstanceLocation;
-pub use validator::KeywordLocation;
 
 /// Identifier to compiled schema.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -412,8 +411,6 @@ impl Types {
 /// Error type for validation failures.
 #[derive(Debug)]
 pub struct ValidationError<'s, 'v> {
-    /// The relative location of the validating keyword that follows the validation path
-    pub keyword_location: KeywordLocation<'s>,
     /// The absolute, dereferenced location of the validating keyword
     pub absolute_keyword_location: AbsoluteKeywordLocation<'s>,
     /// The location of the JSON value within the instance being validated
@@ -428,7 +425,7 @@ impl<'s, 'v> Error for ValidationError<'s, 'v> {}
 
 impl<'s, 'v> Display for ValidationError<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.display(f, true, 0)
+        self.display(f, 0)
     }
 }
 
@@ -445,8 +442,8 @@ pub enum ErrorKind<'s> {
     },
     RefCycle {
         url: &'s str,
-        kw_loc1: KeywordLocation<'s>,
-        kw_loc2: KeywordLocation<'s>,
+        kw_loc1: String,
+        kw_loc2: String,
     },
     FalseSchema,
     Type {

@@ -6,107 +6,51 @@ use serde::{
 };
 
 use crate::{
-    util::*,
-    validator::{AbsoluteKeywordLocation, SchemaToken},
-    ErrorKind, InstanceLocation, KeywordLocation, ValidationError,
+    util::*, validator::AbsoluteKeywordLocation, ErrorKind, InstanceLocation, ValidationError,
 };
 
 // todo: remove ErrorKind::Reference Usage
 
 impl<'s, 'v> ValidationError<'s, 'v> {
-    fn display_causes(&self, f: &mut Formatter, unwrap: bool, indent: usize) -> std::fmt::Result {
-        for (i, cause) in self.causes.iter().enumerate() {
-            if i != 0 {
-                writeln!(f)?;
-            };
-            cause.display(f, unwrap, indent)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn display(
-        &self,
-        f: &mut Formatter,
-        mut unwrap: bool,
-        indent: usize,
-    ) -> std::fmt::Result {
+    pub(crate) fn display(&self, f: &mut Formatter, indent: usize) -> std::fmt::Result {
         if let ErrorKind::Schema { .. } = &self.kind {
             debug_assert_eq!(indent, 0, "ErrorKind::Schema must have zero indent");
             write!(f, "jsonschema {}", self.kind)?;
-            writeln!(f)?;
-            return self.display_causes(f, unwrap, indent + 1);
-        }
+        } else {
+            let abs_url = self.absolute_keyword_location.to_string();
+            let (s, frag) = split(&abs_url);
 
-        // unwrap --
-        let tmp = self.absolute_keyword_location.to_string();
-        let (s, frag) = split(&tmp);
-        if let ErrorKind::Reference { url } = &self.kind {
-            if self.causes.len() == 1
-                && (!f.alternate() || {
+            if let ErrorKind::Reference { url } = &self.kind {
+                if !f.alternate() {
+                    return self.causes[0].display(f, indent);
+                } else if self.causes.len() == 1 {
                     let (u, _) = split(url);
-                    u == s // ref within root
-                })
-            {
-                return self.causes[0].display(f, unwrap, indent);
-            }
-        }
-        let unwrap_causes = !matches!(self.kind, ErrorKind::AnyOf { .. } | ErrorKind::OneOf(_));
-        if unwrap
-            && !self.causes.is_empty()
-            && !matches!(
-                self.kind,
-                ErrorKind::Schema { .. }
-                    | ErrorKind::Reference { .. }
-                    | ErrorKind::AnyOf { .. }
-                    | ErrorKind::OneOf(_)
-                    | ErrorKind::ContentSchema
-            )
-        {
-            return self.display_causes(f, unwrap_causes, indent);
-        }
-        unwrap = unwrap_causes;
-
-        // indent --
-        if indent > 0 {
-            for _ in 0..indent - 1 {
-                write!(f, "  ")?;
-            }
-            write!(f, "- ")?;
-        }
-
-        // location --
-        let inst = &self.instance_location;
-        write!(f, "at {}", quote(&inst.to_string()))?;
-        if f.alternate() {
-            write!(f, " [S#{frag}]")?;
-        }
-        write!(f, ": ")?;
-
-        // message --
-        if f.alternate() {
-            match &self.kind {
-                ErrorKind::Reference { url } => {
-                    let (u, frag) = split(url);
                     if u == s {
-                        write!(f, "validation failed with S#{frag}")?;
-                    } else {
-                        write!(f, "{}", self.kind)?;
+                        return self.causes[0].display(f, indent);
                     }
                 }
-                _ => write!(f, "{}", self.kind)?,
             }
-        } else {
-            match &self.kind {
-                ErrorKind::Reference { .. } => {
-                    let kw = self
-                        .keyword_location
-                        .0
-                        .iter()
-                        .last()
-                        .unwrap_or(&SchemaToken::Keyword(""));
-                    write!(f, "{kw} failed")?
+
+            // indent --
+            if indent > 0 {
+                for _ in 0..indent - 1 {
+                    write!(f, "  ")?;
                 }
-                _ => write!(f, "{}", self.kind)?,
+                write!(f, "- ")?;
+            }
+
+            // location --
+            let inst = &self.instance_location;
+            write!(f, "at {}", quote(&inst.to_string()))?;
+            if f.alternate() {
+                write!(f, " [S#{frag}] [{abs_url}]")?;
+            }
+
+            // message --
+            if let ErrorKind::Reference { url } = &self.kind {
+                write!(f, "=> [{url}]")?;
+            } else {
+                write!(f, ": {}", self.kind)?;
             }
         }
 
@@ -114,7 +58,13 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         if !self.causes.is_empty() {
             writeln!(f)?;
         }
-        self.display_causes(f, unwrap, indent + 1)
+        for (i, cause) in self.causes.iter().enumerate() {
+            if i != 0 {
+                writeln!(f)?;
+            };
+            cause.display(f, indent + 1)?;
+        }
+        Ok(())
     }
 
     pub fn flag_output(&self) -> FlagOutput {
@@ -124,9 +74,16 @@ impl<'s, 'v> ValidationError<'s, 'v> {
     pub fn basic_output(&self) -> OutputUnit {
         fn flatten<'e, 's, 'v>(
             err: &'e ValidationError<'s, 'v>,
+            kw_loc: &mut String,
             mut in_ref: bool,
             tgt: &mut Vec<OutputUnit<'e, 's, 'v>>,
         ) {
+            if let Some(kw_path) = &err.absolute_keyword_location.keyword_path {
+                kw_loc.push('/');
+                use std::fmt::Write;
+                write!(kw_loc, "{kw_path}").expect("write! to string should not fail");
+            }
+
             in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
                 Some(&err.absolute_keyword_location)
@@ -135,27 +92,31 @@ impl<'s, 'v> ValidationError<'s, 'v> {
             };
             tgt.push(OutputUnit {
                 valid: false,
-                keyword_location: &err.keyword_location,
+                keyword_location: kw_loc.to_string(),
                 absolute_keyword_location,
                 instance_location: &err.instance_location,
                 error: OutputError::Leaf(&err.kind),
             });
+            let len = kw_loc.len();
             for cause in &err.causes {
-                flatten(cause, in_ref, tgt);
+                flatten(cause, kw_loc, in_ref, tgt);
+                kw_loc.truncate(len);
             }
         }
         let error = if self.causes.is_empty() {
             OutputError::Leaf(&self.kind)
         } else {
             let mut v = vec![];
+            let mut kw_loc = String::new();
             for cause in &self.causes {
-                flatten(cause, false, &mut v);
+                flatten(cause, &mut kw_loc, false, &mut v);
+                kw_loc.truncate(0);
             }
             OutputError::Branch(v)
         };
         OutputUnit {
             valid: false,
-            keyword_location: &self.keyword_location,
+            keyword_location: String::new(),
             absolute_keyword_location: None,
             instance_location: &self.instance_location,
             error,
@@ -165,40 +126,43 @@ impl<'s, 'v> ValidationError<'s, 'v> {
     pub fn detailed_output(&self) -> OutputUnit {
         fn output_unit<'e, 's, 'v>(
             err: &'e ValidationError<'s, 'v>,
+            kw_loc: &mut String,
             mut in_ref: bool,
         ) -> OutputUnit<'e, 's, 'v> {
-            in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
-
-            // single cause
-            if !matches!(err.kind, ErrorKind::ContentSchema) {
-                if let [cause] = &err.causes[..] {
-                    return output_unit(cause, in_ref);
-                }
+            if let Some(kw_path) = &err.absolute_keyword_location.keyword_path {
+                kw_loc.push('/');
+                use std::fmt::Write;
+                write!(kw_loc, "{kw_path}").expect("write! to string should not fail");
             }
 
-            let error = if err.causes.is_empty() {
-                OutputError::Leaf(&err.kind)
-            } else {
-                let mut v = vec![];
-                for cause in &err.causes {
-                    v.push(output_unit(cause, in_ref));
-                }
-                OutputError::Branch(v)
-            };
+            in_ref = in_ref || matches!(err.kind, ErrorKind::Reference { .. });
             let absolute_keyword_location = if in_ref {
                 Some(&err.absolute_keyword_location)
             } else {
                 None
             };
+
+            let error = if err.causes.is_empty() {
+                OutputError::Leaf(&err.kind)
+            } else {
+                let mut v = vec![];
+                let len = kw_loc.len();
+                for cause in &err.causes {
+                    v.push(output_unit(cause, kw_loc, in_ref));
+                    kw_loc.truncate(len);
+                }
+                OutputError::Branch(v)
+            };
+
             OutputUnit {
                 valid: false,
-                keyword_location: &err.keyword_location,
+                keyword_location: kw_loc.to_string(),
                 absolute_keyword_location,
                 instance_location: &err.instance_location,
                 error,
             }
         }
-        output_unit(self, false)
+        output_unit(self, &mut String::new(), false)
     }
 }
 
@@ -225,7 +189,7 @@ impl Display for FlagOutput {
 
 pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
-    pub keyword_location: &'e KeywordLocation<'s>,
+    pub keyword_location: String,
     pub absolute_keyword_location: Option<&'e AbsoluteKeywordLocation<'s>>,
     pub instance_location: &'e InstanceLocation<'v>,
     pub error: OutputError<'e, 's, 'v>,

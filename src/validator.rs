@@ -4,6 +4,34 @@ use serde_json::{Map, Value};
 
 use crate::{util::*, *};
 
+macro_rules! kw {
+    ($kw:expr) => {
+        Some(KeywordPath {
+            keyword: $kw,
+            token: None,
+        })
+    };
+}
+
+macro_rules! kw_prop {
+    ($kw:expr, $prop:expr) => {
+        Some(KeywordPath {
+            keyword: $kw,
+            token: Some(SchemaToken::Prop($prop)),
+        })
+    };
+}
+
+#[allow(unused)]
+macro_rules! kw_item {
+    ($kw:expr, $item:expr) => {
+        Some(KeywordPath {
+            keyword: $kw,
+            token: Some(SchemaToken::Item($item)),
+        })
+    };
+}
+
 pub(crate) fn validate<'s, 'v>(
     v: &'v Value,
     schema: &'s Schema,
@@ -11,12 +39,11 @@ pub(crate) fn validate<'s, 'v>(
 ) -> Result<(), ValidationError<'s, 'v>> {
     let scope = Scope {
         sch: schema.idx,
-        sloc_len: 0,
+        ref_kw: None,
         vid: 0,
         parent: None,
     };
     let mut vloc = Vec::with_capacity(8);
-    let mut sloc = Vec::with_capacity(10);
     let result = Validator {
         v,
         schema,
@@ -26,11 +53,10 @@ pub(crate) fn validate<'s, 'v>(
         errors: vec![],
         bool_result: false,
     }
-    .validate(SchemaPointer::new(&mut sloc), JsonPointer::new(&mut vloc));
+    .validate(JsonPointer::new(&mut vloc));
     match result {
         Err(err) => {
             let mut e = ValidationError {
-                keyword_location: KeywordLocation::new(),
                 absolute_keyword_location: AbsoluteKeywordLocation::new(schema),
                 instance_location: InstanceLocation::new(),
                 kind: ErrorKind::Schema { url: &schema.loc },
@@ -82,7 +108,6 @@ struct Validator<'v, 's, 'd> {
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
     fn validate(
         mut self,
-        mut sloc: SchemaPointer<'_, 's>,
         mut vloc: JsonPointer<'_, 'v>,
     ) -> Result<Uneval<'v>, ValidationError<'s, 'v>> {
         let s = self.schema;
@@ -91,7 +116,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // boolean --
         if let Some(b) = s.boolean {
             return match b {
-                false => Err(self.error(&sloc, &vloc, kind!(FalseSchema))),
+                false => Err(self.error(None, &vloc, kind!(FalseSchema))),
                 true => Ok(self.uneval),
             };
         }
@@ -99,10 +124,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
                 url: &self.schema.loc,
-                kw_loc1: (&sloc).into(),
-                kw_loc2: (&sloc.with_len(scp.sloc_len)).into(),
+                kw_loc1: self.kw_loc(&self.scope),
+                kw_loc2: self.kw_loc(scp),
             };
-            return Err(self.error(&sloc, &vloc, kind));
+            return Err(self.error(None, &vloc, kind));
         }
 
         // type --
@@ -116,7 +141,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 }
             };
             if !matched {
-                return Err(self.error(&sloc.kw("type"), &vloc, kind!(Type, v_type, s.types)));
+                return Err(self.error(kw!("type"), &vloc, kind!(Type, v_type, s.types)));
             }
         }
 
@@ -124,20 +149,20 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(Enum { types, values }) = &s.enum_ {
             if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
                 let kind = kind!(Enum, v.clone(), values);
-                return Err(self.error(&sloc.kw("enum"), &vloc, kind));
+                return Err(self.error(kw!("enum"), &vloc, kind));
             }
         }
 
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                return Err(self.error(&sloc.kw("const"), &vloc, kind!(Const, v.clone(), c)));
+                return Err(self.error(kw!("const"), &vloc, kind!(Const, v.clone(), c)));
             }
         }
 
         // $ref --
         if let Some(ref_) = s.ref_ {
-            let result = self.validate_self(ref_, sloc.kw("$ref"), vloc.copy());
+            let result = self.validate_ref(ref_, "$ref", vloc.copy());
             if s.draft_version < 2019 {
                 return result.map(|_| self.uneval);
             }
@@ -148,25 +173,25 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(format) = &s.format {
             if let Err(e) = (format.func)(v) {
                 let kind = kind!(Format, v.clone(), format.name, e);
-                self.add_error(&sloc.kw("format"), &vloc, kind);
+                self.add_error(kw!("format"), &vloc, kind);
             }
         }
 
         match v {
-            Value::Object(obj) => self.obj_validate(obj, sloc.copy(), vloc.copy()),
-            Value::Array(arr) => self.arr_validate(arr, sloc.copy(), vloc.copy()),
-            Value::String(str) => self.str_validate(str, sloc.copy(), vloc.copy()),
-            Value::Number(num) => self.num_validate(num, sloc.copy(), vloc.copy()),
+            Value::Object(obj) => self.obj_validate(obj, vloc.copy()),
+            Value::Array(arr) => self.arr_validate(arr, vloc.copy()),
+            Value::String(str) => self.str_validate(str, vloc.copy()),
+            Value::Number(num) => self.num_validate(num, vloc.copy()),
             _ => {}
         }
 
         if !self.bool_result || self.errors.is_empty() {
             if s.draft_version >= 2019 {
-                self.refs_validate(sloc.copy(), vloc.copy());
+                self.refs_validate(vloc.copy());
             }
-            self.cond_validate(sloc.copy(), vloc.copy());
+            self.cond_validate(vloc.copy());
             if s.draft_version >= 2019 && self.errors.is_empty() {
-                self.uneval_validate(sloc.copy(), vloc.copy());
+                self.uneval_validate(vloc.copy());
             }
         }
 
@@ -174,7 +199,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             0 => Ok(self.uneval),
             1 => Err(self.errors.remove(0)),
             _ => {
-                let mut e = self.error(&sloc, &vloc, kind!(Group));
+                let mut e = self.error(None, &vloc, kind!(Group));
                 e.causes = self.errors;
                 Err(e)
             }
@@ -184,12 +209,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
 // type specific validations
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
-    fn obj_validate(
-        &mut self,
-        obj: &'v Map<String, Value>,
-        mut sloc: SchemaPointer<'_, 's>,
-        mut vloc: JsonPointer<'_, 'v>,
-    ) {
+    fn obj_validate(&mut self, obj: &'v Map<String, Value>, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -202,7 +222,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(min) = s.min_properties {
             if obj.len() < min {
                 let kind = kind!(MinProperties, obj.len(), min);
-                self.add_error(&sloc.kw("minProperties"), &vloc, kind);
+                self.add_error(kw!("minProperties"), &vloc, kind);
             }
         }
 
@@ -210,7 +230,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(max) = s.max_properties {
             if obj.len() > max {
                 let kind = kind!(MaxProperties, obj.len(), max);
-                self.add_error(&sloc.kw("maxProperties"), &vloc, kind);
+                self.add_error(kw!("maxProperties"), &vloc, kind);
             }
         }
 
@@ -221,7 +241,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 let v = Value::String(pname.to_owned());
                 let mut vec = Vec::with_capacity(vloc.len);
                 let vloc = vloc.clone_static(&mut vec);
-                if let Err(e) = self.validate_val(*sch, sloc.kw("propertyNames"), &v, vloc) {
+                if let Err(e) = self.validate_val(*sch, &v, vloc) {
                     self.errors.push(e.clone_static());
                 }
             }
@@ -229,7 +249,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // required --
         if let Some(missing) = self.find_missing(obj, &s.required) {
-            self.add_error(&sloc.kw("required"), &vloc, kind!(Required, want: missing));
+            self.add_error(kw!("required"), &vloc, kind!(Required, want: missing));
         }
 
         if self.bool_result && !self.errors.is_empty() {
@@ -243,15 +263,11 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Dependency::Props(required) => {
                         if let Some(missing) = self.find_missing(obj, required) {
                             let kind = ErrorKind::Dependency { prop, missing };
-                            self.add_error(&sloc.kw("dependencies").prop(prop), &vloc, kind);
+                            self.add_error(kw_prop!("dependencies", prop), &vloc, kind);
                         }
                     }
                     Dependency::SchemaRef(sch) => {
-                        if let Err(e) = self.validate_self(
-                            *sch,
-                            sloc.kw("dependencies").prop(prop),
-                            vloc.copy(),
-                        ) {
+                        if let Err(e) = self.validate_self(*sch, vloc.copy()) {
                             self.errors.push(e);
                         }
                     }
@@ -262,11 +278,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // dependentSchemas --
         for (pname, sch) in &s.dependent_schemas {
             if obj.contains_key(pname) {
-                add_err!(self.validate_self(
-                    *sch,
-                    sloc.kw("dependentSchemas").prop(pname),
-                    vloc.copy()
-                ));
+                add_err!(self.validate_self(*sch, vloc.copy()));
             }
         }
 
@@ -275,7 +287,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if obj.contains_key(prop) {
                 if let Some(missing) = self.find_missing(obj, required) {
                     let kind = ErrorKind::DependentRequired { prop, missing };
-                    self.add_error(&sloc.kw("dependentRequired").prop(prop), &vloc, kind);
+                    self.add_error(kw_prop!("dependentRequired", prop), &vloc, kind);
                 }
             }
         }
@@ -287,13 +299,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             let mut evaluated = false;
 
             // properties --
-            if let Some((key, sch)) = s.properties.get_key_value(pname) {
-                match self.validate_val(
-                    *sch,
-                    sloc.kw("properties").prop(key),
-                    pvalue,
-                    vloc.prop(pname),
-                ) {
+            if let Some(sch) = s.properties.get(pname) {
+                match self.validate_val(*sch, pvalue, vloc.prop(pname)) {
                     Ok(_) => evaluated = true,
                     Err(e) => self.errors.push(e),
                 }
@@ -302,12 +309,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             // patternProperties --
             for (regex, sch) in &s.pattern_properties {
                 if regex.is_match(pname) {
-                    match self.validate_val(
-                        *sch,
-                        sloc.kw("patternProperties").prop(regex.as_str()),
-                        pvalue,
-                        vloc.prop(pname),
-                    ) {
+                    match self.validate_val(*sch, pvalue, vloc.prop(pname)) {
                         Ok(_) => evaluated = true,
                         Err(e) => self.errors.push(e),
                     }
@@ -321,16 +323,11 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                         Additional::Bool(allowed) => {
                             if !allowed {
                                 let kind = kind!(AdditionalProperty, got: pname.clone());
-                                self.add_error(&sloc.kw("additionalProperties"), &vloc, kind);
+                                self.add_error(kw!("additionalProperties"), &vloc, kind);
                             }
                         }
                         Additional::SchemaRef(sch) => {
-                            add_err!(self.validate_val(
-                                *sch,
-                                sloc.kw("additionalProperties"),
-                                pvalue,
-                                vloc.prop(pname)
-                            ));
+                            add_err!(self.validate_val(*sch, pvalue, vloc.prop(pname)));
                         }
                     }
                     evaluated = true;
@@ -343,12 +340,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
     }
 
-    fn arr_validate(
-        &mut self,
-        arr: &'v Vec<Value>,
-        mut sloc: SchemaPointer<'_, 's>,
-        mut vloc: JsonPointer<'_, 'v>,
-    ) {
+    fn arr_validate(&mut self, arr: &'v Vec<Value>, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -360,14 +352,14 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // minItems --
         if let Some(min) = s.min_items {
             if arr.len() < min {
-                self.add_error(&sloc.kw("minItems"), &vloc, kind!(MinItems, arr.len(), min));
+                self.add_error(kw!("minItems"), &vloc, kind!(MinItems, arr.len(), min));
             }
         }
 
         // maxItems --
         if let Some(max) = s.max_items {
             if arr.len() > max {
-                self.add_error(&sloc.kw("maxItems"), &vloc, kind!(MaxItems, arr.len(), max));
+                self.add_error(kw!("maxItems"), &vloc, kind!(MaxItems, arr.len(), max));
             }
         }
 
@@ -377,7 +369,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 for j in 0..i {
                     if equals(&arr[i], &arr[j]) {
                         let kind = kind!(UniqueItems, got: [j, i]);
-                        self.add_error(&sloc.kw("uniqueItems"), &vloc, kind);
+                        self.add_error(kw!("uniqueItems"), &vloc, kind);
                         break 'outer;
                     }
                 }
@@ -392,7 +384,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 match items {
                     Items::SchemaRef(sch) => {
                         for (i, item) in arr.iter().enumerate() {
-                            add_err!(self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i)));
+                            add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
                         evaluated = arr.len();
                         debug_assert!(self.uneval.items.is_empty());
@@ -400,12 +392,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Items::SchemaRefs(list) => {
                         for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                             self.uneval.items.remove(&i);
-                            add_err!(self.validate_val(
-                                *sch,
-                                sloc.kw("items").item(i),
-                                item,
-                                vloc.item(i)
-                            ));
+                            add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
                         evaluated = min(list.len(), arr.len());
                     }
@@ -418,17 +405,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Additional::Bool(allowed) => {
                         if !allowed && evaluated != arr.len() {
                             let kind = kind!(AdditionalItems, got: arr.len() - evaluated);
-                            self.add_error(&sloc.kw("additionalItems"), &vloc, kind);
+                            self.add_error(kw!("additionalItems"), &vloc, kind);
                         }
                     }
                     Additional::SchemaRef(sch) => {
                         for (i, item) in arr[evaluated..].iter().enumerate() {
-                            add_err!(self.validate_val(
-                                *sch,
-                                sloc.kw("additionalItems"),
-                                item,
-                                vloc.item(i)
-                            ));
+                            add_err!(self.validate_val(*sch, item, vloc.item(i)));
                         }
                     }
                 }
@@ -438,19 +420,14 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             // prefixItems --
             for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
                 self.uneval.items.remove(&i);
-                add_err!(self.validate_val(
-                    *sch,
-                    sloc.kw("prefixItems").item(i),
-                    item,
-                    vloc.item(i)
-                ));
+                add_err!(self.validate_val(*sch, item, vloc.item(i)));
             }
 
             // items2020 --
             if let Some(sch) = &s.items2020 {
                 let evaluated = min(s.prefix_items.len(), arr.len());
                 for (i, item) in arr[evaluated..].iter().enumerate() {
-                    add_err!(self.validate_val(*sch, sloc.kw("items"), item, vloc.item(i)));
+                    add_err!(self.validate_val(*sch, item, vloc.item(i)));
                 }
                 debug_assert!(self.uneval.items.is_empty());
             }
@@ -461,7 +438,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         let mut contains_errors = vec![];
         if let Some(sch) = &s.contains {
             for (i, item) in arr.iter().enumerate() {
-                if let Err(e) = self.validate_val(*sch, sloc.kw("contains"), item, vloc.item(i)) {
+                if let Err(e) = self.validate_val(*sch, item, vloc.item(i)) {
                     contains_errors.push(e);
                 } else {
                     contains_matched.push(i);
@@ -476,12 +453,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(min) = s.min_contains {
             if contains_matched.len() < min {
                 let kind = kind!(MinContains, contains_matched.clone(), min);
-                let mut e = self.error(&sloc.kw("minContains"), &vloc, kind);
+                let mut e = self.error(kw!("minContains"), &vloc, kind);
                 e.causes = contains_errors;
                 self.errors.push(e);
             }
         } else if s.contains.is_some() && contains_matched.is_empty() {
-            let mut e = self.error(&sloc.kw("contains"), &vloc, kind!(Contains));
+            let mut e = self.error(kw!("contains"), &vloc, kind!(Contains));
             e.causes = contains_errors;
             self.errors.push(e);
         }
@@ -490,17 +467,12 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(max) = s.max_contains {
             if contains_matched.len() > max {
                 let kind = kind!(MaxContains, contains_matched, max);
-                self.add_error(&sloc.kw("maxContains"), &vloc, kind);
+                self.add_error(kw!("maxContains"), &vloc, kind);
             }
         }
     }
 
-    fn str_validate(
-        &mut self,
-        str: &'v String,
-        mut sloc: SchemaPointer<'_, 's>,
-        vloc: JsonPointer<'_, 'v>,
-    ) {
+    fn str_validate(&mut self, str: &'v String, vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         let mut len = None;
 
@@ -508,7 +480,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(min) = s.min_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len < min {
-                self.add_error(&sloc.kw("minLength"), &vloc, kind!(MinLength, *len, min));
+                self.add_error(kw!("minLength"), &vloc, kind!(MinLength, *len, min));
             }
         }
 
@@ -516,7 +488,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(max) = s.max_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len > max {
-                self.add_error(&sloc.kw("maxLength"), &vloc, kind!(MaxLength, *len, max));
+                self.add_error(kw!("maxLength"), &vloc, kind!(MaxLength, *len, max));
             }
         }
 
@@ -524,7 +496,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let Some(regex) = &s.pattern {
             if !regex.is_match(str) {
                 let kind = kind!(Pattern, str.clone(), regex.as_str());
-                self.add_error(&sloc.kw("pattern"), &vloc, kind);
+                self.add_error(kw!("pattern"), &vloc, kind);
             }
         }
 
@@ -536,7 +508,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Ok(bytes) => decoded = Cow::from(bytes),
                     Err(e) => {
                         let kind = kind!(ContentEncoding, str.clone(), decoder.name, e);
-                        self.add_error(&sloc.kw("contentEncoding"), &vloc, kind)
+                        self.add_error(kw!("contentEncoding"), &vloc, kind)
                     }
                 }
             }
@@ -548,7 +520,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     Ok(des) => deserialized = des,
                     Err(e) => {
                         let kind = kind!(ContentMediaType, decoded.into(), mt.name, e);
-                        self.add_error(&sloc.kw("contentMediaType"), &vloc, kind);
+                        self.add_error(kw!("contentMediaType"), &vloc, kind);
                     }
                 }
             }
@@ -564,12 +536,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
     }
 
-    fn num_validate(
-        &mut self,
-        num: &'v Number,
-        mut sloc: SchemaPointer<'_, 's>,
-        vloc: JsonPointer<'_, 'v>,
-    ) {
+    fn num_validate(&mut self, num: &'v Number, vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
 
         // minimum --
@@ -577,7 +544,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
                     let kind = kind!(Minimum, num.clone(), min.clone());
-                    self.add_error(&sloc.kw("minimum"), &vloc, kind);
+                    self.add_error(kw!("minimum"), &vloc, kind);
                 }
             }
         }
@@ -587,7 +554,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
                     let kind = kind!(Maximum, num.clone(), max.clone());
-                    self.add_error(&sloc.kw("maximum"), &vloc, kind);
+                    self.add_error(kw!("maximum"), &vloc, kind);
                 }
             }
         }
@@ -597,7 +564,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let (Some(ex_minf), Some(numf)) = (ex_min.as_f64(), num.as_f64()) {
                 if numf <= ex_minf {
                     let kind = kind!(ExclusiveMinimum, num.clone(), ex_min.clone());
-                    self.add_error(&sloc.kw("exclusiveMinimum"), &vloc, kind);
+                    self.add_error(kw!("exclusiveMinimum"), &vloc, kind);
                 }
             }
         }
@@ -607,7 +574,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let (Some(ex_maxf), Some(numf)) = (ex_max.as_f64(), num.as_f64()) {
                 if numf >= ex_maxf {
                     let kind = kind!(ExclusiveMaximum, num.clone(), ex_max.clone());
-                    self.add_error(&sloc.kw("exclusiveMaximum"), &vloc, kind);
+                    self.add_error(kw!("exclusiveMaximum"), &vloc, kind);
                 }
             }
         }
@@ -617,7 +584,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if let (Some(mulf), Some(numf)) = (mul.as_f64(), num.as_f64()) {
                 if (numf / mulf).fract() != 0.0 {
                     let kind = kind!(MultipleOf, num.clone(), mul.clone());
-                    self.add_error(&sloc.kw("multipleOf"), &vloc, kind);
+                    self.add_error(kw!("multipleOf"), &vloc, kind);
                 }
             }
         }
@@ -626,7 +593,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
 // references validation
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
-    fn refs_validate(&mut self, mut sloc: SchemaPointer<'_, 's>, mut vloc: JsonPointer<'_, 'v>) {
+    fn refs_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -640,7 +607,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             if self.schemas.get(sch).recursive_anchor {
                 sch = self.resolve_recursive_anchor().unwrap_or(sch);
             }
-            add_err!(self.validate_self(sch, sloc.kw("$recursiveRef"), vloc.copy()));
+            add_err!(self.validate_ref(sch, "$recursiveRef", vloc.copy()));
         }
 
         // $dynamicRef --
@@ -653,8 +620,27 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     sch = self.resolve_dynamic_anchor(anchor).unwrap_or(sch);
                 }
             }
-            add_err!(self.validate_self(sch, sloc.kw("$dynamicRef"), vloc.copy()));
+            add_err!(self.validate_ref(sch, "$dynamicRef", vloc.copy()));
         }
+    }
+
+    fn validate_ref(
+        &mut self,
+        sch: SchemaIndex,
+        kw: &'static str,
+        mut vloc: JsonPointer<'_, 'v>,
+    ) -> Result<(), ValidationError<'s, 'v>> {
+        if let Err(err) = self._validate_self(sch, kw.into(), vloc.copy(), false) {
+            let url = &self.schemas.get(sch).loc;
+            let mut ref_err = self.error(kw!(kw), &vloc, ErrorKind::Reference { url });
+            if let ErrorKind::Group = err.kind {
+                ref_err.causes = err.causes;
+            } else {
+                ref_err.causes.push(err);
+            }
+            return Err(ref_err);
+        }
+        Ok(())
     }
 
     fn resolve_recursive_anchor(&self) -> Option<SchemaIndex> {
@@ -695,7 +681,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
 // conditional validation
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
-    fn cond_validate(&mut self, mut sloc: SchemaPointer<'_, 's>, mut vloc: JsonPointer<'_, 'v>) {
+    fn cond_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
@@ -706,19 +692,16 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
         // not --
         if let Some(not) = s.not {
-            if self
-                ._validate_self(not, sloc.kw("not"), vloc.copy(), true)
-                .is_ok()
-            {
-                self.add_error(&sloc.kw("not"), &vloc, kind!(Not));
+            if self._validate_self(not, None, vloc.copy(), true).is_ok() {
+                self.add_error(kw!("not"), &vloc, kind!(Not));
             }
         }
 
         // allOf --
         if !s.all_of.is_empty() {
             let mut allof_errors = vec![];
-            for (i, sch) in s.all_of.iter().enumerate() {
-                if let Err(e) = self.validate_self(*sch, sloc.kw("allOf").item(i), vloc.copy()) {
+            for sch in &s.all_of {
+                if let Err(e) = self.validate_self(*sch, vloc.copy()) {
                     allof_errors.push(e);
                     if self.bool_result {
                         break;
@@ -726,7 +709,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 }
             }
             if !allof_errors.is_empty() {
-                self.add_errors(allof_errors, &sloc.kw("allOf"), &vloc, kind!(AllOf));
+                self.add_errors(allof_errors, kw!("allOf"), &vloc, kind!(AllOf));
             }
         }
 
@@ -734,8 +717,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if !s.any_of.is_empty() {
             let mut matched = false;
             let mut anyof_errors = vec![];
-            for (i, sch) in s.any_of.iter().enumerate() {
-                match self.validate_self(*sch, sloc.kw("anyOf").item(i), vloc.copy()) {
+            for sch in &s.any_of {
+                match self.validate_self(*sch, vloc.copy()) {
                     Ok(_) => {
                         matched = true;
                         // for uneval, all schemas must be checked
@@ -747,7 +730,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                 }
             }
             if !matched {
-                self.add_errors(anyof_errors, &sloc.kw("anyOf"), &vloc, kind!(AnyOf));
+                self.add_errors(anyof_errors, kw!("anyOf"), &vloc, kind!(AnyOf));
             }
         }
 
@@ -755,12 +738,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if !s.one_of.is_empty() {
             let (mut matched, mut oneof_errors) = (None, vec![]);
             for (i, sch) in s.one_of.iter().enumerate() {
-                if let Err(e) = self._validate_self(
-                    *sch,
-                    sloc.kw("oneOf").item(i),
-                    vloc.copy(),
-                    matched.is_some(),
-                ) {
+                if let Err(e) = self._validate_self(*sch, None, vloc.copy(), matched.is_some()) {
                     if matched.is_none() {
                         oneof_errors.push(e);
                     }
@@ -769,28 +747,25 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                         None => _ = matched.replace(i),
                         Some(prev) => {
                             let kind = ErrorKind::OneOf(Some((prev, i)));
-                            self.add_error(&sloc.kw("oneOf"), &vloc, kind);
+                            self.add_error(kw!("oneOf"), &vloc, kind);
                         }
                     }
                 }
             }
             if matched.is_none() {
                 let kind = ErrorKind::OneOf(None);
-                self.add_errors(oneof_errors, &sloc.kw("oneOf"), &vloc, kind);
+                self.add_errors(oneof_errors, kw!("oneOf"), &vloc, kind);
             }
         }
 
         // if, then, else --
         if let Some(if_) = s.if_ {
-            if self
-                ._validate_self(if_, sloc.kw("if"), vloc.copy(), true)
-                .is_ok()
-            {
+            if self._validate_self(if_, None, vloc.copy(), true).is_ok() {
                 if let Some(then) = s.then {
-                    add_err!(self.validate_self(then, sloc.kw("then"), vloc.copy()));
+                    add_err!(self.validate_self(then, vloc.copy()));
                 }
             } else if let Some(else_) = s.else_ {
-                add_err!(self.validate_self(else_, sloc.kw("else"), vloc.copy()));
+                add_err!(self.validate_self(else_, vloc.copy()));
             }
         }
     }
@@ -798,7 +773,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
 // uneval validation
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
-    fn uneval_validate(&mut self, mut sloc: SchemaPointer<'_, 's>, mut vloc: JsonPointer<'_, 'v>) {
+    fn uneval_validate(&mut self, mut vloc: JsonPointer<'_, 'v>) {
         let s = self.schema;
         let v = self.v;
         macro_rules! add_err {
@@ -812,12 +787,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let (Some(sch), Value::Object(obj)) = (s.unevaluated_properties, v) {
             for pname in &self.uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
-                    add_err!(self.validate_val(
-                        sch,
-                        sloc.kw("unevaluatedProperties"),
-                        pvalue,
-                        vloc.prop(pname)
-                    ));
+                    add_err!(self.validate_val(sch, pvalue, vloc.prop(pname)));
                 }
             }
             self.uneval.props.clear();
@@ -827,12 +797,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         if let (Some(sch), Value::Array(arr)) = (s.unevaluated_items, v) {
             for i in &self.uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
-                    add_err!(self.validate_val(
-                        sch,
-                        sloc.kw("unevaluatedItems"),
-                        pvalue,
-                        vloc.item(*i)
-                    ));
+                    add_err!(self.validate_val(sch, pvalue, vloc.item(*i)));
                 }
             }
             self.uneval.items.clear();
@@ -845,11 +810,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
     fn validate_val(
         &self,
         sch: SchemaIndex,
-        sloc: SchemaPointer<'_, 's>,
         v: &'v Value,
         vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, sloc.len, self.scope.vid + 1, &self.scope);
+        let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
         let schema = &self.schemas.get(sch);
         Validator {
             v,
@@ -860,18 +824,18 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             errors: vec![],
             bool_result: self.bool_result,
         }
-        .validate(sloc, vloc)
+        .validate(vloc)
         .map(|_| ())
     }
 
     fn _validate_self(
         &mut self,
         sch: SchemaIndex,
-        sloc: SchemaPointer<'_, 's>,
+        ref_kw: Option<&'static str>,
         vloc: JsonPointer<'_, 'v>,
         bool_result: bool,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, sloc.len, self.scope.vid, &self.scope);
+        let scope = Scope::child(sch, ref_kw, self.scope.vid, &self.scope);
         let schema = &self.schemas.get(sch);
         let result = Validator {
             v: self.v,
@@ -882,7 +846,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             errors: vec![],
             bool_result: self.bool_result || bool_result,
         }
-        .validate(sloc, vloc);
+        .validate(vloc);
         if let Ok(reply) = &result {
             self.uneval.merge(reply);
         }
@@ -893,10 +857,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
     fn validate_self(
         &mut self,
         sch: SchemaIndex,
-        sloc: SchemaPointer<'_, 's>,
         vloc: JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        self._validate_self(sch, sloc, vloc, false)
+        self._validate_self(sch, None, vloc, false)
     }
 }
 
@@ -904,16 +867,15 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
     fn error(
         &self,
-        sloc: &SchemaPointer<'_, 's>,
+        kw_path: Option<KeywordPath<'s>>,
         vloc: &JsonPointer<'_, 'v>,
         kind: ErrorKind<'s>,
     ) -> ValidationError<'s, 'v> {
         if self.bool_result {
             return ValidationError {
-                keyword_location: KeywordLocation::new(),
                 absolute_keyword_location: AbsoluteKeywordLocation {
-                    url: "",
-                    keyword_location: KeywordLocation::new(),
+                    schema_url: "",
+                    keyword_path: None,
                 },
                 instance_location: InstanceLocation::new(),
                 kind: ErrorKind::Group,
@@ -921,10 +883,9 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
             };
         }
         ValidationError {
-            keyword_location: sloc.into(),
             absolute_keyword_location: AbsoluteKeywordLocation {
-                url: &self.schema.loc,
-                keyword_location: sloc.kw_path(self.scope.sloc_len),
+                schema_url: &self.schema.loc,
+                keyword_path: kw_path,
             },
             instance_location: vloc.into(),
             kind,
@@ -934,27 +895,41 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
     fn add_error(
         &mut self,
-        sloc: &SchemaPointer<'_, 's>,
+        kw_path: Option<KeywordPath<'s>>,
         vloc: &JsonPointer<'_, 'v>,
         kind: ErrorKind<'s>,
     ) {
-        self.errors.push(self.error(sloc, vloc, kind));
+        self.errors.push(self.error(kw_path, vloc, kind));
     }
 
     fn add_errors(
         &mut self,
         errors: Vec<ValidationError<'s, 'v>>,
-        sloc: &SchemaPointer<'_, 's>,
+        kw_path: Option<KeywordPath<'s>>,
         vloc: &JsonPointer<'_, 'v>,
         kind: ErrorKind<'s>,
     ) {
         if errors.len() == 1 {
             self.errors.extend(errors);
         } else {
-            let mut err = self.error(sloc, vloc, kind);
+            let mut err = self.error(kw_path, vloc, kind);
             err.causes = errors;
             self.errors.push(err);
         }
+    }
+
+    fn kw_loc(&self, mut scope: &Scope) -> String {
+        let mut loc = String::new();
+        while let Some(parent) = scope.parent {
+            let kw_path = scope.ref_kw.unwrap_or_else(|| {
+                let cur = &self.schemas.get(scope.sch).loc;
+                let parent = &self.schemas.get(parent.sch).loc;
+                &cur[parent.len()..]
+            });
+            loc.insert_str(0, kw_path);
+            scope = parent;
+        }
+        loc
     }
 
     fn find_missing(
@@ -1023,7 +998,9 @@ impl<'v> Uneval<'v> {
 #[derive(Debug)]
 struct Scope<'a> {
     sch: SchemaIndex,
-    sloc_len: usize,
+    // if None, compute from self.sch and self.parent.sh
+    // not None only when there is jump i.e $ref, $XXXRef
+    ref_kw: Option<&'static str>,
     /// unique id of value being validated
     // if two scope validate same value, they will have same vid
     vid: usize,
@@ -1031,10 +1008,15 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(sch: SchemaIndex, sloc_len: usize, vid: usize, parent: &'a Scope) -> Self {
+    fn child(
+        sch: SchemaIndex,
+        ref_kw: Option<&'static str>,
+        vid: usize,
+        parent: &'a Scope,
+    ) -> Self {
         Self {
             sch,
-            sloc_len,
+            ref_kw,
             vid,
             parent: Some(parent),
         }
@@ -1194,135 +1176,66 @@ impl<'s, 'v> ValidationError<'s, 'v> {
 // SchemaPointer --
 
 #[derive(Debug, Clone)]
-pub(crate) enum SchemaToken<'s> {
-    Keyword(&'static str),
+pub enum SchemaToken<'s> {
     Prop(&'s str),
     Item(usize),
 }
 
-impl<'s> SchemaToken<'s> {
-    fn to_string(tokens: &[SchemaToken]) -> String {
-        use SchemaToken::*;
-        let mut r = String::new();
-        for tok in tokens {
-            r.push('/');
-            match tok {
-                Keyword(s) | Prop(s) => r.push_str(&escape(s)),
-                Item(i) => write!(&mut r, "{i}").expect("write to String should never fail"),
-            }
-        }
-        r
-    }
-}
-
 impl<'s> Display for SchemaToken<'s> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use SchemaToken::*;
         match self {
-            Keyword(s) | Prop(s) => write!(f, "{}", &escape(s)),
-            Item(i) => write!(f, "{i}"),
+            SchemaToken::Prop(p) => write!(f, "{}", escape(p)),
+            SchemaToken::Item(i) => write!(f, "{i}"),
         }
     }
 }
 
-struct SchemaPointer<'a, 's> {
-    vec: &'a mut Vec<SchemaToken<'s>>,
-    len: usize,
+#[derive(Debug)]
+pub struct KeywordPath<'s> {
+    pub keyword: &'static str,
+    pub token: Option<SchemaToken<'s>>,
 }
 
-impl<'a, 's> SchemaPointer<'a, 's> {
-    fn new(vec: &'a mut Vec<SchemaToken<'s>>) -> Self {
-        let len = vec.len();
-        Self { vec, len }
-    }
-
-    fn copy<'x>(&'x mut self) -> SchemaPointer<'x, 's> {
-        SchemaPointer {
-            vec: self.vec,
-            len: self.len,
+impl<'s> Display for KeywordPath<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.keyword.fmt(f)?;
+        if let Some(token) = &self.token {
+            f.write_str("/")?;
+            token.fmt(f)?;
         }
-    }
-
-    fn kw<'x>(&'x mut self, name: &'static str) -> SchemaPointer<'x, 's> {
-        self.vec.truncate(self.len);
-        self.vec.push(SchemaToken::Keyword(name));
-        SchemaPointer::new(self.vec)
-    }
-
-    fn prop<'x>(&'x mut self, name: &'s str) -> SchemaPointer<'x, 's> {
-        self.vec.truncate(self.len);
-        self.vec.push(SchemaToken::Prop(name));
-        SchemaPointer::new(self.vec)
-    }
-
-    fn item<'x>(&'x mut self, i: usize) -> SchemaPointer<'x, 's> {
-        self.vec.truncate(self.len);
-        self.vec.push(SchemaToken::Item(i));
-        SchemaPointer::new(self.vec)
-    }
-
-    fn with_len<'x>(&'x mut self, len: usize) -> SchemaPointer<'x, 's> {
-        SchemaPointer { vec: self.vec, len }
-    }
-
-    fn kw_path<'x>(&'x self, len: usize) -> KeywordLocation<'s> {
-        let mut vec = Vec::with_capacity(self.len - len);
-        for tok in &self.vec[len..self.len] {
-            vec.push(tok.clone());
-        }
-        KeywordLocation(vec)
+        Ok(())
     }
 }
 
-impl<'a, 's> ToString for SchemaPointer<'a, 's> {
-    fn to_string(&self) -> String {
-        SchemaToken::to_string(&self.vec[..self.len])
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct KeywordLocation<'s>(pub(crate) Vec<SchemaToken<'s>>);
-
-impl<'v> KeywordLocation<'v> {
-    fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl<'a, 's> From<&SchemaPointer<'a, 's>> for KeywordLocation<'s> {
-    fn from(value: &SchemaPointer<'a, 's>) -> Self {
-        let mut vec = Vec::with_capacity(value.len);
-        for tok in &value.vec[..value.len] {
-            vec.push(tok.clone());
-        }
-        Self(vec)
-    }
-}
-
-impl<'s> ToString for KeywordLocation<'s> {
-    fn to_string(&self) -> String {
-        SchemaToken::to_string(&self.0)
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AbsoluteKeywordLocation<'s> {
-    pub url: &'s str,
-    pub keyword_location: KeywordLocation<'s>,
+    pub schema_url: &'s str,
+    pub keyword_path: Option<KeywordPath<'s>>,
 }
 
 impl<'s> AbsoluteKeywordLocation<'s> {
-    fn new(sch: &'s Schema) -> Self {
+    fn new(s: &'s Schema) -> Self {
         Self {
-            url: &sch.loc,
-            keyword_location: Default::default(),
+            schema_url: &s.loc,
+            keyword_path: None,
         }
     }
 }
 
 impl<'s> Display for AbsoluteKeywordLocation<'s> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.url.fmt(f)?;
-        write!(f, "{}", self.keyword_location.to_string()) // todo: url-encode
+        self.schema_url.fmt(f)?;
+        if let Some(path) = &self.keyword_path {
+            f.write_str("/")?;
+            path.keyword.fmt(f)?;
+            if let Some(token) = &path.token {
+                f.write_str("/")?;
+                match token {
+                    SchemaToken::Prop(p) => write!(f, "{}", escape(p))?, // todo: url-encode
+                    SchemaToken::Item(i) => write!(f, "{i}")?,
+                }
+            }
+        }
+        Ok(())
     }
 }
