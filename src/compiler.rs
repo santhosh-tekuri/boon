@@ -324,15 +324,19 @@ impl Compiler {
 
         match v {
             Value::Object(obj) => {
-                ObjCompiler {
-                    c: self,
-                    obj,
-                    loc,
-                    schemas,
-                    root,
-                    queue,
+                if obj.is_empty() {
+                    s.boolean = Some(true);
+                } else {
+                    ObjCompiler {
+                        c: self,
+                        obj,
+                        loc,
+                        schemas,
+                        root,
+                        queue,
+                    }
+                    .compile_obj(&mut s)?;
                 }
-                .compile_obj(&mut s)?;
             }
             Value::Bool(b) => s.boolean = Some(*b),
             _ => {}
