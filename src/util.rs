@@ -2,13 +2,18 @@ use std::{borrow::Cow, fmt::Display, path::Path, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
-use serde_json::{Number, Value};
+use serde_json::Value;
 use url::Url;
 
 use crate::CompileError;
 
-pub(crate) fn is_integer(n: &Number) -> bool {
-    n.is_i64() || n.is_u64() || n.as_f64().filter(|n| n.fract() == 0.0).is_some()
+pub(crate) fn is_integer(v: &Value) -> bool {
+    match v {
+        Value::Number(n) => {
+            n.is_i64() || n.is_u64() || n.as_f64().filter(|n| n.fract() == 0.0).is_some()
+        }
+        _ => false,
+    }
 }
 
 fn starts_with_windows_drive(p: &str) -> bool {

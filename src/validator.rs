@@ -133,13 +133,8 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         // type --
         if !s.types.is_empty() {
             let v_type = Type::of(v);
-            let matched = s.types.contains(v_type) || {
-                if let Value::Number(n) = v {
-                    s.types.contains(Type::Integer) && is_integer(n)
-                } else {
-                    false
-                }
-            };
+            let matched =
+                s.types.contains(v_type) || (s.types.contains(Type::Integer) && is_integer(v));
             if !matched {
                 return Err(self.error(kw!("type"), &vloc, kind!(Type, v_type, s.types)));
             }
