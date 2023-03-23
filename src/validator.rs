@@ -1038,50 +1038,51 @@ impl<'a> Scope<'a> {
 }
 
 #[derive(Debug, Clone)]
-enum Token<'v> {
+enum InstanceToken<'v> {
     Prop(Cow<'v, str>),
     Item(usize),
 }
 
-impl<'v> Token<'v> {
-    fn to_string(tokens: &[Token]) -> String {
+impl<'v> InstanceToken<'v> {
+    fn to_string(tokens: &[InstanceToken]) -> String {
+        use InstanceToken::*;
         let mut r = String::new();
         for tok in tokens {
             r.push('/');
             match tok {
-                Token::Prop(s) => r.push_str(&escape(s)),
-                Token::Item(i) => write!(&mut r, "{i}").expect("write to String should never fail"),
+                Prop(s) => r.push_str(&escape(s)),
+                Item(i) => write!(&mut r, "{i}").expect("write to String should never fail"),
             }
         }
         r
     }
 }
 
-impl<'v> From<String> for Token<'v> {
+impl<'v> From<String> for InstanceToken<'v> {
     fn from(prop: String) -> Self {
-        Token::Prop(prop.into())
+        InstanceToken::Prop(prop.into())
     }
 }
 
-impl<'v> From<&'v str> for Token<'v> {
+impl<'v> From<&'v str> for InstanceToken<'v> {
     fn from(prop: &'v str) -> Self {
-        Token::Prop(prop.into())
+        InstanceToken::Prop(prop.into())
     }
 }
 
-impl<'v> From<usize> for Token<'v> {
+impl<'v> From<usize> for InstanceToken<'v> {
     fn from(index: usize) -> Self {
-        Token::Item(index)
+        InstanceToken::Item(index)
     }
 }
 
 struct JsonPointer<'a, 'v> {
-    vec: &'a mut Vec<Token<'v>>,
+    vec: &'a mut Vec<InstanceToken<'v>>,
     len: usize,
 }
 
 impl<'a, 'v> JsonPointer<'a, 'v> {
-    fn new(vec: &'a mut Vec<Token<'v>>) -> Self {
+    fn new(vec: &'a mut Vec<InstanceToken<'v>>) -> Self {
         let len = vec.len();
         Self { vec, len }
     }
@@ -1105,11 +1106,14 @@ impl<'a, 'v> JsonPointer<'a, 'v> {
         JsonPointer::new(self.vec)
     }
 
-    fn clone_static<'aa, 'vv>(&self, vec: &'aa mut Vec<Token<'vv>>) -> JsonPointer<'aa, 'vv> {
+    fn clone_static<'aa, 'vv>(
+        &self,
+        vec: &'aa mut Vec<InstanceToken<'vv>>,
+    ) -> JsonPointer<'aa, 'vv> {
         for tok in self.vec[..self.len].iter() {
             match tok {
-                Token::Prop(p) => vec.push(p.as_ref().to_owned().into()),
-                Token::Item(i) => vec.push((*i).into()),
+                InstanceToken::Prop(p) => vec.push(p.as_ref().to_owned().into()),
+                InstanceToken::Item(i) => vec.push((*i).into()),
             }
         }
         JsonPointer::new(vec)
@@ -1118,12 +1122,12 @@ impl<'a, 'v> JsonPointer<'a, 'v> {
 
 impl<'a, 'v> ToString for JsonPointer<'a, 'v> {
     fn to_string(&self) -> String {
-        Token::to_string(&self.vec[..self.len])
+        InstanceToken::to_string(&self.vec[..self.len])
     }
 }
 
 #[derive(Debug, Default)]
-pub struct InstanceLocation<'v>(Vec<Token<'v>>);
+pub struct InstanceLocation<'v>(Vec<InstanceToken<'v>>);
 
 impl<'v> InstanceLocation<'v> {
     fn new() -> Self {
@@ -1134,8 +1138,8 @@ impl<'v> InstanceLocation<'v> {
         let mut vec = Vec::with_capacity(self.0.len());
         for tok in self.0 {
             let tok = match tok {
-                Token::Prop(p) => Token::Prop(p.into_owned().into()),
-                Token::Item(i) => Token::Item(i),
+                InstanceToken::Prop(p) => InstanceToken::Prop(p.into_owned().into()),
+                InstanceToken::Item(i) => InstanceToken::Item(i),
             };
             vec.push(tok);
         }
@@ -1155,7 +1159,7 @@ impl<'a, 'v> From<&JsonPointer<'a, 'v>> for InstanceLocation<'v> {
 
 impl<'v> ToString for InstanceLocation<'v> {
     fn to_string(&self) -> String {
-        Token::to_string(&self.0)
+        InstanceToken::to_string(&self.0)
     }
 }
 

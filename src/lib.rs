@@ -120,14 +120,13 @@ pub use content::*;
 pub use formats::*;
 pub use loader::*;
 pub use output::*;
-use validator::AbsoluteKeywordLocation;
+pub use validator::*;
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
-pub use validator::InstanceLocation;
 
 /// Identifier to compiled schema.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
