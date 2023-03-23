@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, path::Path, str::Utf8Error};
+use std::{borrow::Cow, env, fmt::Display, path::Path, str::Utf8Error};
 
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
@@ -31,13 +31,17 @@ pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
     match Url::parse(s) {
         Ok(url) => Ok(url),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
-            let path = Path::new(s);
-            let path = path
-                .canonicalize()
-                .map_err(|e| CompileError::LoadUrlError {
-                    url: s.to_owned(),
-                    src: e.into(),
-                })?;
+            let mut path = Path::new(s);
+            let tmp;
+            if !path.is_absolute() {
+                tmp = env::current_dir()
+                    .map_err(|e| CompileError::ParseUrlError {
+                        url: s.to_owned(),
+                        src: e.into(),
+                    })?
+                    .join(path);
+                path = tmp.as_path();
+            }
             Url::from_file_path(path)
                 .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()))
         }
