@@ -9,7 +9,7 @@ authors = ["santhosh kumar tekuri <santhosh.tekuri@gmail.com>"]
 keywords = ["jsonschema", "validation"]
 license = "MIT OR Apache-2.0"
 categories = ["web-programming"]
-exclude = [ "tests", ".github", ".gitmodules" ]
+exclude = [ "tests", "benches", ".github", ".gitmodules" ]
 
 [dependencies]
 serde = "1"
