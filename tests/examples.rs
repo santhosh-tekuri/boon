@@ -2,7 +2,7 @@ use std::{error::Error, fs::File};
 
 use boon::{Compiler, Decoder, Format, MediaType, Schemas, UrlLoader};
 use serde::de::IgnoredAny;
-use serde_json::Value;
+use serde_json::{json, Value};
 use url::Url;
 
 #[test]
@@ -22,8 +22,8 @@ fn example_from_files() -> Result<(), Box<dyn Error>> {
 #[test]
 fn example_from_strings() -> Result<(), Box<dyn Error>> {
     let schema_url = "http://tmp/schema.json";
-    let schema: Value = serde_json::from_str(r#"{"type": "object"}"#)?;
-    let instance: Value = serde_json::from_str(r#"{"foo": "bar"}"#)?;
+    let schema: Value = json!({"type": "object"});
+    let instance: Value = json!({"foo": "bar"});
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
@@ -39,8 +39,7 @@ fn example_from_strings() -> Result<(), Box<dyn Error>> {
 #[ignore]
 fn example_from_https() -> Result<(), Box<dyn Error>> {
     let schema_url = "https://json-schema.org/learn/examples/geographical-location.schema.json";
-    let instance: Value =
-        serde_json::from_str(r#"{"latitude": 48.858093, "longitude": 2.294694}"#)?;
+    let instance: Value = json!({"latitude": 48.858093, "longitude": 2.294694});
 
     struct HttpUrlLoader;
     impl UrlLoader for HttpUrlLoader {
@@ -97,8 +96,8 @@ fn example_from_yaml_files() -> Result<(), Box<dyn Error>> {
 #[test]
 fn example_custom_format() -> Result<(), Box<dyn Error>> {
     let schema_url = "http://tmp/schema.json";
-    let schema: Value = serde_json::from_str(r#"{"type": "string", "format": "palindrome"}"#)?;
-    let instance: Value = serde_json::from_str(r#""step on no pets""#)?;
+    let schema: Value = json!({"type": "string", "format": "palindrome"});
+    let instance: Value = json!("step on no pets");
 
     fn is_palindrome(v: &Value) -> Result<(), Box<dyn Error>> {
         let Value::String(s) = v else {
@@ -131,8 +130,8 @@ fn example_custom_format() -> Result<(), Box<dyn Error>> {
 #[test]
 fn example_custom_content_encoding() -> Result<(), Box<dyn Error>> {
     let schema_url = "http://tmp/schema.json";
-    let schema: Value = serde_json::from_str(r#"{"type": "string", "contentEncoding": "hex"}"#)?;
-    let instance: Value = serde_json::from_str(r#""aBcdxyz""#)?;
+    let schema: Value = json!({"type": "string", "contentEncoding": "hex"});
+    let instance: Value = json!("aBcdxyz");
 
     fn decode(b: u8) -> Result<u8, Box<dyn Error>> {
         match b {
@@ -176,9 +175,8 @@ fn example_custom_content_encoding() -> Result<(), Box<dyn Error>> {
 #[test]
 fn example_custom_content_media_type() -> Result<(), Box<dyn Error>> {
     let schema_url = "http://tmp/schema.json";
-    let schema: Value =
-        serde_json::from_str(r#"{"type": "string", "contentMediaType": "application/yaml"}"#)?;
-    let instance: Value = serde_json::from_str(r#""name:foobar""#)?;
+    let schema: Value = json!({"type": "string", "contentMediaType": "application/yaml"});
+    let instance: Value = json!("name:foobar");
 
     fn check_yaml(bytes: &[u8], deserialize: bool) -> Result<Option<Value>, Box<dyn Error>> {
         if deserialize {
