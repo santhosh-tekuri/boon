@@ -1,11 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2020-03-24
 
 ### Breaking Changes
-- signature change in `Compiler.register_XXX` methods
-- in `ErrorKind` few struct fileds changed from `String` to `&'static str'`
-- add `src` field to `InvalidRegex` variant
+- chages to error api
+
+### Fixed
+- Compler.add_resource should not check file exists
 
 ### Added
 - implement `contentSchema` keyword
@@ -14,9 +15,7 @@
 - add example_custom_content_media_type
 
 ### Performance
-- contentEncoding: use IgnoredAny instead of Value
-- compiler: avoid escape calls to keywords
-- validator: compute keywordLocation without heap allocs
+- significant improvement in validation
 
 ## [0.3.1] - 2023-03-07
 
