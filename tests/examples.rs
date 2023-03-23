@@ -19,16 +19,38 @@ fn example_from_files() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/**
+This example shows how to load json schema from strings.
+
+The schema url used plays important role in resolving
+schema references.
+
+You can see that `cat.json` is resolved internally to
+another string schema where as dog.json is resolved
+to local file.
+*/
 #[test]
 fn example_from_strings() -> Result<(), Box<dyn Error>> {
-    let schema_url = "http://tmp/schema.json";
-    let schema: Value = json!({"type": "object"});
-    let instance: Value = json!({"foo": "bar"});
+    let cat_schema: Value = json!({
+        "type": "object",
+        "properties": {
+            "speak": { "const": "meow" }
+        },
+        "required": ["speak"]
+    });
+    let pet_schema: Value = json!({
+        "oneOf": [
+            { "$ref": "dog.json" },
+            { "$ref": "cat.json" }
+        ],
+    });
+    let instance: Value = json!({"speak": "bow"});
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    compiler.add_resource(schema_url, schema)?;
-    let sch_index = compiler.compile(schema_url, &mut schemas)?;
+    compiler.add_resource("tests/examples/pet.json", pet_schema)?;
+    compiler.add_resource("tests/examples/cat.json", cat_schema)?;
+    let sch_index = compiler.compile("tests/examples/pet.json", &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
 
