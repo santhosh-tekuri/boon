@@ -389,11 +389,11 @@ impl Types {
         self.0 |= t as u8;
     }
 
-    fn contains(&self, t: Type) -> bool {
+    pub fn contains(&self, t: Type) -> bool {
         self.0 & t as u8 != 0
     }
 
-    fn iter(&self) -> impl Iterator<Item = Type> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Type> + '_ {
         static TYPES: [Type; 7] = [
             Type::Null,
             Type::Bool,
