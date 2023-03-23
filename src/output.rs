@@ -425,7 +425,9 @@ impl Display for FlagOutput {
 pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
     pub keyword_location: String,
+    /// The absolute, dereferenced location of the validating keyword
     pub absolute_keyword_location: Option<Cow<'e, AbsoluteKeywordLocation<'s>>>,
+    /// The location of the JSON value within the instance being validated
     pub instance_location: &'e InstanceLocation<'v>,
     pub error: OutputError<'e, 's, 'v>,
 }
