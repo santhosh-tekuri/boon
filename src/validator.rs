@@ -1038,7 +1038,7 @@ impl<'a> Scope<'a> {
 }
 
 #[derive(Debug, Clone)]
-enum InstanceToken<'v> {
+pub enum InstanceToken<'v> {
     Prop(Cow<'v, str>),
     Item(usize),
 }
@@ -1127,7 +1127,9 @@ impl<'a, 'v> ToString for JsonPointer<'a, 'v> {
 }
 
 #[derive(Debug, Default)]
-pub struct InstanceLocation<'v>(Vec<InstanceToken<'v>>);
+pub struct InstanceLocation<'v> {
+    pub tokens: Vec<InstanceToken<'v>>,
+}
 
 impl<'v> InstanceLocation<'v> {
     fn new() -> Self {
@@ -1135,31 +1137,31 @@ impl<'v> InstanceLocation<'v> {
     }
 
     fn clone_static(self) -> InstanceLocation<'static> {
-        let mut vec = Vec::with_capacity(self.0.len());
-        for tok in self.0 {
+        let mut tokens = Vec::with_capacity(self.tokens.len());
+        for tok in self.tokens {
             let tok = match tok {
                 InstanceToken::Prop(p) => InstanceToken::Prop(p.into_owned().into()),
                 InstanceToken::Item(i) => InstanceToken::Item(i),
             };
-            vec.push(tok);
+            tokens.push(tok);
         }
-        InstanceLocation(vec)
+        InstanceLocation { tokens }
     }
 }
 
 impl<'a, 'v> From<&JsonPointer<'a, 'v>> for InstanceLocation<'v> {
     fn from(value: &JsonPointer<'a, 'v>) -> Self {
-        let mut vec = Vec::with_capacity(value.len);
+        let mut tokens = Vec::with_capacity(value.len);
         for tok in &value.vec[..value.len] {
-            vec.push(tok.clone());
+            tokens.push(tok.clone());
         }
-        Self(vec)
+        Self { tokens }
     }
 }
 
 impl<'v> ToString for InstanceLocation<'v> {
     fn to_string(&self) -> String {
-        InstanceToken::to_string(&self.0)
+        InstanceToken::to_string(&self.tokens)
     }
 }
 
