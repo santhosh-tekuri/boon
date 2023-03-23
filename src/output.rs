@@ -17,10 +17,12 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         self.causes.len() == 1 && matches!(self.kind, ErrorKind::Reference { .. })
     }
 
+    /// The `Flag` output format, merely the boolean result.
     pub fn flag_output(&self) -> FlagOutput {
         FlagOutput { valid: false }
     }
 
+    /// The `Basic` structure, a flat list of output units.
     pub fn basic_output(&self) -> OutputUnit {
         let mut outputs = vec![];
 
@@ -78,6 +80,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         }
     }
 
+    /// The `Detailed` structure, based on the schema.
     pub fn detailed_output(&self) -> OutputUnit {
         let mut root = None;
         let mut stack: Vec<OutputUnit> = vec![];
@@ -139,6 +142,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
 // DfsIterator --
 
 impl<'s, 'v> Display for ValidationError<'s, 'v> {
+    /// Formats error hierarchy. Use `#` to show the schema location.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut indent = Indent::default();
         let mut sloc = SchemaLocation::default();
@@ -395,6 +399,7 @@ impl InRef {
 
 // output formats --
 
+/// Simplest output format, merely the boolean result.
 pub struct FlagOutput {
     pub valid: bool,
 }
@@ -416,6 +421,7 @@ impl Display for FlagOutput {
     }
 }
 
+/// Single OutputUnit used in Basic/Detailed output formats.
 pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
     pub keyword_location: String,
@@ -452,8 +458,11 @@ impl<'e, 's, 'v> Display for OutputUnit<'e, 's, 'v> {
     }
 }
 
+/// Error of [`OutputUnit`].
 pub enum OutputError<'e, 's, 'v> {
+    /// Single.
     Leaf(&'e ErrorKind<'s>),
+    /// Nested.
     Branch(Vec<OutputUnit<'e, 's, 'v>>),
 }
 

@@ -377,6 +377,7 @@ impl Display for Type {
     }
 }
 
+/// Set of [`Type`]s
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Types(u8);
 
@@ -389,10 +390,12 @@ impl Types {
         self.0 |= t as u8;
     }
 
+    /// Returns `true` if this set contains given type.
     pub fn contains(&self, t: Type) -> bool {
         self.0 & t as u8 != 0
     }
 
+    /// Returns an iterator over types.
     pub fn iter(&self) -> impl Iterator<Item = Type> + '_ {
         static TYPES: [Type; 7] = [
             Type::Null,

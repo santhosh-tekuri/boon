@@ -1037,9 +1037,12 @@ impl<'a> Scope<'a> {
     }
 }
 
+/// Token in InstanceLocation json-pointer.
 #[derive(Debug, Clone)]
 pub enum InstanceToken<'v> {
+    /// Token for property.
     Prop(Cow<'v, str>),
+    /// Token for array item.
     Item(usize),
 }
 
@@ -1126,6 +1129,7 @@ impl<'a, 'v> ToString for JsonPointer<'a, 'v> {
     }
 }
 
+/// The location of the JSON value within the instance being validated
 #[derive(Debug, Default)]
 pub struct InstanceLocation<'v> {
     pub tokens: Vec<InstanceToken<'v>>,
@@ -1181,9 +1185,12 @@ impl<'s, 'v> ValidationError<'s, 'v> {
 
 // SchemaPointer --
 
+/// Token for schema.
 #[derive(Debug, Clone)]
 pub enum SchemaToken<'s> {
+    /// Token for property.
     Prop(&'s str),
+    /// Token for array item.
     Item(usize),
 }
 
@@ -1197,8 +1204,11 @@ impl<'s> Display for SchemaToken<'s> {
 }
 
 #[derive(Debug, Clone)]
+/// JsonPointer in schema.
 pub struct KeywordPath<'s> {
+    /// The first token.
     pub keyword: &'static str,
+    /// Optinal token within keyword.
     pub token: Option<SchemaToken<'s>>,
 }
 
@@ -1213,9 +1223,12 @@ impl<'s> Display for KeywordPath<'s> {
     }
 }
 
+/// The absolute, dereferenced location of the validating keyword
 #[derive(Debug, Clone)]
 pub struct AbsoluteKeywordLocation<'s> {
+    /// The absolute, dereferenced schema location.
     pub schema_url: &'s str,
+    /// Location within the `schema_url`.
     pub keyword_path: Option<KeywordPath<'s>>,
 }
 
