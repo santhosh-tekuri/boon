@@ -429,9 +429,10 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
 
         // contains --
-        let mut contains_matched = vec![];
-        let mut contains_errors = vec![];
         if let Some(sch) = &s.contains {
+            let mut contains_matched = vec![];
+            let mut contains_errors = vec![];
+
             for (i, item) in arr.iter().enumerate() {
                 if let Err(e) = self.validate_val(*sch, item, &mut vloc.item(i)) {
                     contains_errors.push(e);
@@ -442,27 +443,27 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
                     }
                 }
             }
-        }
 
-        // minContains --
-        if let Some(min) = s.min_contains {
-            if contains_matched.len() < min {
-                let kind = kind!(MinContains, contains_matched.clone(), min);
-                let mut e = self.error(kw!("minContains"), vloc, kind);
+            // minContains --
+            if let Some(min) = s.min_contains {
+                if contains_matched.len() < min {
+                    let kind = kind!(MinContains, contains_matched.clone(), min);
+                    let mut e = self.error(kw!("minContains"), vloc, kind);
+                    e.causes = contains_errors;
+                    self.errors.push(e);
+                }
+            } else if contains_matched.is_empty() {
+                let mut e = self.error(kw!("contains"), vloc, kind!(Contains));
                 e.causes = contains_errors;
                 self.errors.push(e);
             }
-        } else if s.contains.is_some() && contains_matched.is_empty() {
-            let mut e = self.error(kw!("contains"), vloc, kind!(Contains));
-            e.causes = contains_errors;
-            self.errors.push(e);
-        }
 
-        // maxContains --
-        if let Some(max) = s.max_contains {
-            if contains_matched.len() > max {
-                let kind = kind!(MaxContains, contains_matched, max);
-                self.add_error(kw!("maxContains"), vloc, kind);
+            // maxContains --
+            if let Some(max) = s.max_contains {
+                if contains_matched.len() > max {
+                    let kind = kind!(MaxContains, contains_matched, max);
+                    self.add_error(kw!("maxContains"), vloc, kind);
+                }
             }
         }
     }
