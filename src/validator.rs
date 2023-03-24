@@ -808,7 +808,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         v: &'v Value,
         vloc: &mut JsonPointer<'_, 'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, None, self.scope.vid + 1, &self.scope);
+        let scope = self.scope.child(sch, None, self.scope.vid + 1);
         let schema = &self.schemas.get(sch);
         Validator {
             v,
@@ -830,7 +830,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         vloc: &mut JsonPointer<'_, 'v>,
         bool_result: bool,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        let scope = Scope::child(sch, ref_kw, self.scope.vid, &self.scope);
+        let scope = self.scope.child(sch, ref_kw, self.scope.vid);
         let schema = &self.schemas.get(sch);
         let result = Validator {
             v: self.v,
@@ -1003,17 +1003,17 @@ struct Scope<'a> {
 }
 
 impl<'a> Scope<'a> {
-    fn child(
+    fn child<'x>(
+        &'x self,
         sch: SchemaIndex,
         ref_kw: Option<&'static str>,
         vid: usize,
-        parent: &'a Scope,
-    ) -> Self {
-        Self {
+    ) -> Scope<'x> {
+        Scope {
             sch,
             ref_kw,
             vid,
-            parent: Some(parent),
+            parent: Some(self),
         }
     }
 
