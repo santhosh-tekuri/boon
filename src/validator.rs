@@ -209,33 +209,6 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             }
         }
 
-        // propertyNames --
-        if let Some(sch) = &s.property_names {
-            for pname in obj.keys() {
-                let v = Value::String(pname.to_owned());
-                let mut vec = Vec::with_capacity(self.vloc.len);
-                let mut vloc = self.vloc.clone_static(&mut vec);
-
-                let scope = self.scope.child(*sch, None, self.scope.vid + 1);
-                let schema = &self.schemas.get(*sch);
-                let result = Validator {
-                    v: &v,
-                    vloc: &mut vloc,
-                    schema,
-                    schemas: self.schemas,
-                    scope,
-                    uneval: Uneval::default(),
-                    errors: vec![],
-                    bool_result: self.bool_result,
-                }
-                .validate();
-
-                if let Err(e) = result {
-                    self.errors.push(e.clone_static());
-                }
-            }
-        }
-
         // required --
         if !s.required.is_empty() {
             if let Some(missing) = self.find_missing(obj, &s.required) {
@@ -261,22 +234,6 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                             self.errors.push(e);
                         }
                     }
-                }
-            }
-        }
-
-        // dependentSchemas --
-        for (pname, sch) in &s.dependent_schemas {
-            if obj.contains_key(pname) {
-                add_err!(self.validate_self(*sch));
-            }
-        }
-
-        // dependentRequired --
-        for (prop, required) in &s.dependent_required {
-            if obj.contains_key(prop) {
-                if let Some(missing) = self.find_missing(obj, required) {
-                    self.add_error(ErrorKind::DependentRequired { prop, missing });
                 }
             }
         }
@@ -324,6 +281,57 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 
             if evaluated {
                 self.uneval.props.remove(pname);
+            }
+        }
+
+        if s.draft_version == 4 {
+            return;
+        }
+
+        // propertyNames --
+        if let Some(sch) = &s.property_names {
+            for pname in obj.keys() {
+                let v = Value::String(pname.to_owned());
+                let mut vec = Vec::with_capacity(self.vloc.len);
+                let mut vloc = self.vloc.clone_static(&mut vec);
+
+                let scope = self.scope.child(*sch, None, self.scope.vid + 1);
+                let schema = &self.schemas.get(*sch);
+                let result = Validator {
+                    v: &v,
+                    vloc: &mut vloc,
+                    schema,
+                    schemas: self.schemas,
+                    scope,
+                    uneval: Uneval::default(),
+                    errors: vec![],
+                    bool_result: self.bool_result,
+                }
+                .validate();
+
+                if let Err(e) = result {
+                    self.errors.push(e.clone_static());
+                }
+            }
+        }
+
+        if s.draft_version == 6 {
+            return;
+        }
+
+        // dependentSchemas --
+        for (pname, sch) in &s.dependent_schemas {
+            if obj.contains_key(pname) {
+                add_err!(self.validate_self(*sch));
+            }
+        }
+
+        // dependentRequired --
+        for (prop, required) in &s.dependent_required {
+            if obj.contains_key(prop) {
+                if let Some(missing) = self.find_missing(obj, required) {
+                    self.add_error(ErrorKind::DependentRequired { prop, missing });
+                }
             }
         }
     }
