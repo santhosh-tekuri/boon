@@ -887,12 +887,14 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     fn kw_loc(&self, mut scope: &Scope) -> String {
         let mut loc = String::new();
         while let Some(parent) = scope.parent {
-            let kw_path = scope.ref_kw.unwrap_or_else(|| {
+            if let Some(kw) = scope.ref_kw {
+                loc.insert_str(0, kw);
+                loc.insert(0, '/');
+            } else {
                 let cur = &self.schemas.get(scope.sch).loc;
                 let parent = &self.schemas.get(parent.sch).loc;
-                &cur[parent.len()..]
-            });
-            loc.insert_str(0, kw_path);
+                loc.insert_str(0, &cur[parent.len()..]);
+            };
             scope = parent;
         }
         loc
