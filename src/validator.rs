@@ -166,7 +166,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 self.refs_validate();
             }
             self.cond_validate();
-            if s.draft_version >= 2019 && self.errors.is_empty() {
+            if s.draft_version >= 2019 {
                 self.uneval_validate();
             }
         }
