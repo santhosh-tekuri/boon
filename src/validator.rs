@@ -861,6 +861,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
 
 // error helpers
 impl<'v, 's, 'd> Validator<'v, 's, 'd> {
+    #[inline(always)]
     fn error(
         &self,
         kw_path: Option<KeywordPath<'s>>,
@@ -889,6 +890,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         }
     }
 
+    #[inline(always)]
     fn add_error(
         &mut self,
         kw_path: Option<KeywordPath<'s>>,
@@ -898,6 +900,7 @@ impl<'v, 's, 'd> Validator<'v, 's, 'd> {
         self.errors.push(self.error(kw_path, vloc, kind));
     }
 
+    #[inline(always)]
     fn add_errors(
         &mut self,
         errors: Vec<ValidationError<'s, 'v>>,
