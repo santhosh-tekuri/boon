@@ -6,7 +6,6 @@ use std::{
 
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
-use regex::Regex;
 use serde_json::Value;
 use url::Url;
 
@@ -52,8 +51,7 @@ fn check_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
-    Regex::new(ecma::convert(s)?.as_ref())?;
-    Ok(())
+    ecma::convert(s).map(|_| ())
 }
 
 fn check_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {

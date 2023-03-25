@@ -5,17 +5,17 @@ use regex_syntax::ast::{self, *};
 
 // covert ecma regex to rust regex if possible
 // see https://262.ecma-international.org/11.0/#sec-regexp-regular-expression-objects
-pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, &'static str> {
+pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, Box<dyn std::error::Error>> {
     let mut pattern = Cow::Borrowed(pattern);
 
     let mut ast = loop {
         match Parser::new().parse(pattern.as_ref()) {
             Ok(ast) => break Some(ast),
             Err(e) => {
-                if let Some(s) = fix(e) {
+                if let Some(s) = fix(&e) {
                     pattern = Cow::Owned(s);
                 } else {
-                    break None;
+                    Err(e)?;
                 }
             }
         }
@@ -49,7 +49,7 @@ pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, &'static str> {
     Ok(pattern)
 }
 
-fn fix(e: Error) -> Option<String> {
+fn fix(e: &Error) -> Option<String> {
     if let ErrorKind::EscapeUnrecognized = e.kind() {
         let (start, end) = (e.span().start.offset, e.span().end.offset);
         let s = &e.pattern()[start..end];
@@ -172,22 +172,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ecma_compat() {
+    fn test_ecma_compat_valid() {
         // println!("{:#?}", Parser::new().parse(r#"a\a"#));
         let tests = [
             (r#"ab\/cde\/fg"#, r#"ab/cde/fg"#),        // '/' can be escaped
             (r#"ab\cAcde\cBfg"#, "ab\u{1}cde\u{2}fg"), // \c{control_letter}
-            (r#"\c\n"#, r#"\c\n"#),                    // \c{invalid_char}
-            (r#"\\comment"#, r#"\\comment"#),          // not \c{invalid_char}
+            (r#"\\comment"#, r#"\\comment"#),          // there is no \c
             (r#"ab\def"#, r#"ab[0-9]ef"#),             // \d
             (r#"ab[a-z\d]ef"#, r#"ab[a-z[0-9]]ef"#),   // \d inside classSet
             (r#"ab\Def"#, r#"ab[^0-9]ef"#),            // \d
             (r#"ab[a-z\D]ef"#, r#"ab[a-z[^0-9]]ef"#),  // \D inside classSet
         ];
         for (input, want) in tests {
-            let got = convert(input);
-            if got != Ok(want.into()) {
-                panic!("convert({input:?}): got: {got:?}, want: {want:?}");
+            match convert(input) {
+                Ok(got) => {
+                    if got.as_ref() != want {
+                        panic!("convert({input:?}): got: {got:?}, want: {want:?}");
+                    }
+                }
+                Err(e) => {
+                    panic!("convert({input:?}) failed: {e}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_ecma_compat_invalid() {
+        // println!("{:#?}", Parser::new().parse(r#"a\a"#));
+        let tests = [
+            r#"\c\n"#,     // \c{invalid_char}
+            r#"abc\adef"#, // \a is not valid
+        ];
+        for input in tests {
+            if convert(input).is_ok() {
+                panic!("convert({input:?}) mut fail");
             }
         }
     }

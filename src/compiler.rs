@@ -412,10 +412,10 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {
                     for pname in obj.keys() {
                         let ecma =
-                            ecma::convert(pname).map_err(|e| CompileError::InvalidRegex {
+                            ecma::convert(pname).map_err(|src| CompileError::InvalidRegex {
                                 url: format!("{}/patternProperties", self.loc),
                                 regex: pname.to_owned(),
-                                src: e.into(),
+                                src,
                             })?;
                         let regex =
                             Regex::new(ecma.as_ref()).map_err(|e| CompileError::InvalidRegex {
@@ -502,7 +502,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             s.min_length = self.usize("minLength");
 
             if let Some(Value::String(p)) = self.value("pattern") {
-                let p = ecma::convert(p).map_err(|e| CompileError::Bug(e.into()))?;
+                let p = ecma::convert(p).map_err(|e| CompileError::Bug(e))?;
                 s.pattern = Some(Regex::new(p.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
             }
 
