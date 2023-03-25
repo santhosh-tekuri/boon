@@ -567,8 +567,8 @@ impl<'s> Display for ErrorKind<'s> {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::ContentSchema => write!(f, "contentSchema failed"),
-            Self::Reference { url, .. } => {
-                write!(f, "validation failed with {url}")
+            Self::Reference { .. } => {
+                write!(f, "validation failed")
             }
             Self::RefCycle {
                 url,
