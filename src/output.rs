@@ -507,7 +507,7 @@ impl<'s> ErrorKind<'s> {
             FalseSchema => None,
             Type { .. } => kw("type"),
             Enum { .. } => kw("enum"),
-            Const { .. } => kw("constant"),
+            Const { .. } => kw("const"),
             Format { .. } => kw("format"),
             MinProperties { .. } => kw("minProperties"),
             MaxProperties { .. } => kw("maxProperties"),
