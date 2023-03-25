@@ -237,8 +237,10 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         }
 
         // required --
-        if let Some(missing) = self.find_missing(obj, &s.required) {
-            self.add_error(kind!(Required, want: missing));
+        if !s.required.is_empty() {
+            if let Some(missing) = self.find_missing(obj, &s.required) {
+                self.add_error(kind!(Required, want: missing));
+            }
         }
 
         if self.bool_result && !self.errors.is_empty() {
