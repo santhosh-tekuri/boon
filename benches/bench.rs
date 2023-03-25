@@ -1,4 +1,4 @@
-use std::{env, fs::File, time::Duration};
+use std::{env, fs::File};
 
 use boon::{Compiler, Schemas};
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -22,9 +22,5 @@ pub fn validate(c: &mut Criterion) {
     c.bench_function("boon", |b| b.iter(|| schemas.validate(&inst, sch).unwrap()));
 }
 
-criterion_group!(
-    name = benches;
-    config = Criterion::default().measurement_time(Duration::from_secs(20));
-    targets = validate
-);
+criterion_group!(benches, validate);
 criterion_main!(benches);
