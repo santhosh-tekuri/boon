@@ -8,11 +8,23 @@ use serde::{
     Serialize,
 };
 
-use crate::{
-    util::*, validator::AbsoluteKeywordLocation, ErrorKind, InstanceLocation, ValidationError,
-};
+use crate::{util::*, ErrorKind, InstanceLocation, ValidationError};
 
 impl<'s, 'v> ValidationError<'s, 'v> {
+    fn absolute_keyword_location(&self) -> AbsoluteKeywordLocation<'s> {
+        if let ErrorKind::Reference { url, .. } = &self.kind {
+            AbsoluteKeywordLocation {
+                schema_url: url,
+                keyword_path: None,
+            }
+        } else {
+            AbsoluteKeywordLocation {
+                schema_url: self.schema_url,
+                keyword_path: self.kind.keyword_path(),
+            }
+        }
+    }
+
     fn skip(&self) -> bool {
         self.causes.len() == 1 && matches!(self.kind, ErrorKind::Reference { .. })
     }
@@ -37,14 +49,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
                         continue;
                     }
                     let absolute_keyword_location = if in_ref.get() {
-                        if let ErrorKind::Reference { url } = &e.kind {
-                            Some(Cow::Owned(AbsoluteKeywordLocation {
-                                schema_url: url,
-                                keyword_path: None,
-                            }))
-                        } else {
-                            Some(Cow::Borrowed(&e.absolute_keyword_location))
-                        }
+                        Some(e.absolute_keyword_location())
                     } else {
                         None
                     };
@@ -96,14 +101,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
                         continue;
                     }
                     let absolute_keyword_location = if in_ref.get() {
-                        if let ErrorKind::Reference { url } = &e.kind {
-                            Some(Cow::Owned(AbsoluteKeywordLocation {
-                                schema_url: url,
-                                keyword_path: None,
-                            }))
-                        } else {
-                            Some(Cow::Borrowed(&e.absolute_keyword_location))
-                        }
+                        Some(e.absolute_keyword_location())
                     } else {
                         None
                     };
@@ -164,8 +162,8 @@ impl<'s, 'v> Display for ValidationError<'s, 'v> {
                         write!(f, "at {}", quote(&e.instance_location.to_string()))?;
                         if f.alternate() {
                             write!(f, " [{}]", sloc)?;
-                            write!(f, " [{}]", kw_loc.get(e))?;
-                            write!(f, " [{}]", e.absolute_keyword_location)?;
+                            // write!(f, " [{}]", kw_loc.get(e))?;
+                            // write!(f, " [{}]", e.absolute_keyword_location())?;
                         }
                         write!(f, ": {}", e.kind)?;
                     }
@@ -290,8 +288,8 @@ impl<'a, 's, 'v> Display for SchemaLocation<'a, 's, 'v> {
         let cur = iter.next_back().unwrap();
         let cur: Cow<str> = match &cur.kind {
             ErrorKind::Schema { url } => Cow::Borrowed(url),
-            ErrorKind::Reference { url } => Cow::Borrowed(url),
-            _ => Cow::Owned(cur.absolute_keyword_location.to_string()),
+            ErrorKind::Reference { url, .. } => Cow::Borrowed(url),
+            _ => Cow::Owned(cur.absolute_keyword_location().to_string()),
         };
 
         let Some(prev) = iter.next_back() else {
@@ -303,12 +301,12 @@ impl<'a, 's, 'v> Display for SchemaLocation<'a, 's, 'v> {
                 let (p, _) = split(url);
                 p
             }
-            ErrorKind::Reference { url } => {
+            ErrorKind::Reference { url, .. } => {
                 let (p, _) = split(url);
                 p
             }
             _ => {
-                let (p, _) = split(prev.absolute_keyword_location.schema_url);
+                let (p, _) = split(prev.schema_url);
                 p
             }
         };
@@ -333,22 +331,15 @@ impl<'a> KeywordLocation<'a> {
     fn pre(&mut self, e: &'a ValidationError) {
         let cur = match &e.kind {
             ErrorKind::Schema { url } => url,
-            ErrorKind::Reference { url } => url,
-            _ => e.absolute_keyword_location.schema_url,
+            ErrorKind::Reference { url, .. } => url,
+            _ => e.schema_url,
         };
 
         if let Some((prev, _)) = self.stack.last() {
-            self.loc
-                .push_str(&e.absolute_keyword_location.schema_url[prev.len()..]); // todo: url-decode
-            if let ErrorKind::Reference { .. } = &e.kind {
-                let ref_keyword = e
-                    .absolute_keyword_location
-                    .keyword_path
-                    .as_ref()
-                    .map(|p| p.keyword)
-                    .unwrap_or_default();
+            self.loc.push_str(&e.schema_url[prev.len()..]); // todo: url-decode
+            if let ErrorKind::Reference { kw, .. } = &e.kind {
                 self.loc.push('/');
-                self.loc.push_str(ref_keyword);
+                self.loc.push_str(kw);
             }
         }
         self.stack.push((cur, self.loc.len()));
@@ -364,7 +355,7 @@ impl<'a> KeywordLocation<'a> {
     fn get(&mut self, cur: &'a ValidationError) -> String {
         if let ErrorKind::Reference { .. } = &cur.kind {
             self.loc.clone()
-        } else if let Some(kw_path) = &cur.absolute_keyword_location.keyword_path {
+        } else if let Some(kw_path) = &cur.kind.keyword_path() {
             let len = self.loc.len();
             self.loc.push('/');
             write!(self.loc, "{}", kw_path).expect("write kw_path to String should not fail");
@@ -426,7 +417,7 @@ pub struct OutputUnit<'e, 's, 'v> {
     pub valid: bool,
     pub keyword_location: String,
     /// The absolute, dereferenced location of the validating keyword
-    pub absolute_keyword_location: Option<Cow<'e, AbsoluteKeywordLocation<'s>>>,
+    pub absolute_keyword_location: Option<AbsoluteKeywordLocation<'s>>,
     /// The location of the JSON value within the instance being validated
     pub instance_location: &'e InstanceLocation<'v>,
     pub error: OutputError<'e, 's, 'v>,
@@ -482,6 +473,134 @@ impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
                 }
                 seq.end()
             }
+        }
+    }
+}
+
+// AbsoluteKeywordLocation --
+
+impl<'s> ErrorKind<'s> {
+    pub fn keyword_path(&self) -> Option<KeywordPath<'s>> {
+        #[inline(always)]
+        fn kw(kw: &'static str) -> Option<KeywordPath> {
+            Some(KeywordPath {
+                keyword: kw,
+                token: None,
+            })
+        }
+
+        #[inline(always)]
+        fn kw_prop<'s>(kw: &'static str, prop: &'s str) -> Option<KeywordPath<'s>> {
+            Some(KeywordPath {
+                keyword: kw,
+                token: Some(SchemaToken::Prop(prop)),
+            })
+        }
+
+        use ErrorKind::*;
+        match self {
+            Group => None,
+            Schema { .. } => None,
+            ContentSchema => kw("contentSchema"),
+            Reference { kw: kword, .. } => kw(kword),
+            RefCycle { .. } => None,
+            FalseSchema => None,
+            Type { .. } => kw("type"),
+            Enum { .. } => kw("enum"),
+            Const { .. } => kw("constant"),
+            Format { .. } => kw("format"),
+            MinProperties { .. } => kw("minProperties"),
+            MaxProperties { .. } => kw("maxProperties"),
+            AdditionalProperty { .. } => kw("additionalProperty"),
+            Required { .. } => kw("required"),
+            Dependency { prop, .. } => kw_prop("dependencies", prop),
+            DependentRequired { prop, .. } => kw_prop("dependentRequired", prop),
+            MinItems { .. } => kw("minItems"),
+            MaxItems { .. } => kw("maxItems"),
+            Contains => kw("contains"),
+            MinContains { .. } => kw("minContains"),
+            MaxContains { .. } => kw("maxContains"),
+            UniqueItems { .. } => kw("uniqueItems"),
+            AdditionalItems { .. } => kw("additionalItems"),
+            MinLength { .. } => kw("minLength"),
+            MaxLength { .. } => kw("maxLength"),
+            Pattern { .. } => kw("pattern"),
+            ContentEncoding { .. } => kw("contentEncoding"),
+            ContentMediaType { .. } => kw("contentMediaType"),
+            Minimum { .. } => kw("minimum"),
+            Maximum { .. } => kw("maximum"),
+            ExclusiveMinimum { .. } => kw("exclusiveMinimum"),
+            ExclusiveMaximum { .. } => kw("exclusiveMaximum"),
+            MultipleOf { .. } => kw("multipleOf"),
+            Not => kw("not"),
+            AllOf => kw("allOf"),
+            AnyOf => kw("anyOf"),
+            OneOf(_) => kw("oneOf"),
+        }
+    }
+}
+
+/// The absolute, dereferenced location of the validating keyword
+#[derive(Debug, Clone)]
+pub struct AbsoluteKeywordLocation<'s> {
+    /// The absolute, dereferenced schema location.
+    pub schema_url: &'s str,
+    /// Location within the `schema_url`.
+    pub keyword_path: Option<KeywordPath<'s>>,
+}
+
+impl<'s> Display for AbsoluteKeywordLocation<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.schema_url.fmt(f)?;
+        if let Some(path) = &self.keyword_path {
+            f.write_str("/")?;
+            path.keyword.fmt(f)?;
+            if let Some(token) = &path.token {
+                f.write_str("/")?;
+                match token {
+                    SchemaToken::Prop(p) => write!(f, "{}", escape(p))?, // todo: url-encode
+                    SchemaToken::Item(i) => write!(f, "{i}")?,
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+/// JsonPointer in schema.
+pub struct KeywordPath<'s> {
+    /// The first token.
+    pub keyword: &'static str,
+    /// Optinal token within keyword.
+    pub token: Option<SchemaToken<'s>>,
+}
+
+impl<'s> Display for KeywordPath<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.keyword.fmt(f)?;
+        if let Some(token) = &self.token {
+            f.write_str("/")?;
+            token.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
+/// Token for schema.
+#[derive(Debug, Clone)]
+pub enum SchemaToken<'s> {
+    /// Token for property.
+    Prop(&'s str),
+    /// Token for array item.
+    Item(usize),
+}
+
+impl<'s> Display for SchemaToken<'s> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SchemaToken::Prop(p) => write!(f, "{}", escape(p)),
+            SchemaToken::Item(i) => write!(f, "{i}"),
         }
     }
 }

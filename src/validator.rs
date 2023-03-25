@@ -4,34 +4,6 @@ use serde_json::{Map, Value};
 
 use crate::{util::*, *};
 
-macro_rules! kw {
-    ($kw:expr) => {
-        Some(KeywordPath {
-            keyword: $kw,
-            token: None,
-        })
-    };
-}
-
-macro_rules! kw_prop {
-    ($kw:expr, $prop:expr) => {
-        Some(KeywordPath {
-            keyword: $kw,
-            token: Some(SchemaToken::Prop($prop)),
-        })
-    };
-}
-
-#[allow(unused)]
-macro_rules! kw_item {
-    ($kw:expr, $item:expr) => {
-        Some(KeywordPath {
-            keyword: $kw,
-            token: Some(SchemaToken::Item($item)),
-        })
-    };
-}
-
 macro_rules! vprop {
     ($prop:expr) => {
         InstanceToken::Prop(Cow::Borrowed($prop))
@@ -70,7 +42,7 @@ pub(crate) fn validate<'s, 'v>(
     match result {
         Err(err) => {
             let mut e = ValidationError {
-                absolute_keyword_location: AbsoluteKeywordLocation::new(schema),
+                schema_url: &schema.loc,
                 instance_location: InstanceLocation::new(),
                 kind: ErrorKind::Schema { url: &schema.loc },
                 causes: vec![],
@@ -127,7 +99,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // boolean --
         if let Some(b) = s.boolean {
             return match b {
-                false => Err(self.error(None, kind!(FalseSchema))),
+                false => Err(self.error(kind!(FalseSchema))),
                 true => Ok(self.uneval),
             };
         }
@@ -138,7 +110,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 kw_loc1: self.kw_loc(&self.scope),
                 kw_loc2: self.kw_loc(scp),
             };
-            return Err(self.error(None, kind));
+            return Err(self.error(kind));
         }
 
         // type --
@@ -147,22 +119,21 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             let matched =
                 s.types.contains(v_type) || (s.types.contains(Type::Integer) && is_integer(v));
             if !matched {
-                return Err(self.error(kw!("type"), kind!(Type, v_type, s.types)));
+                return Err(self.error(kind!(Type, v_type, s.types)));
             }
         }
 
         // enum --
         if let Some(Enum { types, values }) = &s.enum_ {
             if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
-                let kind = kind!(Enum, v.clone(), values);
-                return Err(self.error(kw!("enum"), kind));
+                return Err(self.error(kind!(Enum, v.clone(), values)));
             }
         }
 
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                return Err(self.error(kw!("const"), kind!(Const, v.clone(), c)));
+                return Err(self.error(kind!(Const, v.clone(), c)));
             }
         }
 
@@ -178,8 +149,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // format --
         if let Some(format) = &s.format {
             if let Err(e) = (format.func)(v) {
-                let kind = kind!(Format, v.clone(), format.name, e);
-                self.add_error(kw!("format"), kind);
+                self.add_error(kind!(Format, v.clone(), format.name, e));
             }
         }
 
@@ -205,7 +175,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             0 => Ok(self.uneval),
             1 => Err(self.errors.remove(0)),
             _ => {
-                let mut e = self.error(None, kind!(Group));
+                let mut e = self.error(kind!(Group));
                 e.causes = self.errors;
                 Err(e)
             }
@@ -227,16 +197,14 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // minProperties --
         if let Some(min) = s.min_properties {
             if obj.len() < min {
-                let kind = kind!(MinProperties, obj.len(), min);
-                self.add_error(kw!("minProperties"), kind);
+                self.add_error(kind!(MinProperties, obj.len(), min));
             }
         }
 
         // maxProperties --
         if let Some(max) = s.max_properties {
             if obj.len() > max {
-                let kind = kind!(MaxProperties, obj.len(), max);
-                self.add_error(kw!("maxProperties"), kind);
+                self.add_error(kind!(MaxProperties, obj.len(), max));
             }
         }
 
@@ -270,7 +238,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 
         // required --
         if let Some(missing) = self.find_missing(obj, &s.required) {
-            self.add_error(kw!("required"), kind!(Required, want: missing));
+            self.add_error(kind!(Required, want: missing));
         }
 
         if self.bool_result && !self.errors.is_empty() {
@@ -283,8 +251,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 match dependency {
                     Dependency::Props(required) => {
                         if let Some(missing) = self.find_missing(obj, required) {
-                            let kind = ErrorKind::Dependency { prop, missing };
-                            self.add_error(kw_prop!("dependencies", prop), kind);
+                            self.add_error(ErrorKind::Dependency { prop, missing });
                         }
                     }
                     Dependency::SchemaRef(sch) => {
@@ -307,8 +274,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         for (prop, required) in &s.dependent_required {
             if obj.contains_key(prop) {
                 if let Some(missing) = self.find_missing(obj, required) {
-                    let kind = ErrorKind::DependentRequired { prop, missing };
-                    self.add_error(kw_prop!("dependentRequired", prop), kind);
+                    self.add_error(ErrorKind::DependentRequired { prop, missing });
                 }
             }
         }
@@ -343,8 +309,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed {
-                                let kind = kind!(AdditionalProperty, got: pname.clone());
-                                self.add_error(kw!("additionalProperties"), kind);
+                                self.add_error(kind!(AdditionalProperty, got: pname.clone()));
                             }
                         }
                         Additional::SchemaRef(sch) => {
@@ -373,14 +338,14 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // minItems --
         if let Some(min) = s.min_items {
             if arr.len() < min {
-                self.add_error(kw!("minItems"), kind!(MinItems, arr.len(), min));
+                self.add_error(kind!(MinItems, arr.len(), min));
             }
         }
 
         // maxItems --
         if let Some(max) = s.max_items {
             if arr.len() > max {
-                self.add_error(kw!("maxItems"), kind!(MaxItems, arr.len(), max));
+                self.add_error(kind!(MaxItems, arr.len(), max));
             }
         }
 
@@ -389,8 +354,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             'outer: for i in 1..arr.len() {
                 for j in 0..i {
                     if equals(&arr[i], &arr[j]) {
-                        let kind = kind!(UniqueItems, got: [j, i]);
-                        self.add_error(kw!("uniqueItems"), kind);
+                        self.add_error(kind!(UniqueItems, got: [j, i]));
                         break 'outer;
                     }
                 }
@@ -425,8 +389,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 match additional {
                     Additional::Bool(allowed) => {
                         if !allowed && evaluated != arr.len() {
-                            let kind = kind!(AdditionalItems, got: arr.len() - evaluated);
-                            self.add_error(kw!("additionalItems"), kind);
+                            self.add_error(kind!(AdditionalItems, got: arr.len() - evaluated));
                         }
                     }
                     Additional::SchemaRef(sch) => {
@@ -473,13 +436,12 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             // minContains --
             if let Some(min) = s.min_contains {
                 if contains_matched.len() < min {
-                    let kind = kind!(MinContains, contains_matched.clone(), min);
-                    let mut e = self.error(kw!("minContains"), kind);
+                    let mut e = self.error(kind!(MinContains, contains_matched.clone(), min));
                     e.causes = contains_errors;
                     self.errors.push(e);
                 }
             } else if contains_matched.is_empty() {
-                let mut e = self.error(kw!("contains"), kind!(Contains));
+                let mut e = self.error(kind!(Contains));
                 e.causes = contains_errors;
                 self.errors.push(e);
             }
@@ -487,8 +449,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             // maxContains --
             if let Some(max) = s.max_contains {
                 if contains_matched.len() > max {
-                    let kind = kind!(MaxContains, contains_matched, max);
-                    self.add_error(kw!("maxContains"), kind);
+                    self.add_error(kind!(MaxContains, contains_matched, max));
                 }
             }
         }
@@ -502,7 +463,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(min) = s.min_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len < min {
-                self.add_error(kw!("minLength"), kind!(MinLength, *len, min));
+                self.add_error(kind!(MinLength, *len, min));
             }
         }
 
@@ -510,15 +471,14 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(max) = s.max_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len > max {
-                self.add_error(kw!("maxLength"), kind!(MaxLength, *len, max));
+                self.add_error(kind!(MaxLength, *len, max));
             }
         }
 
         // pattern --
         if let Some(regex) = &s.pattern {
             if !regex.is_match(str) {
-                let kind = kind!(Pattern, str.clone(), regex.as_str());
-                self.add_error(kw!("pattern"), kind);
+                self.add_error(kind!(Pattern, str.clone(), regex.as_str()));
             }
         }
 
@@ -528,10 +488,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             if let Some(decoder) = &s.content_encoding {
                 match (decoder.func)(str) {
                     Ok(bytes) => decoded = Cow::from(bytes),
-                    Err(e) => {
-                        let kind = kind!(ContentEncoding, str.clone(), decoder.name, e);
-                        self.add_error(kw!("contentEncoding"), kind)
-                    }
+                    Err(e) => self.add_error(kind!(ContentEncoding, str.clone(), decoder.name, e)),
                 }
             }
 
@@ -541,8 +498,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
                     Ok(des) => deserialized = des,
                     Err(e) => {
-                        let kind = kind!(ContentMediaType, decoded.into(), mt.name, e);
-                        self.add_error(kw!("contentMediaType"), kind);
+                        self.add_error(kind!(ContentMediaType, decoded.into(), mt.name, e));
                     }
                 }
             }
@@ -565,8 +521,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(min) = &s.minimum {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
-                    let kind = kind!(Minimum, num.clone(), min.clone());
-                    self.add_error(kw!("minimum"), kind);
+                    self.add_error(kind!(Minimum, num.clone(), min.clone()));
                 }
             }
         }
@@ -575,8 +530,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(max) = &s.maximum {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
-                    let kind = kind!(Maximum, num.clone(), max.clone());
-                    self.add_error(kw!("maximum"), kind);
+                    self.add_error(kind!(Maximum, num.clone(), max.clone()));
                 }
             }
         }
@@ -585,8 +539,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(ex_min) = &s.exclusive_minimum {
             if let (Some(ex_minf), Some(numf)) = (ex_min.as_f64(), num.as_f64()) {
                 if numf <= ex_minf {
-                    let kind = kind!(ExclusiveMinimum, num.clone(), ex_min.clone());
-                    self.add_error(kw!("exclusiveMinimum"), kind);
+                    self.add_error(kind!(ExclusiveMinimum, num.clone(), ex_min.clone()));
                 }
             }
         }
@@ -595,8 +548,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(ex_max) = &s.exclusive_maximum {
             if let (Some(ex_maxf), Some(numf)) = (ex_max.as_f64(), num.as_f64()) {
                 if numf >= ex_maxf {
-                    let kind = kind!(ExclusiveMaximum, num.clone(), ex_max.clone());
-                    self.add_error(kw!("exclusiveMaximum"), kind);
+                    self.add_error(kind!(ExclusiveMaximum, num.clone(), ex_max.clone()));
                 }
             }
         }
@@ -605,8 +557,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(mul) = &s.multiple_of {
             if let (Some(mulf), Some(numf)) = (mul.as_f64(), num.as_f64()) {
                 if (numf / mulf).fract() != 0.0 {
-                    let kind = kind!(MultipleOf, num.clone(), mul.clone());
-                    self.add_error(kw!("multipleOf"), kind);
+                    self.add_error(kind!(MultipleOf, num.clone(), mul.clone()));
                 }
             }
         }
@@ -653,7 +604,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     ) -> Result<(), ValidationError<'s, 'v>> {
         if let Err(err) = self._validate_self(sch, kw.into(), false) {
             let url = &self.schemas.get(sch).loc;
-            let mut ref_err = self.error(kw!(kw), ErrorKind::Reference { url });
+            let mut ref_err = self.error(ErrorKind::Reference { kw, url });
             if let ErrorKind::Group = err.kind {
                 ref_err.causes = err.causes;
             } else {
@@ -714,7 +665,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // not --
         if let Some(not) = s.not {
             if self._validate_self(not, None, true).is_ok() {
-                self.add_error(kw!("not"), kind!(Not));
+                self.add_error(kind!(Not));
             }
         }
 
@@ -730,7 +681,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 }
             }
             if !allof_errors.is_empty() {
-                self.add_errors(allof_errors, kw!("allOf"), kind!(AllOf));
+                self.add_errors(allof_errors, kind!(AllOf));
             }
         }
 
@@ -751,7 +702,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 }
             }
             if !matched {
-                self.add_errors(anyof_errors, kw!("anyOf"), kind!(AnyOf));
+                self.add_errors(anyof_errors, kind!(AnyOf));
             }
         }
 
@@ -767,15 +718,13 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     match matched {
                         None => _ = matched.replace(i),
                         Some(prev) => {
-                            let kind = ErrorKind::OneOf(Some((prev, i)));
-                            self.add_error(kw!("oneOf"), kind);
+                            self.add_error(ErrorKind::OneOf(Some((prev, i))));
                         }
                     }
                 }
             }
             if matched.is_none() {
-                let kind = ErrorKind::OneOf(None);
-                self.add_errors(oneof_errors, kw!("oneOf"), kind);
+                self.add_errors(oneof_errors, ErrorKind::OneOf(None));
             }
         }
 
@@ -887,17 +836,10 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 // error helpers
 impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     #[inline(always)]
-    fn error(
-        &self,
-        kw_path: Option<KeywordPath<'s>>,
-        kind: ErrorKind<'s>,
-    ) -> ValidationError<'s, 'v> {
+    fn error(&self, kind: ErrorKind<'s>) -> ValidationError<'s, 'v> {
         if self.bool_result {
             return ValidationError {
-                absolute_keyword_location: AbsoluteKeywordLocation {
-                    schema_url: "",
-                    keyword_path: None,
-                },
+                schema_url: &self.schema.loc,
                 instance_location: InstanceLocation::new(),
                 kind: ErrorKind::Group,
                 causes: vec![],
@@ -905,10 +847,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         }
         let x = &*self.vloc;
         ValidationError {
-            absolute_keyword_location: AbsoluteKeywordLocation {
-                schema_url: &self.schema.loc,
-                keyword_path: kw_path,
-            },
+            schema_url: &self.schema.loc,
             instance_location: x.into(),
             kind,
             causes: vec![],
@@ -916,21 +855,16 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     }
 
     #[inline(always)]
-    fn add_error(&mut self, kw_path: Option<KeywordPath<'s>>, kind: ErrorKind<'s>) {
-        self.errors.push(self.error(kw_path, kind));
+    fn add_error(&mut self, kind: ErrorKind<'s>) {
+        self.errors.push(self.error(kind));
     }
 
     #[inline(always)]
-    fn add_errors(
-        &mut self,
-        errors: Vec<ValidationError<'s, 'v>>,
-        kw_path: Option<KeywordPath<'s>>,
-        kind: ErrorKind<'s>,
-    ) {
+    fn add_errors(&mut self, errors: Vec<ValidationError<'s, 'v>>, kind: ErrorKind<'s>) {
         if errors.len() == 1 {
             self.errors.extend(errors);
         } else {
-            let mut err = self.error(kw_path, kind);
+            let mut err = self.error(kind);
             err.causes = errors;
             self.errors.push(err);
         }
@@ -1185,81 +1119,5 @@ impl<'s, 'v> ValidationError<'s, 'v> {
             causes,
             ..self
         }
-    }
-}
-
-// SchemaPointer --
-
-/// Token for schema.
-#[derive(Debug, Clone)]
-pub enum SchemaToken<'s> {
-    /// Token for property.
-    Prop(&'s str),
-    /// Token for array item.
-    Item(usize),
-}
-
-impl<'s> Display for SchemaToken<'s> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SchemaToken::Prop(p) => write!(f, "{}", escape(p)),
-            SchemaToken::Item(i) => write!(f, "{i}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-/// JsonPointer in schema.
-pub struct KeywordPath<'s> {
-    /// The first token.
-    pub keyword: &'static str,
-    /// Optinal token within keyword.
-    pub token: Option<SchemaToken<'s>>,
-}
-
-impl<'s> Display for KeywordPath<'s> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.keyword.fmt(f)?;
-        if let Some(token) = &self.token {
-            f.write_str("/")?;
-            token.fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
-/// The absolute, dereferenced location of the validating keyword
-#[derive(Debug, Clone)]
-pub struct AbsoluteKeywordLocation<'s> {
-    /// The absolute, dereferenced schema location.
-    pub schema_url: &'s str,
-    /// Location within the `schema_url`.
-    pub keyword_path: Option<KeywordPath<'s>>,
-}
-
-impl<'s> AbsoluteKeywordLocation<'s> {
-    fn new(s: &'s Schema) -> Self {
-        Self {
-            schema_url: &s.loc,
-            keyword_path: None,
-        }
-    }
-}
-
-impl<'s> Display for AbsoluteKeywordLocation<'s> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.schema_url.fmt(f)?;
-        if let Some(path) = &self.keyword_path {
-            f.write_str("/")?;
-            path.keyword.fmt(f)?;
-            if let Some(token) = &path.token {
-                f.write_str("/")?;
-                match token {
-                    SchemaToken::Prop(p) => write!(f, "{}", escape(p))?, // todo: url-encode
-                    SchemaToken::Item(i) => write!(f, "{i}")?,
-                }
-            }
-        }
-        Ok(())
     }
 }

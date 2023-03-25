@@ -413,8 +413,8 @@ impl Types {
 /// Error type for validation failures.
 #[derive(Debug)]
 pub struct ValidationError<'s, 'v> {
-    /// The absolute, dereferenced location of the validating keyword
-    pub absolute_keyword_location: AbsoluteKeywordLocation<'s>,
+    /// The absolute, dereferenced schema location.
+    pub schema_url: &'s str,
     /// The location of the JSON value within the instance being validated
     pub instance_location: InstanceLocation<'v>,
     /// kind of error
@@ -434,6 +434,7 @@ pub enum ErrorKind<'s> {
     },
     ContentSchema,
     Reference {
+        kw: &'static str,
         url: &'s str,
     },
     RefCycle {
@@ -566,7 +567,7 @@ impl<'s> Display for ErrorKind<'s> {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::ContentSchema => write!(f, "contentSchema failed"),
-            Self::Reference { url } => {
+            Self::Reference { url, .. } => {
                 write!(f, "validation failed with {url}")
             }
             Self::RefCycle {
