@@ -189,8 +189,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err());
+                if let Err(e) = $result {
+                    self.errors.push(e);
+                }
             };
         }
 
@@ -211,7 +212,6 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // propertyNames --
         if let Some(sch) = &s.property_names {
             for pname in obj.keys() {
-                //todo: use pname as value(tip: use enum{PropName|Value})
                 let v = Value::String(pname.to_owned());
                 let mut vec = Vec::with_capacity(self.vloc.len);
                 let mut vloc = self.vloc.clone_static(&mut vec);
@@ -330,8 +330,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err());
+                if let Err(e) = $result {
+                    self.errors.push(e);
+                }
             };
         }
 
@@ -570,8 +571,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err());
+                if let Err(e) = $result {
+                    self.errors.push(e);
+                }
             };
         }
 
@@ -657,8 +659,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         let s = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err());
+                if let Err(e) = $result {
+                    self.errors.push(e);
+                }
             };
         }
 
@@ -748,8 +751,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         let v = self.v;
         macro_rules! add_err {
             ($result:expr) => {
-                let result = $result;
-                self.errors.extend(result.err());
+                if let Err(e) = $result {
+                    self.errors.push(e);
+                }
             };
         }
 
