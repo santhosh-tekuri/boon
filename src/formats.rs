@@ -41,9 +41,9 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     register("relative-json-pointer", check_relative_json_pointer);
     register("uuid", check_uuid);
     register("uri", check_uri);
-    register("iri", check_uri);
+    register("iri", check_iri);
     register("uri-reference", check_uri_reference);
-    register("iri-reference", check_uri_reference);
+    register("iri-reference", check_iri_reference);
     register("uri-template", check_uri_template);
     m
 });
@@ -766,6 +766,16 @@ fn check_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
+    if fluent_uri::Uri::parse(s)?.is_relative() {
+        Err("relative url")?;
+    };
+    Ok(())
+}
+
+fn check_iri(v: &Value) -> Result<(), Box<dyn Error>> {
+    let Value::String(s) = v else {
+        return Ok(());
+    };
     match Url::parse(s) {
         Ok(_) => Ok(()),
         Err(url::ParseError::RelativeUrlWithoutBase) => Err("relative url")?,
@@ -783,6 +793,14 @@ fn parse_uri_reference(s: &str) -> Result<Url, Box<dyn Error>> {
 }
 
 fn check_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
+    let Value::String(s) = v else {
+        return Ok(());
+    };
+    fluent_uri::Uri::parse(s)?;
+    Ok(())
+}
+
+fn check_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
