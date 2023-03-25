@@ -4,13 +4,13 @@ use serde_json::{Map, Value};
 
 use crate::{util::*, *};
 
-macro_rules! vprop {
+macro_rules! prop {
     ($prop:expr) => {
         InstanceToken::Prop(Cow::Borrowed($prop))
     };
 }
 
-macro_rules! vitem {
+macro_rules! item {
     ($item:expr) => {
         InstanceToken::Item($item)
     };
@@ -287,7 +287,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 
             // properties --
             if let Some(sch) = s.properties.get(pname) {
-                match self.validate_val(*sch, pvalue, vprop!(pname)) {
+                match self.validate_val(*sch, pvalue, prop!(pname)) {
                     Ok(_) => evaluated = true,
                     Err(e) => self.errors.push(e),
                 }
@@ -296,7 +296,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             // patternProperties --
             for (regex, sch) in &s.pattern_properties {
                 if regex.is_match(pname) {
-                    match self.validate_val(*sch, pvalue, vprop!(pname)) {
+                    match self.validate_val(*sch, pvalue, prop!(pname)) {
                         Ok(_) => evaluated = true,
                         Err(e) => self.errors.push(e),
                     }
@@ -313,7 +313,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                             }
                         }
                         Additional::SchemaRef(sch) => {
-                            add_err!(self.validate_val(*sch, pvalue, vprop!(pname)));
+                            add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
                         }
                     }
                     evaluated = true;
@@ -370,7 +370,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 match items {
                     Items::SchemaRef(sch) => {
                         for (i, item) in arr.iter().enumerate() {
-                            add_err!(self.validate_val(*sch, item, vitem!(i)));
+                            add_err!(self.validate_val(*sch, item, item!(i)));
                         }
                         evaluated = arr.len();
                         debug_assert!(self.uneval.items.is_empty());
@@ -378,7 +378,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     Items::SchemaRefs(list) => {
                         for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
                             self.uneval.items.remove(&i);
-                            add_err!(self.validate_val(*sch, item, vitem!(i)));
+                            add_err!(self.validate_val(*sch, item, item!(i)));
                         }
                         evaluated = min(list.len(), arr.len());
                     }
@@ -395,7 +395,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     }
                     Additional::SchemaRef(sch) => {
                         for (i, item) in arr[evaluated..].iter().enumerate() {
-                            add_err!(self.validate_val(*sch, item, vitem!(i)));
+                            add_err!(self.validate_val(*sch, item, item!(i)));
                         }
                     }
                 }
@@ -405,14 +405,14 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             // prefixItems --
             for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
                 self.uneval.items.remove(&i);
-                add_err!(self.validate_val(*sch, item, vitem!(i)));
+                add_err!(self.validate_val(*sch, item, item!(i)));
             }
 
             // items2020 --
             if let Some(sch) = &s.items2020 {
                 let evaluated = min(s.prefix_items.len(), arr.len());
                 for (i, item) in arr[evaluated..].iter().enumerate() {
-                    add_err!(self.validate_val(*sch, item, vitem!(i)));
+                    add_err!(self.validate_val(*sch, item, item!(i)));
                 }
                 debug_assert!(self.uneval.items.is_empty());
             }
@@ -424,7 +424,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             let mut contains_errors = vec![];
 
             for (i, item) in arr.iter().enumerate() {
-                if let Err(e) = self.validate_val(*sch, item, vitem!(i)) {
+                if let Err(e) = self.validate_val(*sch, item, item!(i)) {
                     contains_errors.push(e);
                 } else {
                     contains_matched.push(i);
@@ -762,7 +762,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             let uneval = std::mem::take(&mut self.uneval);
             for pname in &uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
-                    add_err!(self.validate_val(sch, pvalue, vprop!(pname)));
+                    add_err!(self.validate_val(sch, pvalue, prop!(pname)));
                 }
             }
             self.uneval.props.clear();
@@ -773,7 +773,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             let uneval = std::mem::take(&mut self.uneval);
             for i in &uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
-                    add_err!(self.validate_val(sch, pvalue, vitem!(*i)));
+                    add_err!(self.validate_val(sch, pvalue, item!(*i)));
                 }
             }
             self.uneval.items.clear();
