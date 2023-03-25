@@ -144,11 +144,11 @@ impl<'s, 'v> Display for ValidationError<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut indent = Indent::default();
         let mut sloc = SchemaLocation::default();
-        let mut kw_loc = KeywordLocation::default();
+        // let mut kw_loc = KeywordLocation::default();
         for node in DfsIterator::new(self) {
             match node {
                 DfsItem::Pre(e) => {
-                    kw_loc.pre(e);
+                    // kw_loc.pre(e);
                     if e.skip() {
                         continue;
                     }
@@ -169,7 +169,7 @@ impl<'s, 'v> Display for ValidationError<'s, 'v> {
                     }
                 }
                 DfsItem::Post(e) => {
-                    kw_loc.post();
+                    // kw_loc.post();
                     if e.skip() {
                         continue;
                     }
