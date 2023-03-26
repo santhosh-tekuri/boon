@@ -451,7 +451,6 @@ pub enum ErrorKind<'s> {
         want: &'s Vec<Value>,
     },
     Const {
-        got: Value,
         want: &'s Value,
     },
     Format {
@@ -598,7 +597,7 @@ impl<'s> Display for ErrorKind<'s> {
                     write!(f, "enum failed")
                 }
             }
-            Self::Const { want, .. } => {
+            Self::Const { want } => {
                 if Type::primitive(want) {
                     write!(f, "value must be {want}")
                 } else {

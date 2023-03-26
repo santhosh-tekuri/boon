@@ -133,7 +133,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                return Err(self.error(kind!(Const, v.clone(), c)));
+                return Err(self.error(kind!(Const, want: c)));
             }
         }
 
