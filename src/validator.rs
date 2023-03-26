@@ -126,7 +126,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // enum --
         if let Some(Enum { types, values }) = &s.enum_ {
             if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
-                return Err(self.error(kind!(Enum, v.clone(), values)));
+                return Err(self.error(kind!(Enum, want: values)));
             }
         }
 

@@ -448,7 +448,6 @@ pub enum ErrorKind<'s> {
         want: Types,
     },
     Enum {
-        got: Value,
         want: &'s Vec<Value>,
     },
     Const {
@@ -586,7 +585,7 @@ impl<'s> Display for ErrorKind<'s> {
                 let want = join_iter(want.iter(), " or ");
                 write!(f, "want {want}, but got {got}",)
             }
-            Self::Enum { want, .. } => {
+            Self::Enum { want } => {
                 if want.iter().all(Type::primitive) {
                     if want.len() == 1 {
                         write!(f, "value must be ")?;
