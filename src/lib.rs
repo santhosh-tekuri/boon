@@ -418,7 +418,7 @@ pub struct ValidationError<'s, 'v> {
     /// The location of the JSON value within the instance being validated
     pub instance_location: InstanceLocation<'v>,
     /// kind of error
-    pub kind: ErrorKind<'s>,
+    pub kind: ErrorKind<'s, 'v>,
     /// Holds nested errors
     pub causes: Vec<ValidationError<'s, 'v>>,
 }
@@ -427,7 +427,7 @@ impl<'s, 'v> Error for ValidationError<'s, 'v> {}
 
 /// A list specifying general categories of validation errors.
 #[derive(Debug)]
-pub enum ErrorKind<'s> {
+pub enum ErrorKind<'s, 'v> {
     Group,
     Schema {
         url: &'s str,
@@ -454,7 +454,7 @@ pub enum ErrorKind<'s> {
         want: &'s Value,
     },
     Format {
-        got: Value,
+        got: Cow<'v, Value>,
         want: &'static str,
         err: Box<dyn Error>,
     },
@@ -467,7 +467,7 @@ pub enum ErrorKind<'s> {
         want: usize,
     },
     AdditionalProperty {
-        got: String,
+        got: Cow<'v, str>,
     },
     Required {
         want: Vec<&'s str>,
@@ -516,11 +516,10 @@ pub enum ErrorKind<'s> {
         want: usize,
     },
     Pattern {
-        got: String,
+        got: Cow<'v, str>,
         want: &'s str,
     },
     ContentEncoding {
-        got: String,
         want: &'static str,
         err: Box<dyn Error>,
     },
@@ -530,24 +529,24 @@ pub enum ErrorKind<'s> {
         err: Box<dyn Error>,
     },
     Minimum {
-        got: Number,
-        want: Number,
+        got: Cow<'v, Number>,
+        want: &'s Number,
     },
     Maximum {
-        got: Number,
-        want: Number,
+        got: Cow<'v, Number>,
+        want: &'s Number,
     },
     ExclusiveMinimum {
-        got: Number,
-        want: Number,
+        got: Cow<'v, Number>,
+        want: &'s Number,
     },
     ExclusiveMaximum {
-        got: Number,
-        want: Number,
+        got: Cow<'v, Number>,
+        want: &'s Number,
     },
     MultipleOf {
-        got: Number,
-        want: Number,
+        got: Cow<'v, Number>,
+        want: &'s Number,
     },
     Not,
     /// none of the subschemas matched
@@ -559,7 +558,7 @@ pub enum ErrorKind<'s> {
     OneOf(Option<(usize, usize)>),
 }
 
-impl<'s> Display for ErrorKind<'s> {
+impl<'s, 'v> Display for ErrorKind<'s, 'v> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Group => write!(f, "validation failed"),

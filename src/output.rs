@@ -454,7 +454,7 @@ impl<'e, 's, 'v> Display for OutputUnit<'e, 's, 'v> {
 /// Error of [`OutputUnit`].
 pub enum OutputError<'e, 's, 'v> {
     /// Single.
-    Leaf(&'e ErrorKind<'s>),
+    Leaf(&'e ErrorKind<'s, 'v>),
     /// Nested.
     Branch(Vec<OutputUnit<'e, 's, 'v>>),
 }
@@ -479,7 +479,7 @@ impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
 
 // AbsoluteKeywordLocation --
 
-impl<'s> ErrorKind<'s> {
+impl<'s, 'v> ErrorKind<'s, 'v> {
     pub fn keyword_path(&self) -> Option<KeywordPath<'s>> {
         #[inline(always)]
         fn kw(kw: &'static str) -> Option<KeywordPath> {

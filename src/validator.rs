@@ -149,7 +149,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // format --
         if let Some(format) = &s.format {
             if let Err(e) = (format.func)(v) {
-                self.add_error(kind!(Format, v.clone(), format.name, e));
+                self.add_error(kind!(Format, Cow::Borrowed(v), format.name, e));
             }
         }
 
@@ -266,7 +266,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed {
-                                self.add_error(kind!(AdditionalProperty, got: pname.clone()));
+                                self.add_error(kind!(AdditionalProperty, got: pname.into()));
                             }
                         }
                         Additional::SchemaRef(sch) => {
@@ -487,7 +487,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         // pattern --
         if let Some(regex) = &s.pattern {
             if !regex.is_match(str) {
-                self.add_error(kind!(Pattern, str.clone(), regex.as_str()));
+                self.add_error(kind!(Pattern, str.into(), regex.as_str()));
             }
         }
 
@@ -497,7 +497,10 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             if let Some(decoder) = &s.content_encoding {
                 match (decoder.func)(str) {
                     Ok(bytes) => decoded = Cow::from(bytes),
-                    Err(e) => self.add_error(kind!(ContentEncoding, str.clone(), decoder.name, e)),
+                    Err(err) => self.add_error(ErrorKind::ContentEncoding {
+                        want: decoder.name,
+                        err,
+                    }),
                 }
             }
 
@@ -530,7 +533,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(min) = &s.minimum {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
-                    self.add_error(kind!(Minimum, num.clone(), min.clone()));
+                    self.add_error(kind!(Minimum, Cow::Borrowed(num), min));
                 }
             }
         }
@@ -539,7 +542,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(max) = &s.maximum {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
-                    self.add_error(kind!(Maximum, num.clone(), max.clone()));
+                    self.add_error(kind!(Maximum, Cow::Borrowed(num), max));
                 }
             }
         }
@@ -548,7 +551,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(ex_min) = &s.exclusive_minimum {
             if let (Some(ex_minf), Some(numf)) = (ex_min.as_f64(), num.as_f64()) {
                 if numf <= ex_minf {
-                    self.add_error(kind!(ExclusiveMinimum, num.clone(), ex_min.clone()));
+                    self.add_error(kind!(ExclusiveMinimum, Cow::Borrowed(num), ex_min));
                 }
             }
         }
@@ -557,7 +560,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(ex_max) = &s.exclusive_maximum {
             if let (Some(ex_maxf), Some(numf)) = (ex_max.as_f64(), num.as_f64()) {
                 if numf >= ex_maxf {
-                    self.add_error(kind!(ExclusiveMaximum, num.clone(), ex_max.clone()));
+                    self.add_error(kind!(ExclusiveMaximum, Cow::Borrowed(num), ex_max));
                 }
             }
         }
@@ -566,7 +569,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
         if let Some(mul) = &s.multiple_of {
             if let (Some(mulf), Some(numf)) = (mul.as_f64(), num.as_f64()) {
                 if (numf / mulf).fract() != 0.0 {
-                    self.add_error(kind!(MultipleOf, num.clone(), mul.clone()));
+                    self.add_error(kind!(MultipleOf, Cow::Borrowed(num), mul));
                 }
             }
         }
@@ -848,7 +851,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 // error helpers
 impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     #[inline(always)]
-    fn error(&self, kind: ErrorKind<'s>) -> ValidationError<'s, 'v> {
+    fn error(&self, kind: ErrorKind<'s, 'v>) -> ValidationError<'s, 'v> {
         if self.bool_result {
             return ValidationError {
                 schema_url: &self.schema.loc,
@@ -866,12 +869,12 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
     }
 
     #[inline(always)]
-    fn add_error(&mut self, kind: ErrorKind<'s>) {
+    fn add_error(&mut self, kind: ErrorKind<'s, 'v>) {
         self.errors.push(self.error(kind));
     }
 
     #[inline(always)]
-    fn add_errors(&mut self, errors: Vec<ValidationError<'s, 'v>>, kind: ErrorKind<'s>) {
+    fn add_errors(&mut self, errors: Vec<ValidationError<'s, 'v>>, kind: ErrorKind<'s, 'v>) {
         if errors.len() == 1 {
             self.errors.extend(errors);
         } else {
@@ -1129,8 +1132,88 @@ impl<'s, 'v> ValidationError<'s, 'v> {
         }
         ValidationError {
             instance_location: self.instance_location.clone_static(),
+            kind: self.kind.clone_static(),
             causes,
             ..self
+        }
+    }
+}
+
+impl<'s, 'v> ErrorKind<'s, 'v> {
+    fn clone_static(self) -> ErrorKind<'s, 'static> {
+        use ErrorKind::*;
+        match self {
+            AdditionalProperty { got } => AdditionalProperty {
+                got: got.into_owned().into(),
+            },
+            Format { got, want, err } => Format {
+                got: Cow::Owned(got.into_owned()),
+                want,
+                err,
+            },
+            Pattern { got, want } => Pattern {
+                got: got.into_owned().into(),
+                want,
+            },
+            Minimum { got, want } => Minimum {
+                got: Cow::Owned(got.into_owned()),
+                want,
+            },
+            Maximum { got, want } => Maximum {
+                got: Cow::Owned(got.into_owned()),
+                want,
+            },
+            ExclusiveMinimum { got, want } => ExclusiveMinimum {
+                got: Cow::Owned(got.into_owned()),
+                want,
+            },
+            ExclusiveMaximum { got, want } => ExclusiveMaximum {
+                got: Cow::Owned(got.into_owned()),
+                want,
+            },
+            MultipleOf { got, want } => MultipleOf {
+                got: Cow::Owned(got.into_owned()),
+                want,
+            },
+            // #[cfg(not(debug_assertions))]
+            // _ => unsafe { std::mem::transmute(self) },
+            Group => Group,
+            Schema { url } => Schema { url },
+            ContentSchema => ContentSchema,
+            Reference { kw, url } => Reference { kw, url },
+            RefCycle {
+                url,
+                kw_loc1,
+                kw_loc2,
+            } => RefCycle {
+                url,
+                kw_loc1,
+                kw_loc2,
+            },
+            FalseSchema => FalseSchema,
+            Type { got, want } => Type { got, want },
+            Enum { want } => Enum { want },
+            Const { want } => Const { want },
+            MinProperties { got, want } => MinProperties { got, want },
+            MaxProperties { got, want } => MaxProperties { got, want },
+            Required { want } => Required { want },
+            Dependency { prop, missing } => Dependency { prop, missing },
+            DependentRequired { prop, missing } => DependentRequired { prop, missing },
+            MinItems { got, want } => MinItems { got, want },
+            MaxItems { got, want } => MaxItems { got, want },
+            Contains => Contains,
+            MinContains { got, want } => MinContains { got, want },
+            MaxContains { got, want } => MaxContains { got, want },
+            UniqueItems { got } => UniqueItems { got },
+            AdditionalItems { got } => AdditionalItems { got },
+            MinLength { got, want } => MinLength { got, want },
+            MaxLength { got, want } => MaxLength { got, want },
+            ContentEncoding { want, err } => ContentEncoding { want, err },
+            ContentMediaType { got, want, err } => ContentMediaType { got, want, err },
+            Not => Not,
+            AllOf => AllOf,
+            AnyOf => AnyOf,
+            OneOf(opt) => OneOf(opt),
         }
     }
 }
