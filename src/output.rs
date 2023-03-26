@@ -511,7 +511,7 @@ impl<'s, 'v> ErrorKind<'s, 'v> {
             Format { .. } => kw("format"),
             MinProperties { .. } => kw("minProperties"),
             MaxProperties { .. } => kw("maxProperties"),
-            AdditionalProperty { .. } => kw("additionalProperty"),
+            AdditionalProperties { .. } => kw("additionalProperty"),
             Required { .. } => kw("required"),
             Dependency { prop, .. } => kw_prop("dependencies", prop),
             DependentRequired { prop, .. } => kw_prop("dependentRequired", prop),

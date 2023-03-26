@@ -236,6 +236,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             }
         }
 
+        let mut additional_props = vec![];
         for (pname, pvalue) in obj {
             if self.bool_result && !self.errors.is_empty() {
                 return;
@@ -266,7 +267,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed {
-                                self.add_error(kind!(AdditionalProperty, got: pname.into()));
+                                additional_props.push(pname.into());
                             }
                         }
                         Additional::SchemaRef(sch) => {
@@ -280,6 +281,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
             if evaluated {
                 self.uneval.props.remove(pname);
             }
+        }
+        if !additional_props.is_empty() {
+            self.add_error(kind!(AdditionalProperties, got: additional_props));
         }
 
         if s.draft_version == 4 {
@@ -1143,8 +1147,8 @@ impl<'s, 'v> ErrorKind<'s, 'v> {
     fn clone_static(self) -> ErrorKind<'s, 'static> {
         use ErrorKind::*;
         match self {
-            AdditionalProperty { got } => AdditionalProperty {
-                got: got.into_owned().into(),
+            AdditionalProperties { got } => AdditionalProperties {
+                got: got.into_iter().map(|e| e.into_owned().into()).collect(),
             },
             Format { got, want, err } => Format {
                 got: Cow::Owned(got.into_owned()),

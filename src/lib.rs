@@ -466,8 +466,8 @@ pub enum ErrorKind<'s, 'v> {
         got: usize,
         want: usize,
     },
-    AdditionalProperty {
-        got: Cow<'v, str>,
+    AdditionalProperties {
+        got: Vec<Cow<'v, str>>,
     },
     Required {
         want: Vec<&'s str>,
@@ -615,8 +615,12 @@ impl<'s, 'v> Display for ErrorKind<'s, 'v> {
                 f,
                 "maximum {want} properties required, but got {got} properties"
             ),
-            Self::AdditionalProperty { got } => {
-                write!(f, "additionalProperty {} not allowed", quote(got))
+            Self::AdditionalProperties { got } => {
+                write!(
+                    f,
+                    "additionalProperties {} not allowed",
+                    join_iter(got.iter().map(quote), ", ")
+                )
             }
             Self::Required { want } => write!(
                 f,
