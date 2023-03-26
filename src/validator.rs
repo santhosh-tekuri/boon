@@ -230,9 +230,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                         }
                     }
                     Dependency::SchemaRef(sch) => {
-                        if let Err(e) = self.validate_self(*sch) {
-                            self.errors.push(e);
-                        }
+                        add_err!(self.validate_self(*sch));
                     }
                 }
             }
@@ -859,10 +857,9 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 causes: vec![],
             };
         }
-        let x = &*self.vloc;
         ValidationError {
             schema_url: &self.schema.loc,
-            instance_location: x.into(),
+            instance_location: (&*self.vloc).into(),
             kind,
             causes: vec![],
         }
