@@ -245,25 +245,22 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
 
             // properties --
             if let Some(sch) = s.properties.get(pname) {
-                match self.validate_val(*sch, pvalue, prop!(pname)) {
-                    Ok(_) => evaluated = true,
-                    Err(e) => self.errors.push(e),
-                }
+                evaluated = true;
+                add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
             }
 
             // patternProperties --
             for (regex, sch) in &s.pattern_properties {
                 if regex.is_match(pname) {
-                    match self.validate_val(*sch, pvalue, prop!(pname)) {
-                        Ok(_) => evaluated = true,
-                        Err(e) => self.errors.push(e),
-                    }
+                    evaluated = true;
+                    add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
                 }
             }
 
             if !evaluated {
                 // additionalProperties --
                 if let Some(additional) = &s.additional_properties {
+                    evaluated = true;
                     match additional {
                         Additional::Bool(allowed) => {
                             if !allowed {
@@ -274,7 +271,6 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                             add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
                         }
                     }
-                    evaluated = true;
                 }
             }
 
