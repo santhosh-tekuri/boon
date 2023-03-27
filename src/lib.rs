@@ -410,6 +410,16 @@ impl Types {
     }
 }
 
+impl FromIterator<Type> for Types {
+    fn from_iter<T: IntoIterator<Item = Type>>(iter: T) -> Self {
+        let mut types = Types::default();
+        for t in iter {
+            types.add(t);
+        }
+        types
+    }
+}
+
 /// Error type for validation failures.
 #[derive(Debug)]
 pub struct ValidationError<'s, 'v> {
