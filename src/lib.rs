@@ -325,7 +325,7 @@ impl Schema {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
     Null = 1,
-    Bool = 2,
+    Boolean = 2,
     Number = 4,
     Integer = 8,
     String = 16,
@@ -337,7 +337,7 @@ impl Type {
     fn of(v: &Value) -> Self {
         match v {
             Value::Null => Type::Null,
-            Value::Bool(_) => Type::Bool,
+            Value::Bool(_) => Type::Boolean,
             Value::Number(_) => Type::Number,
             Value::String(_) => Type::String,
             Value::Array(_) => Type::Array,
@@ -348,7 +348,7 @@ impl Type {
     fn from_str(value: &str) -> Option<Self> {
         match value {
             "null" => Some(Self::Null),
-            "boolean" => Some(Self::Bool),
+            "boolean" => Some(Self::Boolean),
             "number" => Some(Self::Number),
             "integer" => Some(Self::Integer),
             "string" => Some(Self::String),
@@ -367,7 +367,7 @@ impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Null => write!(f, "null"),
-            Type::Bool => write!(f, "boolean"),
+            Type::Boolean => write!(f, "boolean"),
             Type::Number => write!(f, "number"),
             Type::Integer => write!(f, "integer"),
             Type::String => write!(f, "string"),
@@ -399,7 +399,7 @@ impl Types {
     pub fn iter(&self) -> impl Iterator<Item = Type> + '_ {
         static TYPES: [Type; 7] = [
             Type::Null,
-            Type::Bool,
+            Type::Boolean,
             Type::Number,
             Type::Integer,
             Type::String,
