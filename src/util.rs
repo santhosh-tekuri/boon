@@ -161,7 +161,7 @@ pub(crate) fn split(url: &str) -> (&str, Fragment) {
 }
 
 /// serde_json treats 0 and 0.0 not equal. so we cannot simply use v1==v2
-pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
+pub fn equals(v1: &Value, v2: &Value) -> bool {
     match (v1, v2) {
         (Value::Null, Value::Null) => true,
         (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,

@@ -114,6 +114,10 @@ mod roots;
 mod util;
 mod validator;
 
+// Not public API.
+#[doc(hidden)]
+pub mod gen;
+
 pub use {
     compiler::{CompileError, Compiler, Draft},
     content::{Decoder, MediaType},
