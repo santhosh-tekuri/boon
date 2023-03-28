@@ -114,13 +114,16 @@ mod roots;
 mod util;
 mod validator;
 
-pub use compiler::Draft;
-pub use compiler::*;
-pub use content::*;
-pub use formats::*;
-pub use loader::*;
-pub use output::*;
-pub use validator::*;
+pub use {
+    compiler::{CompileError, Compiler, Draft},
+    content::{Decoder, MediaType},
+    formats::Format,
+    loader::UrlLoader,
+    output::{
+        AbsoluteKeywordLocation, FlagOutput, KeywordPath, OutputError, OutputUnit, SchemaToken,
+    },
+    validator::{InstanceLocation, InstanceToken},
+};
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 
