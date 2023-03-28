@@ -293,7 +293,7 @@ impl<'v, 's, 'd, 'e, 'f> Validator<'v, 's, 'd, 'e, 'f> {
                 let mut vec = Vec::with_capacity(self.vloc.len);
                 let mut vloc = self.vloc.clone_static(&mut vec);
 
-                let scope = self.scope.child(*sch, None, self.scope.vid + 1);
+                let scope = self.scope.child(*sch, None, self.scope.vid);
                 let schema = &self.schemas.get(*sch);
                 let result = Validator {
                     v: &v,
