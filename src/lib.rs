@@ -443,6 +443,9 @@ pub enum ErrorKind<'s, 'v> {
         url: &'s str,
     },
     ContentSchema,
+    PropertyName {
+        prop: String,
+    },
     Reference {
         kw: &'static str,
         url: &'s str,
@@ -574,6 +577,7 @@ impl<'s, 'v> Display for ErrorKind<'s, 'v> {
             Self::Group => write!(f, "validation failed"),
             Self::Schema { url } => write!(f, "validation failed with {url}"),
             Self::ContentSchema => write!(f, "contentSchema failed"),
+            Self::PropertyName { prop } => write!(f, "invalid property {}", quote(prop)),
             Self::Reference { .. } => {
                 write!(f, "validation failed")
             }

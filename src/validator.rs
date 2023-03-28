@@ -290,23 +290,11 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         if let Some(sch) = &s.property_names {
             for pname in obj.keys() {
                 let v = Value::String(pname.to_owned());
-                let mut vloc = InstanceToken::clone_static(&self.vloc[..self.scope.vid]);
-
-                let scope = self.scope.child(*sch, None, self.scope.vid);
-                let schema = &self.schemas.get(*sch);
-                let result = Validator {
-                    v: &v,
-                    vloc: &mut vloc,
-                    schema,
-                    schemas: self.schemas,
-                    scope,
-                    uneval: Uneval::default(),
-                    errors: vec![],
-                    bool_result: self.bool_result,
-                }
-                .validate();
-
-                if let Err(e) = result {
+                if let Err(mut e) = self.schemas.validate(&v, *sch) {
+                    e.schema_url = &s.loc;
+                    e.kind = ErrorKind::PropertyName {
+                        prop: pname.to_owned(),
+                    };
                     self.errors.push(e.clone_static());
                 }
             }
@@ -516,8 +504,8 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
             // contentSchema --
             if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
-                // todo: check if keywordLocation is correct
                 if let Err(mut e) = self.schemas.validate(&v, sch) {
+                    e.schema_url = &s.loc;
                     e.kind = kind!(ContentSchema);
                     self.errors.push(e.clone_static());
                 }
@@ -1036,18 +1024,6 @@ impl<'v> InstanceToken<'v> {
         }
         r
     }
-
-    fn clone_static(tokens: &[InstanceToken]) -> Vec<InstanceToken<'static>> {
-        let mut clone: Vec<InstanceToken<'static>> = Vec::with_capacity(tokens.len());
-        for tok in tokens {
-            let tok = match tok {
-                InstanceToken::Prop(p) => InstanceToken::Prop(p.as_ref().to_owned().into()),
-                InstanceToken::Item(i) => InstanceToken::Item(*i),
-            };
-            clone.push(tok);
-        }
-        clone
-    }
 }
 
 impl<'v> From<String> for InstanceToken<'v> {
@@ -1154,6 +1130,7 @@ impl<'s, 'v> ErrorKind<'s, 'v> {
             Group => Group,
             Schema { url } => Schema { url },
             ContentSchema => ContentSchema,
+            PropertyName { prop } => PropertyName { prop },
             Reference { kw, url } => Reference { kw, url },
             RefCycle {
                 url,

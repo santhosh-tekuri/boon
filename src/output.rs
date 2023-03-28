@@ -502,6 +502,7 @@ impl<'s, 'v> ErrorKind<'s, 'v> {
             Group => None,
             Schema { .. } => None,
             ContentSchema => kw("contentSchema"),
+            PropertyName { .. } => kw("propertyNames"),
             Reference { kw: kword, .. } => kw(kword),
             RefCycle { .. } => None,
             FalseSchema => None,
