@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2020-03-29
+
+### Breaking Changes
+- chages to error api
+
+### Performance
+- minor improvements in validation
+
 ## [0.4.0] - 2020-03-24
 
 ### Breaking Changes

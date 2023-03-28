@@ -1,6 +1,6 @@
 [package]
 name = "boon"
-version = "0.4.1-alpha.1"
+version = "0.5.0"
 edition = "2021"
 description = "JSONSchema (draft 2020-12, draft 2019-09, draft-7, draft-6, draft-4) Validation"
 readme = "README.md"
