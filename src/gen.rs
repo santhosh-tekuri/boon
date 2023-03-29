@@ -140,8 +140,8 @@ impl Generator {
         }
 
         quote! {
+            #[doc=#loc]
             fn #name(&self, v: &serde_json::Value) -> bool {
-                let _loc = #loc;
                 #(#body)*
                 true
             }
