@@ -60,6 +60,15 @@ impl Generator {
         let name = format_ident!("is_valid{}", sch.idx.0);
         let loc = sch.loc.to_token_stream();
 
+        if let Some(b) = sch.boolean {
+            return quote! {
+                fn #name(&self, v: &serde_json::Value) -> bool {
+                    #b
+                }
+            };
+        }
+
+        // type agnotic --
         let mut body = vec![
             self.gen_types(sch),
             self.gen_const(sch),
@@ -72,6 +81,9 @@ impl Generator {
             self.gen_oneof(sch),
         ];
 
+        let mut arms = vec![];
+
+        // array specific --
         let mut arr = vec![
             self.gen_min_items(sch),
             self.gen_max_items(sch),
@@ -80,38 +92,43 @@ impl Generator {
             self.gen_additional_items(sch),
         ];
         arr.retain(|t| !t.is_empty());
+        if !arr.is_empty() {
+            arms.push(quote! {
+                Value::Array(arr) => { #(#arr)* }
+            });
+        }
+
+        // object specific --
         let mut obj = vec![
             self.gen_min_properties(sch),
             self.gen_max_properties(sch),
             self.gen_required(sch),
         ];
         obj.retain(|t| !t.is_empty());
+        if !obj.is_empty() {
+            arms.push(quote! {
+                Value::Object(obj) => { #(#obj)* }
+            });
+        }
+
+        // string specific --
         let mut str = vec![self.gen_length(sch), self.gen_pattern(sch)];
         str.retain(|t| !t.is_empty());
+        if !str.is_empty() {
+            arms.push(quote! {
+                Value::String(str) => { #(#str)* }
+            });
+        }
+
+        // number specific --
         let mut num = vec![self.gen_num(sch)];
         num.retain(|t| !t.is_empty());
-        if !arr.is_empty() || !obj.is_empty() || !str.is_empty() || !num.is_empty() {
-            let mut arms = vec![];
-            if !arr.is_empty() {
-                arms.push(quote! {
-                    Value::Array(arr) => { #(#arr)* }
-                });
-            }
-            if !obj.is_empty() {
-                arms.push(quote! {
-                    Value::Object(obj) => { #(#obj)* }
-                });
-            }
-            if !str.is_empty() {
-                arms.push(quote! {
-                    Value::String(str) => { #(#str)* }
-                });
-            }
-            if !num.is_empty() {
-                arms.push(quote! {
-                    Value::Number(num) => { #(#num)* }
-                });
-            }
+        if !num.is_empty() {
+            arms.push(quote! {
+                Value::Number(num) => { #(#num)* }
+            });
+        }
+        if !arms.is_empty() {
             arms.push(quote! {
                 _ => {}
             });
