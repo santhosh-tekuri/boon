@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use quote::{__private::TokenStream, format_ident, quote, ToTokens};
 
-use crate::{Additional, Enum, Items, Schema, Schemas, Type};
+use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
 
 struct Generator {
     struct_name: &'static str,
@@ -103,6 +103,7 @@ impl Generator {
             self.gen_min_properties(sch),
             self.gen_max_properties(sch),
             self.gen_required(sch),
+            self.gen_dependencies(sch),
         ];
         obj.retain(|t| !t.is_empty());
         if !obj.is_empty() {
@@ -420,12 +421,9 @@ impl Generator {
             #field: Vec<&'static str>
         });
 
-        let mut props = vec![];
-        for prop in &sch.required {
-            props.push(prop.to_token_stream());
-        }
+        let required = gen_vec_strings(&sch.required);
         self.init.push(quote! {
-            #field: vec![#(#props),*]
+            #field: #required
         });
 
         if sch.required.len() == 1 {
@@ -442,6 +440,51 @@ impl Generator {
                 }
             }
         }
+    }
+
+    fn gen_dependencies(&mut self, sch: &Schema) -> TokenStream {
+        let mut map_entries = vec![];
+        let mut tokens = vec![];
+        for (prop, dependency) in &sch.dependencies {
+            match dependency {
+                Dependency::Props(required) => {
+                    let required = gen_vec_strings(required);
+                    map_entries.push(quote! {
+                        (#prop, #required)
+                    });
+                }
+                Dependency::SchemaRef(sch) => {
+                    let name = format_ident!("is_valid{}", sch.0);
+                    tokens.push(quote! {
+                        if obj.contains_key(#prop) {
+                            if !self.#name(v) {
+                                return false;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        if !map_entries.is_empty() {
+            let field = format_ident!("dependencies{}", sch.idx.0);
+            self.fields.push(quote! {
+                #field: std::collections::HashMap<&'static str, Vec<&'static str>>
+            });
+
+            self.init.push(quote! {
+                #field: std::collections::HashMap::from([#(#map_entries),*])
+            });
+            tokens.push(quote! {
+                for (prop, required) in &self.#field {
+                    if obj.contains_key(*prop) {
+                        if !required.iter().all(|p| obj.contains_key(*p)) {
+                            return false;
+                        }
+                    }
+                }
+            });
+        }
+        TokenStream::from_iter(tokens)
     }
 
     fn gen_min_items(&mut self, sch: &Schema) -> TokenStream {
@@ -689,6 +732,16 @@ impl Generator {
                 #(#tokens)*
             }
         }
+    }
+}
+
+fn gen_vec_strings(vec: &Vec<String>) -> TokenStream {
+    let mut tokens = vec![];
+    for str in vec {
+        tokens.push(str.to_token_stream());
+    }
+    quote! {
+        vec![#(#tokens),*]
     }
 }
 
