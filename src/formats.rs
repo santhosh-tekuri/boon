@@ -47,14 +47,14 @@ pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     m
 });
 
-fn validate_regex(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
     ecma::convert(s).map(|_| ())
 }
 
-fn validate_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -62,7 +62,7 @@ fn validate_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -70,7 +70,7 @@ fn validate_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_date(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_date(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -123,7 +123,7 @@ fn check_date(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_time(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_time(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -203,7 +203,7 @@ fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_date_time(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_date_time(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -227,7 +227,7 @@ fn check_date_time(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_duration(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_duration(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -288,7 +288,7 @@ fn check_duration(s: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
-fn validate_period(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_period(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -320,7 +320,7 @@ fn validate_period(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -364,7 +364,7 @@ fn check_hostname(mut s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_idn_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_idn_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -578,7 +578,7 @@ fn check_idn_hostname(s: &str) -> Result<(), Box<dyn Error>> {
     check_hostname(&s)
 }
 
-fn validate_email(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_email(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -656,7 +656,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -674,7 +674,7 @@ fn validate_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     check_email(&format!("{local}@{domain}"))
 }
 
-fn validate_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -705,7 +705,7 @@ fn check_json_pointer(s: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://tools.ietf.org/html/draft-handrews-relative-json-pointer-01#section-3
-fn validate_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -731,7 +731,7 @@ fn validate_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc4122#page-4
-fn validate_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -760,7 +760,7 @@ fn validate_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_uri(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -770,7 +770,7 @@ fn validate_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_iri(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_iri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -790,7 +790,7 @@ fn parse_uri_reference(s: &str) -> Result<Url, Box<dyn Error>> {
     Ok(TEMP_URL.join(s)?)
 }
 
-fn validate_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -798,7 +798,7 @@ fn validate_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -806,7 +806,7 @@ fn validate_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn validate_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
+pub fn validate_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };

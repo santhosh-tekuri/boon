@@ -11,6 +11,13 @@ struct Generator {
     fields: Vec<TokenStream>,
     init: Vec<TokenStream>,
 }
+pub use crate::formats::{
+    validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
+    validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
+    validate_iri_reference, validate_json_pointer, validate_period, validate_regex,
+    validate_relative_json_pointer, validate_time, validate_uri, validate_uri_reference,
+    validate_uri_template, validate_uuid,
+};
 pub use crate::util::equals;
 
 impl Generator {
@@ -57,6 +64,7 @@ impl Generator {
             self.gen_types(sch),
             self.gen_const(sch),
             self.gen_enum(sch),
+            self.gen_format(sch),
             self.gen_ref(sch),
             self.gen_not(sch),
             self.gen_allof(sch),
@@ -78,7 +86,7 @@ impl Generator {
             self.gen_required(sch),
         ];
         obj.retain(|t| !t.is_empty());
-        let mut str = vec![self.gen_length(sch)];
+        let mut str = vec![self.gen_length(sch), self.gen_pattern(sch)];
         str.retain(|t| !t.is_empty());
         let mut num = vec![self.gen_num(sch)];
         num.retain(|t| !t.is_empty());
@@ -211,7 +219,8 @@ impl Generator {
             #field: serde_json::Value
         });
 
-        let json_str = TokenStream::from_str(&format!("{:#}", v)).unwrap();
+        let json_str =
+            TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
         self.init.push(quote! {
             #field: serde_json::json!(#json_str)
         });
@@ -235,7 +244,8 @@ impl Generator {
 
         let mut items = vec![];
         for v in values {
-            let json_str = TokenStream::from_str(&format!("{:#}", v)).unwrap();
+            let json_str =
+                TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
             items.push(quote! {
                 serde_json::json!(#json_str)
             });
@@ -246,6 +256,18 @@ impl Generator {
 
         quote! {
             if !self.#field.iter().any(|e| boon::gen::equals(e, v)) {
+                return false;
+            }
+        }
+    }
+
+    fn gen_format(&mut self, sch: &Schema) -> TokenStream {
+        let Some(format) = &sch.format else {
+            return TokenStream::new();
+        };
+        let func = format_ident!("validate_{}", format.name.replace('-', "_"));
+        quote! {
+            if boon::gen::#func(v).is_err() {
                 return false;
             }
         }
@@ -531,6 +553,25 @@ impl Generator {
         TokenStream::from_iter(tokens)
     }
 
+    fn gen_pattern(&mut self, sch: &Schema) -> TokenStream {
+        let Some(regex) = &sch.pattern else {
+            return TokenStream::new();
+        };
+        let field = format_ident!("pattern{}", sch.idx.0);
+        self.fields.push(quote! {
+            #field: regex::Regex
+        });
+        let str = regex.as_str();
+        self.init.push(quote! {
+            #field: regex::Regex::new(#str).expect("must be valid regex")
+        });
+        quote! {
+            if !self.#field.is_match(str) {
+                return false;
+            }
+        }
+    }
+
     fn gen_num(&mut self, sch: &Schema) -> TokenStream {
         if sch.minimum.is_none()
             && sch.maximum.is_none()
@@ -548,7 +589,7 @@ impl Generator {
             });
             let str = format!("{min}");
             self.init.push(quote! {
-                #field: std::str::FromStr::from_str(#str).unwrap()
+                #field: std::str::FromStr::from_str(#str).expect("must be valid number")
             });
             tokens.push(quote! {
                 if let Some(minf) = self.#field.as_f64() {
@@ -565,7 +606,7 @@ impl Generator {
             });
             let str = format!("{max}");
             self.init.push(quote! {
-                #field: std::str::FromStr::from_str(#str).unwrap()
+                #field: std::str::FromStr::from_str(#str).expect("must be valid number")
             });
             tokens.push(quote! {
                 if let Some(maxf) = self.#field.as_f64() {
@@ -582,7 +623,7 @@ impl Generator {
             });
             let str = format!("{ex_min}");
             self.init.push(quote! {
-                #field: std::str::FromStr::from_str(#str).unwrap()
+                #field: std::str::FromStr::from_str(#str).expect("must be valid number")
             });
             tokens.push(quote! {
                 if let Some(ex_minf) = self.#field.as_f64() {
@@ -599,7 +640,7 @@ impl Generator {
             });
             let str = format!("{ex_max}");
             self.init.push(quote! {
-                #field: std::str::FromStr::from_str(#str).unwrap()
+                #field: std::str::FromStr::from_str(#str).expect("must be valid number")
             });
             tokens.push(quote! {
                 if let Some(ex_maxf) = self.#field.as_f64() {
@@ -616,7 +657,7 @@ impl Generator {
             });
             let str = format!("{mul}");
             self.init.push(quote! {
-                #field: std::str::FromStr::from_str(#str).unwrap()
+                #field: std::str::FromStr::from_str(#str).expect("must be valid number")
             });
             tokens.push(quote! {
                 if let Some(mulf) = self.#field.as_f64() {
