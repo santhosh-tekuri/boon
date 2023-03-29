@@ -45,6 +45,14 @@ impl Generator {
                 #(#fields),*
             }
 
+            #[allow(
+                unused_mut,
+                unused_variables,
+                clippy::single_match,
+                clippy::match_like_matches_macro,
+                clippy::len_zero,
+                clippy::collapsible_if
+            )]
             impl #name {
                 fn new() -> Self {
                     Self{
@@ -94,7 +102,7 @@ impl Generator {
         arr.retain(|t| !t.is_empty());
         if !arr.is_empty() {
             arms.push(quote! {
-                Value::Array(arr) => { #(#arr)* }
+                serde_json::Value::Array(arr) => { #(#arr)* }
             });
         }
 
@@ -109,7 +117,7 @@ impl Generator {
         obj.retain(|t| !t.is_empty());
         if !obj.is_empty() {
             arms.push(quote! {
-                Value::Object(obj) => { #(#obj)* }
+                serde_json::Value::Object(obj) => { #(#obj)* }
             });
         }
 
@@ -118,7 +126,7 @@ impl Generator {
         str.retain(|t| !t.is_empty());
         if !str.is_empty() {
             arms.push(quote! {
-                Value::String(str) => { #(#str)* }
+                serde_json::Value::String(str) => { #(#str)* }
             });
         }
 
@@ -127,7 +135,7 @@ impl Generator {
         num.retain(|t| !t.is_empty());
         if !num.is_empty() {
             arms.push(quote! {
-                Value::Number(num) => { #(#num)* }
+                serde_json::Value::Number(num) => { #(#num)* }
             });
         }
         if !arms.is_empty() {
@@ -299,7 +307,6 @@ impl Generator {
 
         let name = format_ident!("is_valid{}", sch.0);
         quote! {
-            debug_assert!(true, "$ref");
             if !self.#name(v) {
                 return false;
             }
@@ -313,7 +320,6 @@ impl Generator {
 
         let name = format_ident!("is_valid{}", sch.0);
         quote! {
-            debug_assert!(true, "not");
             if self.#name(v) {
                 return false;
             }
@@ -865,7 +871,7 @@ mod tests {
     fn test_gen() {
         let mut schemas = Schemas::new();
         let mut compiler = Compiler::new();
-        let _sch = compiler.compile("test.json", &mut schemas).unwrap();
+        let _sch = compiler.compile("openapi-3.0.json", &mut schemas).unwrap();
         let tokens = Generator::new("Schema").generate(&schemas);
         fs::write("../gen/src/lib.rs", format!("{}", tokens)).unwrap();
     }
