@@ -62,7 +62,7 @@ impl Generator {
 
         if let Some(b) = sch.boolean {
             return quote! {
-                fn #name(&self, v: &serde_json::Value) -> bool {
+                fn #name(&self, _v: &serde_json::Value) -> bool {
                     #b
                 }
             };
@@ -104,6 +104,7 @@ impl Generator {
             self.gen_max_properties(sch),
             self.gen_required(sch),
             self.gen_dependencies(sch),
+            self.gen_properties(sch),
         ];
         obj.retain(|t| !t.is_empty());
         if !obj.is_empty() {
@@ -474,6 +475,7 @@ impl Generator {
             self.init.push(quote! {
                 #field: std::collections::HashMap::from([#(#map_entries),*])
             });
+
             tokens.push(quote! {
                 for (prop, required) in &self.#field {
                     if obj.contains_key(*prop) {
@@ -484,6 +486,112 @@ impl Generator {
                 }
             });
         }
+        TokenStream::from_iter(tokens)
+    }
+
+    fn gen_properties(&mut self, sch: &Schema) -> TokenStream {
+        let mut props = vec![];
+        let mut tokens = vec![];
+        for (prop, sch) in &sch.properties {
+            props.push(prop.to_token_stream());
+            let name = format_ident!("is_valid{}", sch.0);
+            tokens.push(quote! {
+                if let Some(pvalue) = obj.get(#prop) {
+                    if !self.#name(pvalue) {
+                        return false;
+                    }
+                }
+            });
+        }
+
+        let field = format_ident!("properties{}", sch.idx.0);
+        if sch.additional_properties.is_some() {
+            self.fields.push(quote! {
+                #field: Vec<&'static str>
+            });
+
+            self.init.push(quote! {
+                #field: vec![#(#props),*]
+            });
+        }
+
+        let has_additional = sch.additional_properties.is_some();
+        let let_evaluated = if has_additional {
+            quote! {
+                let mut evaluated = self.#field.contains(&pname.as_str());
+            }
+        } else {
+            TokenStream::new()
+        };
+        let mark_evaluated = if has_additional {
+            quote! {
+                evaluated = true;
+            }
+        } else {
+            TokenStream::new()
+        };
+
+        let field = format_ident!("pattern_properties{}", sch.idx.0);
+        let mut pattern_props = vec![];
+        let mut validate_pattern_props = vec![];
+        for (i, (regex, sch)) in sch.pattern_properties.iter().enumerate() {
+            let str = regex.as_str();
+            pattern_props.push(quote! {
+                regex::Regex::new(#str).expect("must be valid regex")
+            });
+            let name = format_ident!("is_valid{}", sch.0);
+            validate_pattern_props.push(quote! {
+                if self.#field[#i].is_match(pname) {
+                    #mark_evaluated
+                    if !self.#name(pvalue) {
+                        return false;
+                    }
+                }
+            });
+        }
+        if !sch.pattern_properties.is_empty() {
+            self.fields.push(quote! {
+                #field: Vec<regex::Regex>
+            });
+
+            self.init.push(quote! {
+                #field: vec![#(#pattern_props),*]
+            });
+        }
+
+        let mut validate_additional = match sch.additional_properties {
+            None => TokenStream::new(),
+            Some(Additional::Bool(true)) => TokenStream::new(),
+            Some(Additional::Bool(false)) => quote! {
+                return false;
+            },
+            Some(Additional::SchemaRef(sch)) => {
+                let name = format_ident!("is_valid{}", sch.0);
+                quote! {
+                    if !self.#name(pvalue) {
+                        return false;
+                    }
+                }
+            }
+        };
+        if !validate_additional.is_empty() {
+            validate_additional = quote! {
+                if !evaluated {
+                    #validate_additional
+                }
+            }
+        }
+
+        if !validate_pattern_props.is_empty() || !validate_additional.is_empty() {
+            tokens.push(quote! {
+                for (pname, pvalue) in obj {
+                    #let_evaluated
+                    #(#validate_pattern_props)*
+                    #validate_additional
+                }
+            });
+        }
+
         TokenStream::from_iter(tokens)
     }
 
