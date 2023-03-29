@@ -24,37 +24,37 @@ pub struct Format {
 pub(crate) static FORMATS: Lazy<HashMap<&'static str, Format>> = Lazy::new(|| {
     let mut m = HashMap::<&'static str, Format>::new();
     let mut register = |name, func| m.insert(name, Format { name, func });
-    register("regex", check_regex);
-    register("ipv4", check_ipv4);
-    register("ipv6", check_ipv6);
-    register("hostname", check_hostname_value);
-    register("idn-hostname", check_idn_hostname_value);
-    register("email", check_email_value);
-    register("idn-email", check_idn_email);
-    register("date", check_date_value);
-    register("time", check_time_value);
-    register("date-time", check_date_time_value);
-    register("duration", check_duration_value);
-    register("period", check_period);
-    register("json-pointer", check_json_pointer_value);
-    register("relative-json-pointer", check_relative_json_pointer);
-    register("uuid", check_uuid);
-    register("uri", check_uri);
-    register("iri", check_iri);
-    register("uri-reference", check_uri_reference);
-    register("iri-reference", check_iri_reference);
-    register("uri-template", check_uri_template);
+    register("regex", validate_regex);
+    register("ipv4", validate_ipv4);
+    register("ipv6", validate_ipv6);
+    register("hostname", validate_hostname);
+    register("idn-hostname", validate_idn_hostname);
+    register("email", validate_email);
+    register("idn-email", validate_idn_email);
+    register("date", validate_date);
+    register("time", validate_time);
+    register("date-time", validate_date_time);
+    register("duration", validate_duration);
+    register("period", validate_period);
+    register("json-pointer", validate_json_pointer);
+    register("relative-json-pointer", validate_relative_json_pointer);
+    register("uuid", validate_uuid);
+    register("uri", validate_uri);
+    register("iri", validate_iri);
+    register("uri-reference", validate_uri_reference);
+    register("iri-reference", validate_iri_reference);
+    register("uri-template", validate_uri_template);
     m
 });
 
-fn check_regex(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_regex(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
     ecma::convert(s).map(|_| ())
 }
 
-fn check_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -62,7 +62,7 @@ fn check_ipv4(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -70,7 +70,7 @@ fn check_ipv6(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_date_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_date(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -123,7 +123,7 @@ fn check_date(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_time_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_time(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -203,7 +203,7 @@ fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_date_time_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_date_time(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -227,7 +227,7 @@ fn check_date_time(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_duration_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_duration(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -288,7 +288,7 @@ fn check_duration(s: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
-fn check_period(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_period(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -320,7 +320,7 @@ fn check_period(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_hostname_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -364,7 +364,7 @@ fn check_hostname(mut s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_idn_hostname_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_idn_hostname(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -578,7 +578,7 @@ fn check_idn_hostname(s: &str) -> Result<(), Box<dyn Error>> {
     check_hostname(&s)
 }
 
-fn check_email_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_email(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -656,7 +656,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -674,7 +674,7 @@ fn check_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     check_email(&format!("{local}@{domain}"))
 }
 
-fn check_json_pointer_value(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -705,7 +705,7 @@ fn check_json_pointer(s: &str) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://tools.ietf.org/html/draft-handrews-relative-json-pointer-01#section-3
-fn check_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -731,7 +731,7 @@ fn check_relative_json_pointer(v: &Value) -> Result<(), Box<dyn Error>> {
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc4122#page-4
-fn check_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -760,7 +760,7 @@ fn check_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_uri(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -770,7 +770,7 @@ fn check_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_iri(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_iri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -790,7 +790,7 @@ fn parse_uri_reference(s: &str) -> Result<Url, Box<dyn Error>> {
     Ok(TEMP_URL.join(s)?)
 }
 
-fn check_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -798,7 +798,7 @@ fn check_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
@@ -806,7 +806,7 @@ fn check_iri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn check_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
+fn validate_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
