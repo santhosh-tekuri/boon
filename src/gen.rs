@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use quote::{__private::TokenStream, format_ident, quote, ToTokens};
+use serde_json::Value;
 
 use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
 
@@ -238,10 +239,9 @@ impl Generator {
             #field: serde_json::Value
         });
 
-        let json_str =
-            TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
+        let json_value = gen_json_value(v);
         self.init.push(quote! {
-            #field: serde_json::json!(#json_str)
+            #field: #json_value
         });
 
         quote! {
@@ -261,14 +261,7 @@ impl Generator {
             #field: Vec<serde_json::Value>
         });
 
-        let mut items = vec![];
-        for v in values {
-            let json_str =
-                TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
-            items.push(quote! {
-                serde_json::json!(#json_str)
-            });
-        }
+        let items: Vec<_> = values.iter().map(gen_json_value).collect();
         self.init.push(quote! {
             #field: vec![#(#items),*]
         });
@@ -848,6 +841,13 @@ fn gen_vec_strings(vec: &Vec<String>) -> TokenStream {
     }
     quote! {
         vec![#(#tokens),*]
+    }
+}
+
+fn gen_json_value(v: &Value) -> TokenStream {
+    let json_str = TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
+    quote! {
+        serde_json::json!(#json_str)
     }
 }
 
