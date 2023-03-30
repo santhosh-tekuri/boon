@@ -118,6 +118,19 @@ mod validator;
 #[doc(hidden)]
 pub mod gen;
 
+// Not public API.
+#[doc(hidden)]
+pub mod internal {
+    pub use crate::formats::{
+        validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
+        validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
+        validate_iri_reference, validate_json_pointer, validate_period, validate_regex,
+        validate_relative_json_pointer, validate_time, validate_uri, validate_uri_reference,
+        validate_uri_template, validate_uuid,
+    };
+    pub use crate::util::equals;
+}
+
 pub use {
     compiler::{CompileError, Compiler, Draft},
     content::{Decoder, MediaType},

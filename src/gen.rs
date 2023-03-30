@@ -11,14 +11,6 @@ struct Generator {
     fields: Vec<TokenStream>,
     init: Vec<TokenStream>,
 }
-pub use crate::formats::{
-    validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
-    validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
-    validate_iri_reference, validate_json_pointer, validate_period, validate_regex,
-    validate_relative_json_pointer, validate_time, validate_uri, validate_uri_reference,
-    validate_uri_template, validate_uuid,
-};
-pub use crate::util::equals;
 
 impl Generator {
     fn new(struct_name: &'static str) -> Self {
@@ -253,7 +245,7 @@ impl Generator {
         });
 
         quote! {
-            if !boon::gen::equals(v, &self.#field) {
+            if !boon::internal::equals(v, &self.#field) {
                 return false;
             }
         }
@@ -282,7 +274,7 @@ impl Generator {
         });
 
         quote! {
-            if !self.#field.iter().any(|e| boon::gen::equals(e, v)) {
+            if !self.#field.iter().any(|e| boon::internal::equals(e, v)) {
                 return false;
             }
         }
@@ -294,7 +286,7 @@ impl Generator {
         };
         let func = format_ident!("validate_{}", format.name.replace('-', "_"));
         quote! {
-            if boon::gen::#func(v).is_err() {
+            if boon::internal::#func(v).is_err() {
                 return false;
             }
         }
@@ -632,7 +624,7 @@ impl Generator {
         quote! {
             for i in 1..arr.len() {
                 for j in 0..i {
-                    if !boon::gen::equals(&arr[i], &arr[j]) {
+                    if !boon::internal::equals(&arr[i], &arr[j]) {
                         return false;
                     }
                 }
