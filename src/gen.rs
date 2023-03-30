@@ -63,6 +63,7 @@ impl Generator {
 
         if let Some(b) = sch.boolean {
             return quote! {
+                #[inline(always)]
                 fn #name(&self, _v: &serde_json::Value) -> bool {
                     #b
                 }
