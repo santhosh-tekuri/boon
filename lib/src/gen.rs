@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-use std::str::FromStr;
-
 pub use crate::formats::{
     validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
     validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
@@ -11,7 +9,7 @@ pub use crate::formats::{
 };
 pub use crate::util::equals;
 pub use regex::Regex;
-pub use serde_json::json;
+pub use serde_json::from_str;
 pub use serde_json::Number;
 pub use serde_json::Value;
 
@@ -855,9 +853,9 @@ fn gen_vec_strings(vec: &Vec<String>) -> TokenStream {
 }
 
 fn gen_json_value(v: &Value) -> TokenStream {
-    let json_str = TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
+    let json_str = &format!("{:#}", v);
     quote! {
-        boongen::json!(#json_str)
+        boongen::from_str(#json_str).expect("must be valid json")
     }
 }
 
