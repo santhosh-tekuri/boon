@@ -2,19 +2,30 @@
 
 use std::str::FromStr;
 
-use quote::{__private::TokenStream, format_ident, quote, ToTokens};
-use serde_json::Value;
+pub use crate::formats::{
+    validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
+    validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
+    validate_iri_reference, validate_json_pointer, validate_period, validate_regex,
+    validate_relative_json_pointer, validate_time, validate_uri, validate_uri_reference,
+    validate_uri_template, validate_uuid,
+};
+pub use crate::util::equals;
+pub use regex::Regex;
+pub use serde_json::json;
+pub use serde_json::Number;
+pub use serde_json::Value;
 
 use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
+use quote::{__private::TokenStream, format_ident, quote, ToTokens};
 
-struct Generator {
-    struct_name: &'static str,
+pub struct Generator {
+    struct_name: String,
     fields: Vec<TokenStream>,
     init: Vec<TokenStream>,
 }
 
 impl Generator {
-    fn new(struct_name: &'static str) -> Self {
+    pub fn new(struct_name: String) -> Self {
         Self {
             struct_name,
             fields: vec![],
@@ -22,7 +33,7 @@ impl Generator {
         }
     }
 
-    fn generate(&mut self, schemas: &Schemas) -> TokenStream {
+    pub fn generate(&mut self, schemas: &Schemas) -> TokenStream {
         let name = format_ident!("{}", self.struct_name);
         let mut body = vec![];
         for sch in &schemas.list {
@@ -32,8 +43,6 @@ impl Generator {
         let fields = &self.fields;
         let inits = &self.init;
         quote! {
-            #![allow(dead_code)]
-
             struct #name{
                 #(#fields),*
             }
@@ -64,7 +73,7 @@ impl Generator {
         if let Some(b) = sch.boolean {
             return quote! {
                 #[inline(always)]
-                fn #name(&self, _v: &serde_json::Value) -> bool {
+                fn #name(&self, _v: &boongen::Value) -> bool {
                     #b
                 }
             };
@@ -96,7 +105,7 @@ impl Generator {
         arr.retain(|t| !t.is_empty());
         if !arr.is_empty() {
             arms.push(quote! {
-                serde_json::Value::Array(arr) => { #(#arr)* }
+                boongen::Value::Array(arr) => { #(#arr)* }
             });
         }
 
@@ -111,7 +120,7 @@ impl Generator {
         obj.retain(|t| !t.is_empty());
         if !obj.is_empty() {
             arms.push(quote! {
-                serde_json::Value::Object(obj) => { #(#obj)* }
+                boongen::Value::Object(obj) => { #(#obj)* }
             });
         }
 
@@ -120,7 +129,7 @@ impl Generator {
         str.retain(|t| !t.is_empty());
         if !str.is_empty() {
             arms.push(quote! {
-                serde_json::Value::String(str) => { #(#str)* }
+                boongen::Value::String(str) => { #(#str)* }
             });
         }
 
@@ -129,7 +138,7 @@ impl Generator {
         num.retain(|t| !t.is_empty());
         if !num.is_empty() {
             arms.push(quote! {
-                serde_json::Value::Number(num) => { #(#num)* }
+                boongen::Value::Number(num) => { #(#num)* }
             });
         }
         if !arms.is_empty() {
@@ -145,7 +154,7 @@ impl Generator {
 
         quote! {
             #[doc=#loc]
-            fn #name(&self, v: &serde_json::Value) -> bool {
+            fn #name(&self, v: &boongen::Value) -> bool {
                 #(#body)*
                 true
             }
@@ -159,7 +168,7 @@ impl Generator {
 
         let field = format_ident!("types{}", sch.idx.0);
         self.fields.push(quote! {
-            #field: boon::Types
+            #field: boongen::Types
         });
 
         let mut types = vec![];
@@ -167,11 +176,11 @@ impl Generator {
             let s = t.to_string();
             let ty = format_ident!("{}{}", s[..1].to_uppercase(), &s[1..]);
             types.push(quote! {
-                boon::Type::#ty
+                boongen::Type::#ty
             });
         }
         self.init.push(quote! {
-            #field: boon::Types::from_iter([#(#types),*])
+            #field: boongen::Types::from_iter([#(#types),*])
         });
 
         let mut arms = vec![];
@@ -218,7 +227,7 @@ impl Generator {
             }
         };
         quote! {
-            use serde_json::Value;
+            use boongen::Value;
             let type_matched = match v {
                 #arms
                 #integer_arm
@@ -237,7 +246,7 @@ impl Generator {
 
         let field = format_ident!("const{}", sch.idx.0);
         self.fields.push(quote! {
-            #field: serde_json::Value
+            #field: boongen::Value
         });
 
         let json_value = gen_json_value(v);
@@ -246,7 +255,7 @@ impl Generator {
         });
 
         quote! {
-            if !boon::internal::equals(v, &self.#field) {
+            if !boongen::equals(v, &self.#field) {
                 return false;
             }
         }
@@ -259,7 +268,7 @@ impl Generator {
 
         let field = format_ident!("enum{}", sch.idx.0);
         self.fields.push(quote! {
-            #field: Vec<serde_json::Value>
+            #field: Vec<boongen::Value>
         });
 
         let items: Vec<_> = values.iter().map(gen_json_value).collect();
@@ -268,7 +277,7 @@ impl Generator {
         });
 
         quote! {
-            if !self.#field.iter().any(|e| boon::internal::equals(e, v)) {
+            if !self.#field.iter().any(|e| boongen::equals(e, v)) {
                 return false;
             }
         }
@@ -280,7 +289,7 @@ impl Generator {
         };
         let func = format_ident!("validate_{}", format.name.replace('-', "_"));
         quote! {
-            if boon::internal::#func(v).is_err() {
+            if boongen::#func(v).is_err() {
                 return false;
             }
         }
@@ -529,7 +538,7 @@ impl Generator {
         for (i, (regex, sch)) in sch.pattern_properties.iter().enumerate() {
             let str = regex.as_str();
             pattern_props.push(quote! {
-                regex::Regex::new(#str).expect("must be valid regex")
+                boongen::Regex::new(#str).expect("must be valid regex")
             });
             let name = format_ident!("is_valid{}", sch.0);
             validate_pattern_props.push(quote! {
@@ -543,7 +552,7 @@ impl Generator {
         }
         if !sch.pattern_properties.is_empty() {
             self.fields.push(quote! {
-                #field: Vec<regex::Regex>
+                #field: Vec<boongen::Regex>
             });
 
             self.init.push(quote! {
@@ -618,7 +627,7 @@ impl Generator {
         quote! {
             for i in 1..arr.len() {
                 for j in 0..i {
-                    if !boon::internal::equals(&arr[i], &arr[j]) {
+                    if !boongen::equals(&arr[i], &arr[j]) {
                         return false;
                     }
                 }
@@ -719,11 +728,11 @@ impl Generator {
         };
         let field = format_ident!("pattern{}", sch.idx.0);
         self.fields.push(quote! {
-            #field: regex::Regex
+            #field: boongen::Regex
         });
         let str = regex.as_str();
         self.init.push(quote! {
-            #field: regex::Regex::new(#str).expect("must be valid regex")
+            #field: boongen::Regex::new(#str).expect("must be valid regex")
         });
         quote! {
             if !self.#field.is_match(str) {
@@ -745,7 +754,7 @@ impl Generator {
         if let Some(min) = &sch.minimum {
             let field = format_ident!("minimum{}", sch.idx.0);
             self.fields.push(quote! {
-                #field: serde_json::Number
+                #field: boongen::Number
             });
             let str = format!("{min}");
             self.init.push(quote! {
@@ -762,7 +771,7 @@ impl Generator {
         if let Some(max) = &sch.maximum {
             let field = format_ident!("maximum{}", sch.idx.0);
             self.fields.push(quote! {
-                #field: serde_json::Number
+                #field: boongen::Number
             });
             let str = format!("{max}");
             self.init.push(quote! {
@@ -779,7 +788,7 @@ impl Generator {
         if let Some(ex_min) = &sch.exclusive_minimum {
             let field = format_ident!("exclusive_minimum{}", sch.idx.0);
             self.fields.push(quote! {
-                #field: serde_json::Number
+                #field: boongen::Number
             });
             let str = format!("{ex_min}");
             self.init.push(quote! {
@@ -796,7 +805,7 @@ impl Generator {
         if let Some(ex_max) = &sch.exclusive_maximum {
             let field = format_ident!("exclusive_maximum{}", sch.idx.0);
             self.fields.push(quote! {
-                #field: serde_json::Number
+                #field: boongen::Number
             });
             let str = format!("{ex_max}");
             self.init.push(quote! {
@@ -813,7 +822,7 @@ impl Generator {
         if let Some(mul) = &sch.multiple_of {
             let field = format_ident!("multiple_of{}", sch.idx.0);
             self.fields.push(quote! {
-                #field: serde_json::Number
+                #field: boongen::Number
             });
             let str = format!("{mul}");
             self.init.push(quote! {
@@ -848,7 +857,7 @@ fn gen_vec_strings(vec: &Vec<String>) -> TokenStream {
 fn gen_json_value(v: &Value) -> TokenStream {
     let json_str = TokenStream::from_str(&format!("{:#}", v)).expect("must be valid tokenstream");
     quote! {
-        serde_json::json!(#json_str)
+        boongen::json!(#json_str)
     }
 }
 
@@ -861,11 +870,12 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_gen() {
         let mut schemas = Schemas::new();
         let mut compiler = Compiler::new();
         let _sch = compiler.compile("openapi-3.0.json", &mut schemas).unwrap();
-        let tokens = Generator::new("Schema").generate(&schemas);
+        let tokens = Generator::new("Schema".to_string()).generate(&schemas);
         fs::write("../gen/src/lib.rs", format!("{}", tokens)).unwrap();
     }
 }
