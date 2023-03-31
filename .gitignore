@@ -1,3 +1,4 @@
-/target
-/Cargo.lock
-/lib/Cargo.lock
+target
+Cargo.lock
+/gen/tests/suite/schema.json
+/gen/tests/suite/tests.json
