@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-boon = {path="../lib"}
-boon-procmacro = {path="../macro"}
+boon = { path = "../lib", features = ["internal"] }
+boon-procmacro = { path = "../macro" }

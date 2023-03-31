@@ -114,6 +114,7 @@ mod util;
 mod validator;
 
 // Not public API.
+#[cfg(feature = "internal")]
 #[doc(hidden)]
 #[path = "gen.rs"]
 pub mod internal;
