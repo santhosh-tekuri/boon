@@ -6,6 +6,7 @@ pub use boon_procmacro::*;
 mod tests {
     use std::{env, error::Error, ffi::OsStr, fs::File, path::Path, process::Command};
 
+    use boon::Draft;
     use serde::Deserialize;
     use serde_json::Value;
 
@@ -24,11 +25,11 @@ mod tests {
     #[test]
     fn test_suite() -> Result<(), Box<dyn Error>> {
         let suite = "../lib/tests/JSON-Schema-Test-Suite";
-        test_dir(suite, "draft4")?;
+        test_dir(suite, "draft4", Draft::V4)?;
         Ok(())
     }
 
-    fn test_dir(suite: &str, path: &str) -> Result<(), Box<dyn Error>> {
+    fn test_dir(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
         let prefix = Path::new(suite).join("tests");
         let dir = prefix.join(path);
         if !dir.is_dir() {
@@ -41,21 +42,26 @@ mod tests {
             let entry_path = tmp_entry_path.strip_prefix(&prefix)?.to_str().unwrap();
             if file_type.is_file() {
                 if !SKIP.iter().any(|n| OsStr::new(n) == entry.file_name()) {
-                    test_file(suite, entry_path)?;
+                    test_file(suite, entry_path, draft)?;
                 }
             } else if file_type.is_dir() {
-                test_dir(suite, entry_path)?;
+                test_dir(suite, entry_path, draft)?;
             }
         }
         Ok(())
     }
 
-    fn test_file(suite: &str, file: &str) -> Result<(), Box<dyn Error>> {
+    fn test_file(suite: &str, file: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
         println!("FILE: {}", file);
         let path = Path::new(suite).join("tests").join(file);
         let groups: Vec<Group> = serde_json::from_reader(File::open(path)?)?;
-        for group in &groups {
+        for mut group in groups {
             println!("GROUP: {}", group.description);
+            if let Value::Object(obj) = &mut group.schema {
+                if !obj.contains_key("$schema") {
+                    obj.insert("$schema".to_owned(), Value::String(draft.url().to_owned()));
+                }
+            }
             serde_json::to_writer_pretty(File::create("tests/suite/schema.json")?, &group.schema)?;
             serde_json::to_writer_pretty(File::create("tests/suite/tests.json")?, &group.tests)?;
             cargo_test(suite)?;
