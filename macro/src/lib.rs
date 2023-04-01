@@ -58,12 +58,9 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    match env::var("BOON_SUITE") {
-        Ok(remotes) => {
-            compiler.register_url_loader("http", Box::new(RemotesLoader(remotes.clone())));
-            compiler.register_url_loader("https", Box::new(RemotesLoader(remotes)));
-        }
-        Err(e) => panic!("{e}"),
+    if let Ok(remotes) = env::var("BOON_SUITE") {
+        compiler.register_url_loader("http", Box::new(RemotesLoader(remotes.clone())));
+        compiler.register_url_loader("https", Box::new(RemotesLoader(remotes)));
     }
     if let Some(draft) = draft {
         compiler.set_default_draft(draft);
