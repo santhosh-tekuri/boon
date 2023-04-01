@@ -9,9 +9,7 @@ pub use crate::formats::{
 };
 pub use crate::util::equals;
 pub use regex::Regex;
-pub use serde_json::from_str;
-pub use serde_json::Number;
-pub use serde_json::Value;
+pub use serde_json::{from_reader, from_str, Number, Value};
 
 use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
 use quote::{__private::TokenStream, format_ident, quote, ToTokens};
@@ -625,7 +623,7 @@ impl Generator {
         quote! {
             for i in 1..arr.len() {
                 for j in 0..i {
-                    if !boongen::equals(&arr[i], &arr[j]) {
+                    if boongen::equals(&arr[i], &arr[j]) {
                         return false;
                     }
                 }
