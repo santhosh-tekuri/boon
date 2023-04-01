@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::collections::HashSet;
+
 pub use crate::formats::{
     validate_date, validate_date_time, validate_duration, validate_email, validate_hostname,
     validate_idn_email, validate_idn_hostname, validate_ipv4, validate_ipv6, validate_iri,
@@ -8,8 +10,10 @@ pub use crate::formats::{
     validate_uri_template, validate_uuid,
 };
 pub use crate::util::equals;
+use crate::util::split;
 pub use regex::Regex;
 pub use serde_json::{from_reader, from_str, Number, Value};
+use url::Url;
 
 use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
 use quote::{__private::TokenStream, format_ident, quote, ToTokens};
@@ -35,7 +39,7 @@ impl Generator {
         for sch in &schemas.list {
             body.push(self.gen_sch(sch));
         }
-
+        let files = Vec::from_iter(list_files_used(schemas));
         let fields = &self.fields;
         let inits = &self.init;
         quote! {
@@ -53,6 +57,7 @@ impl Generator {
             )]
             impl #name {
                 fn new() -> Self {
+                    #(const _: &[u8] = include_bytes!(#files);)*
                     Self{
                         #(#inits),*
                     }
@@ -855,6 +860,20 @@ fn gen_json_value(v: &Value) -> TokenStream {
     quote! {
         boongen::from_str(#json_str).expect("must be valid json")
     }
+}
+
+fn list_files_used(schemas: &Schemas) -> HashSet<String> {
+    schemas
+        .list
+        .iter()
+        .flat_map(|sch| {
+            let (url, _) = split(&sch.loc);
+            Url::parse(url)
+        })
+        .filter(|url| url.scheme() == "file")
+        .flat_map(|url| url.to_file_path())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[cfg(test)]
