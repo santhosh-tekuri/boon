@@ -25,12 +25,7 @@ mod tests {
         let sch = Schema::new();
         for test in tests {
             println!("{}", test.description);
-            assert_eq!(
-                sch.is_valid0(&test.data),
-                test.valid,
-                "{}",
-                test.description
-            );
+            assert_eq!(sch.is_valid(&test.data), test.valid, "{}", test.description);
         }
         Ok(())
     }

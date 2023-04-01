@@ -13,37 +13,39 @@ pub use crate::util::equals;
 use crate::util::split;
 pub use regex::Regex;
 pub use serde_json::{from_reader, from_str, Number, Value};
+use syn::ItemStruct;
 use url::Url;
 
 use crate::{Additional, Dependency, Enum, Items, Schema, Schemas, Type};
 use quote::{__private::TokenStream, format_ident, quote, ToTokens};
 
 pub struct Generator {
-    struct_name: String,
+    item_struct: ItemStruct,
     fields: Vec<TokenStream>,
     init: Vec<TokenStream>,
 }
 
 impl Generator {
-    pub fn new(struct_name: String) -> Self {
+    pub fn new(item_struct: ItemStruct) -> Self {
         Self {
-            struct_name,
+            item_struct,
             fields: vec![],
             init: vec![],
         }
     }
 
     pub fn generate(&mut self, schemas: &Schemas) -> TokenStream {
-        let name = format_ident!("{}", self.struct_name);
         let mut body = vec![];
         for sch in &schemas.list {
             body.push(self.gen_sch(sch));
         }
+        let struct_name = &self.item_struct.ident;
+        let struct_vis = &self.item_struct.vis;
         let files = Vec::from_iter(list_files_used(schemas));
         let fields = &self.fields;
         let inits = &self.init;
         quote! {
-            struct #name{
+            #struct_vis struct #struct_name{
                 #(#fields),*
             }
 
@@ -55,13 +57,18 @@ impl Generator {
                 clippy::len_zero,
                 clippy::collapsible_if
             )]
-            impl #name {
+            impl #struct_name {
                 fn new() -> Self {
                     #(const _: &[u8] = include_bytes!(#files);)*
                     Self{
                         #(#inits),*
                     }
                 }
+
+                #struct_vis fn is_valid(&self, v: &boongen::Value) -> bool {
+                    self.is_valid0(v)
+                }
+
                 #(#body)*
             }
         }
@@ -876,6 +883,7 @@ fn list_files_used(schemas: &Schemas) -> HashSet<String> {
         .collect()
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -894,3 +902,4 @@ mod tests {
         fs::write("../gen/src/lib.rs", format!("{}", tokens)).unwrap();
     }
 }
+*/

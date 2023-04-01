@@ -49,17 +49,12 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
     let file = file.unwrap();
     //println!("file: {}", file);
 
-    let struct_name = {
-        let x: syn::ItemStruct = syn::parse(item).unwrap();
-        //println!("item: {:#?}", x);
-        x.ident.to_string()
-    };
+    let item_struct: syn::ItemStruct = syn::parse(item).unwrap();
     //println!("structname: {}", struct_name);
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     if let Ok(remotes) = env::var("BOON_SUITE") {
-        println!("got remotes: {}", remotes);
         compiler.register_url_loader("http", Box::new(RemotesLoader(remotes.clone())));
         compiler.register_url_loader("https", Box::new(RemotesLoader(remotes)));
     }
@@ -84,7 +79,7 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
     let _sch = compiler.compile(&file, &mut schemas).unwrap();
-    let mut gen = boon::internal::Generator::new(struct_name);
+    let mut gen = boon::internal::Generator::new(item_struct);
     gen.generate(&schemas).into()
 }
 
