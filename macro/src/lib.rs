@@ -2,6 +2,7 @@ use std::{env, fs::File, path::Path};
 
 use boon::{internal::Value, Compiler, Schemas, UrlLoader};
 use proc_macro::TokenStream;
+use syn::{parenthesized, token};
 
 #[proc_macro_attribute]
 pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -16,15 +17,23 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut file = None;
     let mut draft = None;
     attr.parse_nested_meta(|meta| {
-        if meta.path.is_ident("file") {
-            meta.input.parse::<syn::token::Eq>()?;
-            let lit: syn::LitStr = meta.input.parse()?;
+        if meta.path.is_ident("schema") {
+            let content;
+            parenthesized!(content in meta.input);
+            let lit: syn::LitStr = content.parse()?;
             file.replace(lit.value());
+            println!("file: {}", lit.value());
+            if content.peek(token::Comma) {
+                content.parse::<token::Comma>()?;
+                let ident: syn::Ident = content.parse()?;
+                println!("ident: {}", ident);
+            }
             return Ok(());
         }
         if meta.path.is_ident("draft") {
-            meta.input.parse::<syn::token::Eq>()?;
-            let lit: syn::LitStr = meta.input.parse()?;
+            let content;
+            parenthesized!(content in meta.input);
+            let lit: syn::LitStr = content.parse()?;
             draft.replace(match lit.value().as_str() {
                 "4" => boon::Draft::V4,
                 "6" => boon::Draft::V6,

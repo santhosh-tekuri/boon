@@ -1,6 +1,6 @@
 use boongen::compile;
 
-#[compile(file = "schema.json")]
+#[compile(schema("schema.json"))]
 struct Schema;
 
 #[cfg(test)]
