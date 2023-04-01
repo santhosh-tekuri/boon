@@ -59,10 +59,22 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     if let Ok(remotes) = env::var("BOON_SUITE") {
+        println!("got remotes: {}", remotes);
         compiler.register_url_loader("http", Box::new(RemotesLoader(remotes.clone())));
         compiler.register_url_loader("https", Box::new(RemotesLoader(remotes)));
     }
     if let Some(draft) = draft {
+        compiler.set_default_draft(draft);
+    }
+    if let Ok(draft) = env::var("BOON_DRAFT") {
+        let draft = match draft.as_str() {
+            "4" => boon::Draft::V4,
+            "6" => boon::Draft::V6,
+            "7" => boon::Draft::V7,
+            "2019-09" => boon::Draft::V2019_09,
+            "2019-12" => boon::Draft::V2020_12,
+            _ => panic!("invalid draft in BOON_DRAFT"),
+        };
         compiler.set_default_draft(draft);
     }
     let _sch = match compiler.compile(&file, &mut schemas) {

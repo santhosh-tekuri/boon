@@ -6,7 +6,6 @@ pub use boon_procmacro::*;
 mod tests {
     use std::{env, error::Error, ffi::OsStr, fs::File, path::Path, process::Command};
 
-    use boon::Draft;
     use serde::Deserialize;
     use serde_json::Value;
 
@@ -25,11 +24,11 @@ mod tests {
     #[test]
     fn test_suite() -> Result<(), Box<dyn Error>> {
         let suite = "../lib/tests/JSON-Schema-Test-Suite";
-        test_dir(suite, "draft4", Draft::V4)?;
+        test_dir(suite, "draft4", "4")?;
         Ok(())
     }
 
-    fn test_dir(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
+    fn test_dir(suite: &str, path: &str, draft: &str) -> Result<(), Box<dyn Error>> {
         let prefix = Path::new(suite).join("tests");
         let dir = prefix.join(path);
         if !dir.is_dir() {
@@ -51,27 +50,23 @@ mod tests {
         Ok(())
     }
 
-    fn test_file(suite: &str, file: &str, draft: Draft) -> Result<(), Box<dyn Error>> {
+    fn test_file(suite: &str, file: &str, draft: &str) -> Result<(), Box<dyn Error>> {
         println!("FILE: {}", file);
         let path = Path::new(suite).join("tests").join(file);
         let groups: Vec<Group> = serde_json::from_reader(File::open(path)?)?;
-        for mut group in groups {
+        for group in groups {
             println!("GROUP: {}", group.description);
-            if let Value::Object(obj) = &mut group.schema {
-                if !obj.contains_key("$schema") {
-                    obj.insert("$schema".to_owned(), Value::String(draft.url().to_owned()));
-                }
-            }
             serde_json::to_writer_pretty(File::create("tests/suite/schema.json")?, &group.schema)?;
             serde_json::to_writer_pretty(File::create("tests/suite/tests.json")?, &group.tests)?;
-            cargo_test(suite)?;
+            cargo_test(suite, draft)?;
         }
         Ok(())
     }
 
-    fn cargo_test(suite: &str) -> Result<(), Box<dyn Error>> {
+    fn cargo_test(suite: &str, draft: &str) -> Result<(), Box<dyn Error>> {
         let mut cmd = Command::new(env::var("CARGO")?);
         cmd.env("BOON_SUITE", format!("../../{suite}"));
+        cmd.env("BOON_DRAFT", draft);
         cmd.current_dir(Path::new(&env::var("CARGO_MANIFEST_DIR")?).join("tests/suite"));
         cmd.args(["test", "--lib", "-q", "--", "--nocapture"]);
         if !cmd.spawn()?.wait()?.success() {
