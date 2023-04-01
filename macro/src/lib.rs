@@ -1,4 +1,6 @@
-use boon::{Compiler, Schemas};
+use std::{env, fs::File, path::Path};
+
+use boon::{internal::Value, Compiler, Schemas, UrlLoader};
 use proc_macro::TokenStream;
 
 #[proc_macro_attribute]
@@ -56,6 +58,13 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
+    match env::var("BOON_SUITE") {
+        Ok(remotes) => {
+            compiler.register_url_loader("http", Box::new(RemotesLoader(remotes.clone())));
+            compiler.register_url_loader("https", Box::new(RemotesLoader(remotes)));
+        }
+        Err(e) => panic!("{e}"),
+    }
     if let Some(draft) = draft {
         compiler.set_default_draft(draft);
     }
@@ -68,4 +77,18 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
     let _sch = compiler.compile(&file, &mut schemas).unwrap();
     let mut gen = boon::internal::Generator::new(struct_name);
     gen.generate(&schemas).into()
+}
+
+struct RemotesLoader(String);
+impl UrlLoader for RemotesLoader {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn std::error::Error>> {
+        // remotes folder --
+        if let Some(path) = url.strip_prefix("http://localhost:1234/") {
+            let path = Path::new(&self.0).join("remotes").join(path);
+            let file = File::open(path)?;
+            let json: Value = boon::internal::from_reader(file)?;
+            return Ok(json);
+        }
+        Err("no internet")?
+    }
 }
