@@ -3,7 +3,7 @@ use boongen::compile;
 // todo: track files changes automatically
 const _: &[u8] = include_bytes!("../schema.json");
 
-#[compile(file = "schema.json")]
+#[compile(file = "schema.json", draft = "4")]
 struct Schema;
 
 #[cfg(test)]
