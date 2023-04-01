@@ -152,16 +152,20 @@ impl Draft {
         }
     }
 
-    pub(crate) fn get_schema(&self) -> Option<SchemaIndex> {
-        let loc = match self.version {
+    pub(crate) fn url(&self) -> Option<&'static str> {
+        match self.version {
             2020 => Some("https://json-schema.org/draft/2020-12/schema#"),
             2019 => Some("https://json-schema.org/draft/2019-09/schema#"),
             7 => Some("http://json-schema.org/draft-07/schema#"),
             6 => Some("http://json-schema.org/draft-06/schema#"),
             4 => Some("http://json-schema.org/draft-04/schema#"),
             _ => None,
-        };
-        loc.and_then(|loc| STD_METASCHEMAS.get_by_loc(loc))
+        }
+    }
+
+    pub(crate) fn get_schema(&self) -> Option<SchemaIndex> {
+        self.url()
+            .and_then(|loc| STD_METASCHEMAS.get_by_loc(loc))
             .map(|s| s.idx)
     }
 

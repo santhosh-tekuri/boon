@@ -52,6 +52,10 @@ impl Draft {
         }
     }
 
+    pub fn url(self) -> &'static str {
+        self.internal().url().unwrap_or_default()
+    }
+
     pub(crate) fn internal(&self) -> &'static crate::draft::Draft {
         match self {
             Draft::V4 => &DRAFT4,
