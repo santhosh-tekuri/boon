@@ -58,7 +58,7 @@ impl Generator {
                 clippy::collapsible_if
             )]
             impl #struct_name {
-                fn new() -> Self {
+                #struct_vis fn new() -> Self {
                     #(const _: &[u8] = include_bytes!(#files);)*
                     Self{
                         #(#inits),*
