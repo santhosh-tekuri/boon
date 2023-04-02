@@ -10,9 +10,9 @@ pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, Box<dyn std::error::Err
 
     let mut ast = loop {
         match Parser::new().parse(pattern.as_ref()) {
-            Ok(ast) => break Some(ast),
+            Ok(ast) => break ast,
             Err(e) => {
-                if let Some(s) = fix(&e) {
+                if let Some(s) = fix_error(&e) {
                     pattern = Cow::Owned(s);
                 } else {
                     Err(e)?;
@@ -21,23 +21,22 @@ pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, Box<dyn std::error::Err
         }
     };
 
-    while let Some(t) = ast {
+    loop {
         let translator = Translator {
             pat: pattern.as_ref(),
             out: None,
         };
-        let x = ast::visit(&t, translator)?;
-        if let Some(s) = x {
-            match Parser::new().parse(&s) {
-                Ok(t) => {
-                    pattern = Cow::Owned(s);
-                    ast = Some(t);
+        if let Some(updated_pattern) = ast::visit(&ast, translator)? {
+            match Parser::new().parse(&updated_pattern) {
+                Ok(updated_ast) => {
+                    pattern = Cow::Owned(updated_pattern);
+                    ast = updated_ast;
                 }
                 Err(e) => {
                     debug_assert!(
                         false,
                         "ecma::translate changed {:?} to {:?}: {e}",
-                        pattern, s
+                        pattern, updated_pattern
                     );
                     break;
                 }
@@ -49,7 +48,7 @@ pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, Box<dyn std::error::Err
     Ok(pattern)
 }
 
-fn fix(e: &Error) -> Option<String> {
+fn fix_error(e: &Error) -> Option<String> {
     if let ErrorKind::EscapeUnrecognized = e.kind() {
         let (start, end) = (e.span().start.offset, e.span().end.offset);
         let s = &e.pattern()[start..end];
