@@ -406,7 +406,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 }
             }
 
-            s.properties = self.enqueue_map("properties");
+            s.properties = AHashMap::from_iter(self.enqueue_map("properties"));
             s.pattern_properties = {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {

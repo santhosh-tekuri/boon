@@ -127,6 +127,7 @@ pub use {
 
 use std::{borrow::Cow, collections::HashMap, error::Error, fmt::Display};
 
+use ahash::AHashMap;
 use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
@@ -246,7 +247,7 @@ struct Schema {
     min_properties: Option<usize>,
     max_properties: Option<usize>,
     required: Vec<String>,
-    properties: HashMap<String, SchemaIndex>,
+    properties: AHashMap<String, SchemaIndex>,
     pattern_properties: Vec<(Regex, SchemaIndex)>,
     property_names: Option<SchemaIndex>,
     additional_properties: Option<Additional>,
