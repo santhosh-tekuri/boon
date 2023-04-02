@@ -368,7 +368,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                 }
                 _ => {
                     if arr.len() <= 20 {
-                        'outer: for i in 1..arr.len() - 1 {
+                        'outer: for i in 0..arr.len() - 1 {
                             for j in i + 1..arr.len() {
                                 if equals(&arr[i], &arr[j]) {
                                     self.add_error(kind!(UniqueItems, got: [i, j]));
