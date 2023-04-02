@@ -1,5 +1,6 @@
-use std::{borrow::Cow, env, fmt::Display, path::Path, str::Utf8Error};
+use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, path::Path, str::Utf8Error};
 
+use ahash::AHasher;
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use serde_json::Value;
@@ -232,6 +233,51 @@ where
         serde_json::to_string(value)
     };
     f.write_str(s.map_err(|_| std::fmt::Error)?.as_str())
+}
+
+// HashedValue --
+
+// Based on implementation proposed by Sven Marnach:
+// https://stackoverflow.com/questions/60882381/what-is-the-fastest-correct-way-to-detect-that-there-are-no-duplicates-in-a-json
+#[derive(PartialEq)]
+pub(crate) struct HashedValue<'a>(pub(crate) &'a Value);
+
+impl Eq for HashedValue<'_> {}
+
+impl Hash for HashedValue<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self.0 {
+            Value::Null => state.write_u32(3_221_225_473), // chosen randomly
+            Value::Bool(ref item) => item.hash(state),
+            Value::Number(ref item) => {
+                if let Some(number) = item.as_u64() {
+                    number.hash(state);
+                } else if let Some(number) = item.as_i64() {
+                    number.hash(state);
+                } else if let Some(number) = item.as_f64() {
+                    number.to_bits().hash(state)
+                }
+            }
+            Value::String(ref item) => item.hash(state),
+            Value::Array(ref items) => {
+                for item in items {
+                    HashedValue(item).hash(state);
+                }
+            }
+            Value::Object(ref items) => {
+                let mut hash = 0;
+                for (key, value) in items {
+                    // We have no way of building a new hasher of type `H`, so we
+                    // hardcode using the default hasher of a hash map.
+                    let mut item_hasher = AHasher::default();
+                    key.hash(&mut item_hasher);
+                    HashedValue(value).hash(&mut item_hasher);
+                    hash ^= item_hasher.finish();
+                }
+                state.write_u64(hash);
+            }
+        }
+    }
 }
 
 /*
