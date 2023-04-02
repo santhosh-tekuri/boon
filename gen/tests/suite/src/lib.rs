@@ -1,7 +1,7 @@
 use boongen::compile;
 
 #[compile(schema("schema.json"))]
-struct Schema;
+pub struct Schema;
 
 #[cfg(test)]
 mod tests {

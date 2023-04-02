@@ -22,11 +22,9 @@ pub fn compile(args: TokenStream, item: TokenStream) -> TokenStream {
             parenthesized!(content in meta.input);
             let lit: syn::LitStr = content.parse()?;
             file.replace(lit.value());
-            println!("file: {}", lit.value());
             if content.peek(token::Comma) {
                 content.parse::<token::Comma>()?;
-                let ident: syn::Ident = content.parse()?;
-                println!("ident: {}", ident);
+                let _ident: syn::Ident = content.parse()?;
             }
             return Ok(());
         }
