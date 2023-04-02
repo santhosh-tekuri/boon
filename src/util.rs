@@ -248,31 +248,31 @@ impl Hash for HashedValue<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self.0 {
             Value::Null => state.write_u32(3_221_225_473), // chosen randomly
-            Value::Bool(ref item) => item.hash(state),
-            Value::Number(ref item) => {
-                if let Some(number) = item.as_u64() {
-                    number.hash(state);
-                } else if let Some(number) = item.as_i64() {
-                    number.hash(state);
-                } else if let Some(number) = item.as_f64() {
-                    number.to_bits().hash(state)
+            Value::Bool(ref b) => b.hash(state),
+            Value::Number(ref num) => {
+                if let Some(num) = num.as_u64() {
+                    num.hash(state);
+                } else if let Some(num) = num.as_i64() {
+                    num.hash(state);
+                } else if let Some(num) = num.as_f64() {
+                    num.to_bits().hash(state)
                 }
             }
-            Value::String(ref item) => item.hash(state),
-            Value::Array(ref items) => {
-                for item in items {
+            Value::String(ref str) => str.hash(state),
+            Value::Array(ref arr) => {
+                for item in arr {
                     HashedValue(item).hash(state);
                 }
             }
-            Value::Object(ref items) => {
+            Value::Object(ref obj) => {
                 let mut hash = 0;
-                for (key, value) in items {
+                for (pname, pvalue) in obj {
                     // We have no way of building a new hasher of type `H`, so we
                     // hardcode using the default hasher of a hash map.
-                    let mut item_hasher = AHasher::default();
-                    key.hash(&mut item_hasher);
-                    HashedValue(value).hash(&mut item_hasher);
-                    hash ^= item_hasher.finish();
+                    let mut hasher = AHasher::default();
+                    pname.hash(&mut hasher);
+                    HashedValue(pvalue).hash(&mut hasher);
+                    hash ^= hasher.finish();
                 }
                 state.write_u64(hash);
             }
