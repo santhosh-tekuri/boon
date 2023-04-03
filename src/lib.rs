@@ -253,7 +253,7 @@ struct Schema {
     additional_properties: Option<Additional>,
     dependent_required: HashMap<String, Vec<String>>,
     dependent_schemas: HashMap<String, SchemaIndex>,
-    dependencies: HashMap<String, Dependency>,
+    dependencies: Vec<(String, Dependency)>,
     unevaluated_properties: Option<SchemaIndex>,
 
     // array --
