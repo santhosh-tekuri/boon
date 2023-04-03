@@ -327,6 +327,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
     fn arr_validate(&mut self, arr: &'v Vec<Value>) {
         let s = self.schema;
+        let len = arr.len();
         macro_rules! add_err {
             ($result:expr) => {
                 if let Err(e) = $result {
@@ -337,20 +338,20 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
         // minItems --
         if let Some(min) = s.min_items {
-            if arr.len() < min {
-                self.add_error(kind!(MinItems, arr.len(), min));
+            if len < min {
+                self.add_error(kind!(MinItems, len, min));
             }
         }
 
         // maxItems --
         if let Some(max) = s.max_items {
-            if arr.len() > max {
-                self.add_error(kind!(MaxItems, arr.len(), max));
+            if len > max {
+                self.add_error(kind!(MaxItems, len, max));
             }
         }
 
         // uniqueItems --
-        if arr.len() > 1 && s.unique_items {
+        if len > 1 && s.unique_items {
             match arr.as_slice() {
                 [e0, e1] => {
                     if equals(e0, e1) {
@@ -367,9 +368,9 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                     }
                 }
                 _ => {
-                    if arr.len() <= 20 {
-                        'outer: for i in 0..arr.len() - 1 {
-                            for j in i + 1..arr.len() {
+                    if len <= 20 {
+                        'outer: for i in 0..len - 1 {
+                            for j in i + 1..len {
                                 if equals(&arr[i], &arr[j]) {
                                     self.add_error(kind!(UniqueItems, got: [i, j]));
                                     break 'outer;
@@ -377,7 +378,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                             }
                         }
                     } else {
-                        let mut seen = AHashMap::with_capacity(arr.len());
+                        let mut seen = AHashMap::with_capacity(len);
                         for (i, item) in arr.iter().enumerate() {
                             if let Some(j) = seen.insert(HashedValue(item), i) {
                                 self.add_error(kind!(UniqueItems, got: [j, i]));
@@ -399,7 +400,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                         for (i, item) in arr.iter().enumerate() {
                             add_err!(self.validate_val(*sch, item, item!(i)));
                         }
-                        evaluated = arr.len();
+                        evaluated = len;
                         debug_assert!(self.uneval.items.is_empty());
                     }
                     Items::SchemaRefs(list) => {
@@ -407,7 +408,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                             self.uneval.items.remove(&i);
                             add_err!(self.validate_val(*sch, item, item!(i)));
                         }
-                        evaluated = min(list.len(), arr.len());
+                        evaluated = min(list.len(), len);
                     }
                 }
             }
@@ -416,8 +417,8 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             if let Some(additional) = &s.additional_items {
                 match additional {
                     Additional::Bool(allowed) => {
-                        if !allowed && evaluated != arr.len() {
-                            self.add_error(kind!(AdditionalItems, got: arr.len() - evaluated));
+                        if !allowed && evaluated != len {
+                            self.add_error(kind!(AdditionalItems, got: len - evaluated));
                         }
                     }
                     Additional::SchemaRef(sch) => {
@@ -437,7 +438,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
             // items2020 --
             if let Some(sch) = &s.items2020 {
-                let evaluated = min(s.prefix_items.len(), arr.len());
+                let evaluated = min(s.prefix_items.len(), len);
                 for (i, item) in arr[evaluated..].iter().enumerate() {
                     add_err!(self.validate_val(*sch, item, item!(i)));
                 }
