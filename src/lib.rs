@@ -251,8 +251,8 @@ struct Schema {
     pattern_properties: Vec<(Regex, SchemaIndex)>,
     property_names: Option<SchemaIndex>,
     additional_properties: Option<Additional>,
-    dependent_required: HashMap<String, Vec<String>>,
-    dependent_schemas: HashMap<String, SchemaIndex>,
+    dependent_required: Vec<(String, Vec<String>)>,
+    dependent_schemas: Vec<(String, SchemaIndex)>,
     dependencies: Vec<(String, Dependency)>,
     unevaluated_properties: Option<SchemaIndex>,
 

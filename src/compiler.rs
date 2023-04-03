@@ -406,7 +406,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 }
             }
 
-            s.properties = AHashMap::from_iter(self.enqueue_map("properties"));
+            s.properties = self.enqueue_map("properties");
             s.pattern_properties = {
                 let mut v = vec![];
                 if let Some(Value::Object(obj)) = self.value("patternProperties") {
@@ -603,7 +603,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             if let Some(Value::Object(dep_req)) = self.value("dependentRequired") {
                 for (pname, pvalue) in dep_req {
                     s.dependent_required
-                        .insert(pname.clone(), to_strings(pvalue));
+                        .push((pname.clone(), to_strings(pvalue)));
                 }
             }
         }
@@ -689,7 +689,11 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         }
     }
 
-    fn enqueue_map(&mut self, pname: &'static str) -> HashMap<String, SchemaIndex> {
+    fn enqueue_map<T>(&mut self, pname: &'static str) -> T
+    where
+        T: Default,
+        T: FromIterator<(String, SchemaIndex)>,
+    {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
@@ -698,7 +702,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                 })
                 .collect()
         } else {
-            HashMap::new()
+            T::default()
         }
     }
 
