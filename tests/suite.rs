@@ -35,6 +35,9 @@ fn test_suites() -> Result<(), Box<dyn Error>> {
 }
 
 fn test_suite(suite: &str) -> Result<(), Box<dyn Error>> {
+    if !Path::new(suite).exists() {
+        Err(format!("test suite {suite} does not exist"))?;
+    }
     test_dir(suite, "draft4", Draft::V4)?;
     test_dir(suite, "draft6", Draft::V6)?;
     test_dir(suite, "draft7", Draft::V7)?;
