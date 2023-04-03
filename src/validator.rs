@@ -752,6 +752,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                         None => _ = matched.replace(i),
                         Some(prev) => {
                             self.add_error(ErrorKind::OneOf(Some((prev, i))));
+                            break;
                         }
                     }
                 }
