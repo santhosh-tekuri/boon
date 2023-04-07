@@ -605,3 +605,18 @@ impl<'s> Display for SchemaToken<'s> {
         }
     }
 }
+
+// helpers --
+
+fn write_json_to_fmt<T>(f: &mut std::fmt::Formatter, value: &T) -> Result<(), std::fmt::Error>
+where
+    T: ?Sized + Serialize,
+{
+    let s = if f.alternate() {
+        serde_json::to_string_pretty(value)
+    } else {
+        serde_json::to_string(value)
+    };
+    let s = s.map_err(|_| std::fmt::Error)?;
+    f.write_str(&s)
+}

@@ -2,7 +2,6 @@ use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, path::Path, 
 
 use ahash::AHasher;
 use percent_encoding::percent_decode_str;
-use serde::Serialize;
 use serde_json::Value;
 use url::Url;
 
@@ -202,22 +201,6 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
         }
         _ => false,
     }
-}
-
-
-pub(crate) fn write_json_to_fmt<T>(
-    f: &mut std::fmt::Formatter,
-    value: &T,
-) -> Result<(), std::fmt::Error>
-where
-    T: ?Sized + Serialize,
-{
-    let s = if f.alternate() {
-        serde_json::to_string_pretty(value)
-    } else {
-        serde_json::to_string(value)
-    };
-    f.write_str(s.map_err(|_| std::fmt::Error)?.as_str())
 }
 
 // HashedValue --
