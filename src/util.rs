@@ -75,10 +75,6 @@ where
         .join(sep)
 }
 
-// fn path_escape(s: &str) -> String {
-//     url_escape::encode_path(s).into_owned()
-// }
-
 pub(crate) fn escape(token: &str) -> Cow<str> {
     const SPECIAL: [char; 2] = ['~', '/'];
     if token.contains(SPECIAL) {
@@ -244,41 +240,6 @@ impl Hash for HashedValue<'_> {
     }
 }
 
-/*
-// Loc --
-
-pub(crate) enum Loc<'a> {
-    Abs(&'a str),
-    Relative(usize, &'a str),
-}
-
-impl<'a> Loc<'a> {
-    pub(crate) fn locate(from: &str, to: &'a str) -> Loc<'a> {
-        if let Some(path) = to.strip_prefix(from) {
-            return Self::Relative(0, path);
-        }
-        let (_, path) = split(from); // todo: fragment misuse
-        if let Some(mut i) = path.0.rfind('/') {
-            i = from.len() - 1 - (path.0.len() - 1 - i);
-            return match Self::locate(&from[..i], to) {
-                Self::Relative(i, ptr) => Self::Relative(i + 1, ptr),
-                loc => loc,
-            };
-        }
-        Self::Abs(to)
-    }
-}
-
-impl<'a> Display for Loc<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Abs(loc) => write!(f, "{loc}"),
-            Self::Relative(i, path) => write!(f, "{i}{path}"),
-        }
-    }
-}
-*/
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,17 +248,6 @@ mod tests {
     fn test_quote() {
         assert_eq!(quote(r#"abc"def'ghi"#), r#"'abc"def\'ghi'"#);
     }
-
-    // #[test]
-    // fn test_path_escape() {
-    //     let tests = [
-    //         ("my%2Fcool+blog&about,stuff", "my%2Fcool+blog&about,stuff"),
-    //         ("a\nb", "a%0Ab"),
-    //     ];
-    //     for (raw, want) in tests {
-    //         assert_eq!(path_escape(raw), want);
-    //     }
-    // }
 
     #[test]
     fn test_fragment_to_anchor() {
