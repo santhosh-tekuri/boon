@@ -88,10 +88,6 @@ pub(crate) fn escape(token: &str) -> Cow<str> {
     }
 }
 
-pub(crate) fn path_unescape(s: &str) -> Result<String, Utf8Error> {
-    Ok(percent_decode_str(s).decode_utf8()?.into_owned())
-}
-
 pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
     let Some(mut tilde) = token.find('~') else {
         return Ok(Cow::Borrowed(token));
@@ -302,14 +298,6 @@ mod tests {
     //         assert_eq!(path_escape(raw), want);
     //     }
     // }
-
-    #[test]
-    fn test_path_unescape() {
-        assert_eq!(
-            path_unescape("my%2Fcool+blog&about,stuff").unwrap(),
-            "my/cool+blog&about,stuff",
-        );
-    }
 
     #[test]
     fn test_fragment_to_anchor() {

@@ -138,10 +138,7 @@ impl Draft {
         if let Some(s) = url.strip_prefix("https://") {
             url = s;
         }
-        let Ok(url) = path_unescape(url) else {
-            return None;
-        };
-        match url.as_str() {
+        match url {
             "json-schema.org/schema" => Some(latest()),
             "json-schema.org/draft/2020-12/schema" => Some(&DRAFT2020),
             "json-schema.org/draft/2019-09/schema" => Some(&DRAFT2019),
