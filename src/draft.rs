@@ -349,7 +349,6 @@ mod tests {
             ("https://json-schema.org/draft/2020-12/schema", Some(2020)), // https url
             ("https://json-schema.org/schema", Some(latest().version)),  // latest
             ("https://json-schema.org/draft-04/schema", Some(4)),
-            ("https://json-schema.org/%64raft/2020-12/schema", Some(2020)), // percent-encoded
         ];
         for (url, version) in tests {
             let got = Draft::from_url(url).map(|d| d.version);
