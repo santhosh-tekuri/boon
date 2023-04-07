@@ -821,8 +821,11 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         v: &'v Value,
         token: InstanceToken<'v>,
     ) -> Result<(), ValidationError<'s, 'v>> {
-        self.vloc.truncate(self.scope.vid);
-        self.vloc.push(token);
+        if self.vloc.len() == self.scope.vid {
+            self.vloc.push(token);
+        } else {
+            self.vloc[self.scope.vid] = token;
+        }
         let scope = self.scope.child(sch, None, self.scope.vid + 1);
         let schema = &self.schemas.get(sch);
         Validator {
