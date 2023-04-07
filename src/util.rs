@@ -204,21 +204,6 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
     }
 }
 
-pub(crate) fn to_strings(v: &Value) -> Vec<String> {
-    if let Value::Array(a) = v {
-        a.iter()
-            .filter_map(|t| {
-                if let Value::String(t) = t {
-                    Some(t.clone())
-                } else {
-                    None
-                }
-            })
-            .collect()
-    } else {
-        vec![]
-    }
-}
 
 pub(crate) fn write_json_to_fmt<T>(
     f: &mut std::fmt::Formatter,

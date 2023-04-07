@@ -962,3 +962,21 @@ impl Display for CompileError {
         }
     }
 }
+
+// helpers --
+
+fn to_strings(v: &Value) -> Vec<String> {
+    if let Value::Array(a) = v {
+        a.iter()
+            .filter_map(|t| {
+                if let Value::String(t) = t {
+                    Some(t.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}
