@@ -405,7 +405,6 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                     }
                     Items::SchemaRefs(list) => {
                         for (i, (item, sch)) in arr.iter().zip(list).enumerate() {
-                            self.uneval.items.remove(&i);
                             add_err!(self.validate_val(*sch, item, item!(i)));
                         }
                         evaluated = min(list.len(), len);
@@ -432,7 +431,6 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         } else {
             // prefixItems --
             for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
-                self.uneval.items.remove(&i);
                 add_err!(self.validate_val(*sch, item, item!(i)));
             }
 
@@ -980,8 +978,11 @@ impl<'v> Uneval<'v> {
                 }
             }
             Value::Array(arr) => {
-                if !sch.all_items_evaluated && (caller_needs || sch.unevaluated_items.is_some()) {
-                    uneval.items = (0..arr.len()).collect();
+                if !sch.all_items_evaluated
+                    && (caller_needs || sch.unevaluated_items.is_some())
+                    && sch.num_items_evaluated < arr.len()
+                {
+                    uneval.items = (sch.num_items_evaluated..arr.len()).collect();
                 }
             }
             _ => (),

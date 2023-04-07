@@ -348,6 +348,11 @@ impl Compiler {
         } else {
             s.items2020.is_some()
         };
+        s.num_items_evaluated = if let Some(Items::SchemaRefs(list)) = &s.items {
+            list.len()
+        } else {
+            s.prefix_items.len()
+        };
 
         Ok(s)
     }
