@@ -1,4 +1,4 @@
-use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, path::Path, str::Utf8Error};
+use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, str::Utf8Error};
 
 use ahash::AHasher;
 use percent_encoding::percent_decode_str;
@@ -24,13 +24,16 @@ pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
     debug_assert!(!s.contains('#'));
 
     // note: windows drive letter is treated as url scheme by url parser
+    #[cfg(not(target_arch = "wasm32"))]
     if std::env::consts::OS == "windows" && starts_with_windows_drive(s) {
         return Url::from_file_path(s)
             .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()));
     }
     match Url::parse(s) {
         Ok(url) => Ok(url),
+        #[cfg(not(target_arch = "wasm32"))]
         Err(url::ParseError::RelativeUrlWithoutBase) => {
+            use std::path::Path;
             let mut path = Path::new(s);
             let tmp;
             if !path.is_absolute() {

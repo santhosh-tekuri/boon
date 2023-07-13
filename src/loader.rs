@@ -1,4 +1,7 @@
-use std::{collections::HashMap, error::Error, fs::File};
+use std::{collections::HashMap, error::Error};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs::File;
 
 use once_cell::sync::Lazy;
 use serde_json::Value;
@@ -14,8 +17,10 @@ pub trait UrlLoader {
 
 // --
 
+#[cfg(not(target_arch = "wasm32"))]
 struct FileLoader;
 
+#[cfg(not(target_arch = "wasm32"))]
 impl UrlLoader for FileLoader {
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
         let url = Url::parse(url)?;
@@ -32,6 +37,7 @@ pub(crate) struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
 impl DefaultUrlLoader {
     pub fn new() -> Self {
         let mut v = Self(Default::default());
+        #[cfg(not(target_arch = "wasm32"))]
         v.0.insert("file", Box::new(FileLoader));
         v
     }
