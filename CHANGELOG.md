@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.5.0] - 2020-03-29
+## [0.5.1] - 2023-07-13
+
+### Changes
+
+- WASM compatibility
+- minor performance improvements
+
+## [0.5.0] - 2023-03-29
 
 ### Breaking Changes
 - chages to error api
@@ -8,7 +15,7 @@
 ### Performance
 - minor improvements in validation
 
-## [0.4.0] - 2020-03-24
+## [0.4.0] - 2023-03-24
 
 ### Breaking Changes
 - chages to error api
