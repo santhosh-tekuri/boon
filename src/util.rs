@@ -20,6 +20,7 @@ fn starts_with_windows_drive(p: &str) -> bool {
     p.chars().next().filter(char::is_ascii_uppercase).is_some() && p[1..].starts_with(":\\")
 }
 
+#[cfg(feature = "resolve-file")]
 pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
     debug_assert!(!s.contains('#'));
 

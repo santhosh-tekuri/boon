@@ -31,6 +31,11 @@ serde_yaml = "0.9"
 ureq = "2"
 criterion = "0.4"
 
+[features]
+# Enable resolution of file resources. Disable to support WASM in the browser.
+resolve-file = []
+default = ["resolve-file"]
+
 [[bench]]
 name = "bench"
 harness = false

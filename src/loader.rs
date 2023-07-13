@@ -14,8 +14,10 @@ pub trait UrlLoader {
 
 // --
 
+#[cfg(feature = "resolve-file")]
 struct FileLoader;
 
+#[cfg(feature = "resolve-file")]
 impl UrlLoader for FileLoader {
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
         let url = Url::parse(url)?;
@@ -32,6 +34,7 @@ pub(crate) struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
 impl DefaultUrlLoader {
     pub fn new() -> Self {
         let mut v = Self(Default::default());
+        #[cfg(feature = "resolve-file")]
         v.0.insert("file", Box::new(FileLoader));
         v
     }

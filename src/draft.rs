@@ -318,12 +318,16 @@ fn load_std_metaschemas() -> Result<Schemas, CompileError> {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.enable_format_assertions();
-    compiler.compile("https://json-schema.org/draft/2020-12/schema", &mut schemas)?;
-    compiler.compile("https://json-schema.org/draft/2019-09/schema", &mut schemas)?;
-    compiler.compile("http://json-schema.org/draft-07/schema", &mut schemas)?;
-    compiler.compile("http://json-schema.org/draft-06/schema", &mut schemas)?;
-    compiler.compile("http://json-schema.org/draft-04/schema", &mut schemas)?;
+    compiler.compile_url(try_url("https://json-schema.org/draft/2020-12/schema")?, &mut schemas)?;
+    compiler.compile_url(try_url("https://json-schema.org/draft/2019-09/schema")?, &mut schemas)?;
+    compiler.compile_url(try_url("http://json-schema.org/draft-07/schema")?, &mut schemas)?;
+    compiler.compile_url(try_url("http://json-schema.org/draft-06/schema")?, &mut schemas)?;
+    compiler.compile_url(try_url("http://json-schema.org/draft-04/schema")?, &mut schemas)?;
     Ok(schemas)
+}
+
+fn try_url(url: &str) -> Result<Url, CompileError> {
+    Url::parse(url).map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -339,7 +343,7 @@ mod tests {
         let v: Value = serde_json::from_str(include_str!("metaschemas/draft-04/schema")).unwrap();
         let url = "https://json-schema.org/draft-04/schema";
         compiler.add_resource(url, v).unwrap();
-        compiler.compile(url, &mut schemas).unwrap();
+        compiler.compile_url(try_url(url).unwrap(), &mut schemas).unwrap();
     }
 
     #[test]

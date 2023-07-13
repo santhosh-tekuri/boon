@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashMap, error::Error, fmt::Display};
 
 use regex::Regex;
 use serde_json::{Map, Value};
-use url::Url;
+use url::{ParseError, Url};
 
 use crate::{content::*, draft::*, ecma, formats::*, root::*, roots::*, util::*, *};
 
@@ -191,9 +191,20 @@ impl Compiler {
     - duplicate anchor or id
     - metaschema resolution etc
     */
+    #[cfg(feature = "resolve-file")]
     pub fn add_resource(&mut self, mut url: &str, json: Value) -> Result<bool, CompileError> {
         (url, _) = split(url); // strip fragment if any
         let url = to_url(url)?;
+        self.roots.or_insert(url, json)
+    }
+
+    /// Add the resource at `url`
+    ///
+    /// See [`Compiler::add_resource`] for more details.
+    ///
+    /// Available without the `resolve-file` feature.
+    pub fn add_resource_url(&mut self, mut url: Url, json: Value) -> Result<bool, CompileError> {
+        url.set_fragment(None);
         self.roots.or_insert(url, json)
     }
 
@@ -207,6 +218,7 @@ impl Compiler {
 
     if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
      */
+    #[cfg(feature = "resolve-file")]
     pub fn compile(
         &mut self,
         loc: &str,
@@ -215,6 +227,28 @@ impl Compiler {
         let (url, frag) = split(loc);
         let url = to_url(url)?;
         let loc = format!("{url}#{frag}");
+
+        let result = self.do_compile(loc, target);
+        if let Err(bug @ CompileError::Bug(_)) = &result {
+            debug_assert!(false, "{bug}");
+        }
+        result
+    }
+
+    /// Compile `url` into `target` and return an identifier to the compiled schema.
+    ///
+    /// See [`Compiler::compile`] for more details.
+    ///
+    /// Available without the `resolve-file` feature.
+    pub fn compile_url(
+        &mut self,
+        mut url: Url,
+        target: &mut Schemas,
+    ) -> Result<SchemaIndex, CompileError> {
+        if url.fragment().is_none() {
+            url.set_fragment(Some(""));
+        }
+        let loc = url.to_string();
 
         let result = self.do_compile(loc, target);
         if let Err(bug @ CompileError::Bug(_)) = &result {
@@ -969,6 +1003,15 @@ impl Display for CompileError {
 }
 
 // helpers --
+
+impl From<ParseError> for CompileError {
+    fn from(src: ParseError) -> Self {
+        Self::ParseUrlError {
+            url: src.to_string(),
+            src: Box::new(src),
+        }
+    }
+}
 
 fn to_strings(v: &Value) -> Vec<String> {
     if let Value::Array(a) = v {

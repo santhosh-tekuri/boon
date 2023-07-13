@@ -1,3 +1,5 @@
+
+#![cfg(feature = "resolve-file")]
 use std::fs;
 
 use boon::{CompileError, Compiler, Schemas};

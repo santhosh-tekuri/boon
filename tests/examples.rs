@@ -58,6 +58,28 @@ fn example_from_strings() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn example_without_files() -> Result<(), Box<dyn Error>> {
+    let cat_schema: Value = json!({
+        "type": "object",
+        "properties": {
+            "speak": { "const": "meow" }
+        },
+        "required": ["speak"]
+    });
+    let instance: Value = json!({"speak": "meow"});
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    let uri = Url::parse("uri://cat")?;
+    compiler.add_resource_url(uri.clone(), cat_schema)?;
+    let sch_index = compiler.compile_url(uri, &mut schemas)?;
+    let result = schemas.validate(&instance, sch_index);
+    assert!(result.is_ok());
+
+    Ok(())
+}
+
+#[test]
 #[ignore]
 fn example_from_https() -> Result<(), Box<dyn Error>> {
     let schema_url = "https://json-schema.org/learn/examples/geographical-location.schema.json";
