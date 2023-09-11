@@ -1,4 +1,4 @@
-use std::{env, error::Error, fs::File, process, str::FromStr};
+use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr};
 
 use boon::{Compiler, Draft, Schemas, UrlLoader};
 use getopts::Options;
@@ -104,7 +104,7 @@ fn main() {
             println!();
         }
         let rdr = match File::open(instance) {
-            Ok(rdr) => rdr,
+            Ok(rdr) => BufReader::new(rdr),
             Err(e) => {
                 println!("instance {instance}: failed");
                 if !quiet {
