@@ -53,11 +53,11 @@ fn fix_error(e: &Error) -> Option<String> {
         let (start, end) = (e.span().start.offset, e.span().end.offset);
         let s = &e.pattern()[start..end];
         match s {
-            r#"\/"# => {
+            r"\/" => {
                 // handle escaping '/'
                 return Some(format!("{}/{}", &e.pattern()[..start], &e.pattern()[end..],));
             }
-            r#"\c"# => {
+            r"\c" => {
                 // handle \c{control_letter}
                 if let Some(control_letter) = e.pattern()[end..].chars().next() {
                     if control_letter.is_ascii_alphabetic() {
@@ -70,7 +70,7 @@ fn fix_error(e: &Error) -> Option<String> {
                     }
                 }
             }
-            r#"\D"# => {
+            r"\D" => {
                 // handle \c{control_letter}
                 if let Some(control_letter) = e.pattern()[end..].chars().next() {
                     if control_letter.is_ascii_alphabetic() {
@@ -174,13 +174,13 @@ mod tests {
     fn test_ecma_compat_valid() {
         // println!("{:#?}", Parser::new().parse(r#"a\a"#));
         let tests = [
-            (r#"ab\/cde\/fg"#, r#"ab/cde/fg"#),        // '/' can be escaped
-            (r#"ab\cAcde\cBfg"#, "ab\u{1}cde\u{2}fg"), // \c{control_letter}
-            (r#"\\comment"#, r#"\\comment"#),          // there is no \c
-            (r#"ab\def"#, r#"ab[0-9]ef"#),             // \d
-            (r#"ab[a-z\d]ef"#, r#"ab[a-z[0-9]]ef"#),   // \d inside classSet
-            (r#"ab\Def"#, r#"ab[^0-9]ef"#),            // \d
-            (r#"ab[a-z\D]ef"#, r#"ab[a-z[^0-9]]ef"#),  // \D inside classSet
+            (r"ab\/cde\/fg", r"ab/cde/fg"),          // '/' can be escaped
+            (r"ab\cAcde\cBfg", "ab\u{1}cde\u{2}fg"), // \c{control_letter}
+            (r"\\comment", r"\\comment"),            // there is no \c
+            (r"ab\def", r#"ab[0-9]ef"#),             // \d
+            (r"ab[a-z\d]ef", r#"ab[a-z[0-9]]ef"#),   // \d inside classSet
+            (r"ab\Def", r#"ab[^0-9]ef"#),            // \d
+            (r"ab[a-z\D]ef", r#"ab[a-z[^0-9]]ef"#),  // \D inside classSet
         ];
         for (input, want) in tests {
             match convert(input) {
@@ -200,8 +200,8 @@ mod tests {
     fn test_ecma_compat_invalid() {
         // println!("{:#?}", Parser::new().parse(r#"a\a"#));
         let tests = [
-            r#"\c\n"#,     // \c{invalid_char}
-            r#"abc\adef"#, // \a is not valid
+            r"\c\n",     // \c{invalid_char}
+            r"abc\adef", // \a is not valid
         ];
         for input in tests {
             if convert(input).is_ok() {

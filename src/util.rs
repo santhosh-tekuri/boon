@@ -60,9 +60,7 @@ pub(crate) fn quote<T>(s: &T) -> String
 where
     T: AsRef<str> + std::fmt::Debug + ?Sized,
 {
-    let s = format!("{s:?}")
-        .replace(r#"\""#, "\"")
-        .replace('\'', r#"\'"#);
+    let s = format!("{s:?}").replace(r#"\""#, "\"").replace('\'', r"\'");
     format!("'{}'", &s[1..s.len() - 1])
 }
 

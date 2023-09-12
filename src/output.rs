@@ -293,7 +293,7 @@ impl<'a, 's, 'v> Display for SchemaLocation<'a, 's, 'v> {
         };
 
         let Some(prev) = iter.next_back() else {
-            return write!(f, "{cur}")
+            return write!(f, "{cur}");
         };
 
         let p = match &prev.kind {
