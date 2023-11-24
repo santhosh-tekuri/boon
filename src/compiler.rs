@@ -507,7 +507,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             s.min_length = self.usize("minLength");
 
             if let Some(Value::String(p)) = self.value("pattern") {
-                let p = ecma::convert(p).map_err(|e| CompileError::Bug(e))?;
+                let p = ecma::convert(p).map_err(CompileError::Bug)?;
                 s.pattern = Some(Regex::new(p.as_ref()).map_err(|e| CompileError::Bug(e.into()))?);
             }
 

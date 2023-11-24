@@ -21,14 +21,14 @@ fn test_invalid_schemas() -> Result<(), Box<dyn Error>> {
         match compile(&test) {
             Ok(_) => {
                 if test.errors.is_some() {
-                    Err("want compilation to fail")?;
+                    Err("want compilation to fail")?
                 }
             }
             Err(e) => {
                 println!("   {e}");
                 let error = format!("{e:?}");
                 let Some(errors) = &test.errors else {
-                    return Err("want compilation to succeed")?;
+                    Err("want compilation to succeed")?
                 };
                 for want in errors {
                     if !error.contains(want) {

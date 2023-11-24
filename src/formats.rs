@@ -93,7 +93,7 @@ fn check_date(s: &str) -> Result<(), Box<dyn Error>> {
 
     let mut ymd = s.splitn(3, '-').filter_map(|t| t.parse::<usize>().ok());
     let (Some(y), Some(m), Some(d)) = (ymd.next(), ymd.next(), ymd.next()) else {
-        return Err("non-positive year/month/day")?;
+        Err("non-positive year/month/day")?
     };
 
     if !matches!(m, 1..=12) {
@@ -133,24 +133,24 @@ fn validate_time(v: &Value) -> Result<(), Box<dyn Error>> {
 fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
     // min: hh:mm:ssZ
     if str.len() < 9 {
-        Err("less than 9 characters long")?;
+        Err("less than 9 characters long")?
     }
     if !matches_char(str, 2, ':') || !matches_char(str, 5, ':') {
-        Err("missing colon in correct place")?;
+        Err("missing colon in correct place")?
     }
 
     // parse hh:mm:ss
     if !str.is_char_boundary(8) {
-        Err("contains non-ascii char")?;
+        Err("contains non-ascii char")?
     }
     let mut hms = (str[..8])
         .splitn(3, ':')
         .filter_map(|t| t.parse::<usize>().ok());
     let (Some(mut h), Some(mut m), Some(s)) = (hms.next(), hms.next(), hms.next()) else {
-        return Err("non-positive hour/min/sec")?;
+        Err("non-positive hour/min/sec")?
     };
     if h > 23 || m > 59 || s > 60 {
-        Err("hour/min/sec out of range")?;
+        Err("hour/min/sec out of range")?
     }
     str = &str[8..];
 
@@ -175,15 +175,15 @@ fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
         };
         str = &str[1..];
         if !matches_char(str, 2, ':') {
-            Err("missing colon in offset at correct place")?;
+            Err("missing colon in offset at correct place")?
         }
 
         let mut zhm = str.splitn(2, ':').filter_map(|t| t.parse::<usize>().ok());
         let (Some(zh), Some(zm)) = (zhm.next(), zhm.next()) else {
-            return Err("non-positive hour/min in offset")?;
+            Err("non-positive hour/min in offset")?
         };
         if zh > 23 || zm > 59 {
-            Err("hour/min in offset out of range")?;
+            Err("hour/min in offset out of range")?
         }
 
         // apply timezone
@@ -238,19 +238,19 @@ fn validate_duration(v: &Value) -> Result<(), Box<dyn Error>> {
 fn check_duration(s: &str) -> Result<(), Box<dyn Error>> {
     // must start with 'P'
     let Some(s) = s.strip_prefix('P') else {
-        return Err("must start with P")?;
+        Err("must start with P")?
     };
     if s.is_empty() {
-        Err("nothing after P")?;
+        Err("nothing after P")?
     }
 
     // dur-week
     if let Some(s) = s.strip_suffix('W') {
         if s.is_empty() {
-            Err("no number in week")?;
+            Err("no number in week")?
         }
         if !s.chars().all(|c| c.is_ascii_digit()) {
-            Err("invalid week")?;
+            Err("invalid week")?
         }
         return Ok(());
     }
@@ -259,25 +259,25 @@ fn check_duration(s: &str) -> Result<(), Box<dyn Error>> {
     for (i, s) in s.split('T').enumerate() {
         let mut s = s;
         if i != 0 && s.is_empty() {
-            Err("no time elements")?;
+            Err("no time elements")?
         }
         let Some(mut units) = UNITS.get(i).cloned() else {
-            return Err("more than one T")?;
+            Err("more than one T")?
         };
         while !s.is_empty() {
             let digit_count = s.chars().take_while(char::is_ascii_digit).count();
             if digit_count == 0 {
-                Err("missing number")?;
+                Err("missing number")?
             }
             s = &s[digit_count..];
             let Some(unit) = s.chars().next() else {
-                return Err("missing unit")?;
+                Err("missing unit")?
             };
             let Some(j) = units.find(unit) else {
                 if UNITS[i].contains(unit) {
-                    return Err(format!("unit {unit} out of order"))?;
+                    Err(format!("unit {unit} out of order"))?
                 }
-                return Err(format!("invalid unit {unit}"))?;
+                Err(format!("invalid unit {unit}"))?
             };
             units = &units[j + 1..];
             s = &s[1..];
@@ -294,7 +294,7 @@ fn validate_period(v: &Value) -> Result<(), Box<dyn Error>> {
     };
 
     let Some(slash) = s.find('/') else {
-        return Err("missing slash")?;
+        Err("missing slash")?
     };
 
     let (start, end) = (&s[..slash], &s[slash + 1..]);
@@ -589,39 +589,39 @@ fn validate_email(v: &Value) -> Result<(), Box<dyn Error>> {
 fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     // entire email address to be no more than 254 characters long
     if s.len() > 254 {
-        Err("more than 254 characters long")?;
+        Err("more than 254 characters long")?
     }
 
     // email address is generally recognized as having two parts joined with an at-sign
     let Some(at) = s.rfind('@') else {
-        return Err("missing @")?;
+        Err("missing @")?
     };
     let (local, domain) = (&s[..at], &s[at + 1..]);
 
     // local part may be up to 64 characters long
     if local.len() > 64 {
-        Err("local part more than 64 characters long")?;
+        Err("local part more than 64 characters long")?
     }
 
     if local.starts_with('"') && local.ends_with('"') {
         // quoted
         let local = &local[1..local.len() - 1];
         if local.contains(|c| matches!(c, '\\' | '"')) {
-            Err("backslash and quote not allowed within quoted local part")?;
+            Err("backslash and quote not allowed within quoted local part")?
         }
     } else {
         // unquoted
 
         if local.starts_with('.') {
-            Err("starts with dot")?;
+            Err("starts with dot")?
         }
         if local.ends_with('.') {
-            Err("ends with dot")?;
+            Err("ends with dot")?
         }
 
         // consecutive dots not allowed
         if local.contains("..") {
-            Err("consecutive dots")?;
+            Err("consecutive dots")?
         }
 
         // check allowd chars
@@ -629,7 +629,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
             .chars()
             .find(|c| !(c.is_ascii_alphanumeric() || ".!#$%&'*+-/=?^_`{|}~".contains(*c)))
         {
-            Err(format!("invalid character {ch:?}"))?;
+            Err(format!("invalid character {ch:?}"))?
         }
     }
 
@@ -638,19 +638,19 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
         let s = &domain[1..domain.len() - 1];
         if let Some(s) = s.strip_prefix("IPv6:") {
             if let Err(e) = s.parse::<Ipv6Addr>() {
-                Err(format!("invalid ipv6 address: {e}"))?;
+                Err(format!("invalid ipv6 address: {e}"))?
             }
             return Ok(());
         }
         if let Err(e) = s.parse::<Ipv4Addr>() {
-            Err(format!("invalid ipv4 address: {e}"))?;
+            Err(format!("invalid ipv4 address: {e}"))?
         }
         return Ok(());
     }
 
     // domain must match the requirements for a hostname
     if let Err(e) = check_hostname(domain) {
-        Err(format!("invalid domain: {e}"))?;
+        Err(format!("invalid domain: {e}"))?
     }
 
     Ok(())
@@ -662,14 +662,14 @@ fn validate_idn_email(v: &Value) -> Result<(), Box<dyn Error>> {
     };
 
     let Some(at) = s.rfind('@') else {
-        return Err("missing @")?;
+        Err("missing @")?
     };
     let (local, domain) = (&s[..at], &s[at + 1..]);
 
     let local = idna::domain_to_ascii_strict(local)?;
     let domain = idna::domain_to_ascii_strict(domain)?;
     if let Err(e) = check_idn_hostname(&domain) {
-        Err(format!("invalid domain: {e}"))?;
+        Err(format!("invalid domain: {e}"))?
     }
     check_email(&format!("{local}@{domain}"))
 }
