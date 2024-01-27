@@ -52,33 +52,18 @@ fn fix_error(e: &Error) -> Option<String> {
     if let ErrorKind::EscapeUnrecognized = e.kind() {
         let (start, end) = (e.span().start.offset, e.span().end.offset);
         let s = &e.pattern()[start..end];
-        match s {
-            r"\c" => {
-                // handle \c{control_letter}
-                if let Some(control_letter) = e.pattern()[end..].chars().next() {
-                    if control_letter.is_ascii_alphabetic() {
-                        return Some(format!(
-                            "{}{}{}",
-                            &e.pattern()[..start],
-                            ((control_letter as u8) % 32) as char,
-                            &e.pattern()[end + 1..],
-                        ));
-                    }
+        if let r"\c" = s {
+            // handle \c{control_letter}
+            if let Some(control_letter) = e.pattern()[end..].chars().next() {
+                if control_letter.is_ascii_alphabetic() {
+                    return Some(format!(
+                        "{}{}{}",
+                        &e.pattern()[..start],
+                        ((control_letter as u8) % 32) as char,
+                        &e.pattern()[end + 1..],
+                    ));
                 }
             }
-            r"\D" => {
-                // handle \c{control_letter}
-                if let Some(control_letter) = e.pattern()[end..].chars().next() {
-                    if control_letter.is_ascii_alphabetic() {
-                        return Some(format!(
-                            "{}[^0-9]{}",
-                            &e.pattern()[..start],
-                            &e.pattern()[end + 1..],
-                        ));
-                    }
-                }
-            }
-            _ => {}
         }
     }
     None
