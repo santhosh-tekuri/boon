@@ -63,7 +63,7 @@ fn main() {
     let assert_content = matches.opt_present("assert-content");
 
     // schema --
-    let Some(schema) = matches.free.get(0) else {
+    let Some(schema) = matches.free.first() else {
         eprintln!("missing SCHEMA");
         eprintln!();
         eprintln!("{}", opts.usage(BRIEF));
