@@ -53,10 +53,6 @@ fn fix_error(e: &Error) -> Option<String> {
         let (start, end) = (e.span().start.offset, e.span().end.offset);
         let s = &e.pattern()[start..end];
         match s {
-            r"\/" => {
-                // handle escaping '/'
-                return Some(format!("{}/{}", &e.pattern()[..start], &e.pattern()[end..],));
-            }
             r"\c" => {
                 // handle \c{control_letter}
                 if let Some(control_letter) = e.pattern()[end..].chars().next() {
@@ -153,13 +149,18 @@ impl<'a> Visitor for Translator<'a> {
             return Ok(());
         }
         match ast {
-            Ast::Class(Class::Perl(perl)) => {
+            Ast::ClassPerl(perl) => {
                 self.replace_class_class(perl);
             }
-            Ast::Literal(Literal {
-                kind: LiteralKind::Special(SpecialLiteralKind::Bell),
-                ..
-            }) => return Err("\\a is not an ECMA 262 control escape"),
+            Ast::Literal(ref literal) => {
+                if let Literal {
+                    kind: LiteralKind::Special(SpecialLiteralKind::Bell),
+                    ..
+                } = literal.as_ref()
+                {
+                    return Err("\\a is not an ECMA 262 control escape");
+                }
+            }
             _ => (),
         }
         Ok(())
@@ -174,7 +175,6 @@ mod tests {
     fn test_ecma_compat_valid() {
         // println!("{:#?}", Parser::new().parse(r#"a\a"#));
         let tests = [
-            (r"ab\/cde\/fg", r"ab/cde/fg"),          // '/' can be escaped
             (r"ab\cAcde\cBfg", "ab\u{1}cde\u{2}fg"), // \c{control_letter}
             (r"\\comment", r"\\comment"),            // there is no \c
             (r"ab\def", r#"ab[0-9]ef"#),             // \d
