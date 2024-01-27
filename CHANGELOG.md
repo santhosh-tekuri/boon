@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] - 2024-01-27
+
+### Bug Fixes
+
+- Error message for failed const validation is wrong
+
 ## [0.5.1] - 2023-07-13
 
 ### Changes
