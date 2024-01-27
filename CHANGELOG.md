@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.3] - 2024-01-27
+
+### Changes
+- updated dependencies
+
 ## [0.5.2] - 2024-01-27
 
 ### Bug Fixes
