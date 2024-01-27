@@ -618,7 +618,7 @@ impl<'s, 'v> Display for ErrorKind<'s, 'v> {
             Self::Const { want } => {
                 if Type::primitive(want) {
                     write!(f, "value must be ")?;
-                    display(f, &want[0])
+                    display(f, want)
                 } else {
                     write!(f, "const failed")
                 }
