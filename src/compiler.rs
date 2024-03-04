@@ -826,10 +826,10 @@ pub enum CompileError {
         src: ValidationError<'static, 'static>,
     },
 
-    /// Error in parsing `$id` at `loc`
+    /// Error in parsing id at `loc`
     ParseIdError { loc: String },
 
-    /// Error in parsing `$anchor` at `loc`
+    /// Error in parsing anchor at `loc`
     ParseAnchorError { loc: String },
 
     /// Duplicate id `id` in `url` at `ptr1` and `ptr2`.
@@ -921,8 +921,8 @@ impl Display for CompileError {
                     write!(f, "{url} is not valid against metaschema")
                 }
             }
-            Self::ParseIdError { loc } => write!(f, "error in parsing $id at {loc}"),
-            Self::ParseAnchorError { loc } => write!(f, "error in parsing $anchor at {loc}"),
+            Self::ParseIdError { loc } => write!(f, "error in parsing id at {loc}"),
+            Self::ParseAnchorError { loc } => write!(f, "error in parsing anchor at {loc}"),
             Self::DuplicateId {
                 url,
                 id,
