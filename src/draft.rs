@@ -182,7 +182,6 @@ impl Draft {
     fn collect_anchors(
         &self,
         sch: &Value,
-        base: &Url,
         ptr: &str,
         res: &mut Resource,
         root_url: &Url,
@@ -214,7 +213,7 @@ impl Draft {
             if let Some(Value::String(id)) = obj.get(self.id) {
                 let (_, frag) = split(id);
                 let Ok(anchor) = frag.to_anchor() else {
-                    let mut url = base.clone();
+                    let mut url = root_url.clone();
                     url.set_fragment(Some(ptr));
                     return Err(CompileError::ParseAnchorError { loc: url.into() });
                 };
@@ -280,7 +279,7 @@ impl Draft {
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
-            self.collect_anchors(sch, base, &ptr, res, root_url)?;
+            self.collect_anchors(sch, &ptr, res, root_url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
