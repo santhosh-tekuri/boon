@@ -182,7 +182,7 @@ impl Draft {
     fn collect_anchors(
         &self,
         sch: &Value,
-        ptr: &str,
+        root_ptr: &str,
         res: &mut Resource,
         root_url: &Url,
     ) -> Result<(), CompileError> {
@@ -196,11 +196,11 @@ impl Draft {
                     url: root_url.as_str().to_owned(),
                     anchor: entry.key().to_owned(),
                     ptr1: entry.get().to_owned(),
-                    ptr2: ptr.to_owned(),
+                    ptr2: root_ptr.to_owned(),
                 });
             }
             entry => {
-                entry.or_insert(ptr.to_owned());
+                entry.or_insert(root_ptr.to_owned());
                 Ok(())
             }
         };
@@ -214,7 +214,7 @@ impl Draft {
                 let (_, frag) = split(id);
                 let Ok(anchor) = frag.to_anchor() else {
                     let mut url = root_url.clone();
-                    url.set_fragment(Some(ptr));
+                    url.set_fragment(Some(root_ptr));
                     return Err(CompileError::ParseAnchorError { loc: url.into() });
                 };
                 if let Some(anchor) = anchor {
@@ -241,15 +241,15 @@ impl Draft {
     pub(crate) fn collect_resources(
         &self,
         sch: &Value,
-        base: &Url,  // base of json
-        ptr: String, // ptr of json
+        base: &Url,       // base of json
+        root_ptr: String, // ptr of json
         root_url: &Url,
         resources: &mut HashMap<String, Resource>,
     ) -> Result<(), CompileError> {
         if let Value::Bool(_) = sch {
-            if ptr.is_empty() {
+            if root_ptr.is_empty() {
                 // root resource
-                resources.insert(ptr, Resource::new(base.clone()));
+                resources.insert(root_ptr, Resource::new(base.clone()));
             }
             return Ok(());
         }
@@ -266,20 +266,20 @@ impl Draft {
             let (id, _) = split(id);
             let Ok(id) = base.join(id) else {
                 let mut url = base.clone();
-                url.set_fragment(Some(&ptr));
+                url.set_fragment(Some(&root_ptr));
                 return Err(CompileError::ParseIdError { loc: url.into() });
             };
-            resources.insert(ptr.clone(), Resource::new(id.clone()));
+            resources.insert(root_ptr.clone(), Resource::new(id.clone()));
             tmp = id;
             base = &tmp;
-        } else if ptr.is_empty() {
+        } else if root_ptr.is_empty() {
             // root resource
-            resources.insert(ptr.clone(), Resource::new(base.clone()));
+            resources.insert(root_ptr.clone(), Resource::new(base.clone()));
         }
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
-            self.collect_anchors(sch, &ptr, res, root_url)?;
+            self.collect_anchors(sch, &root_ptr, res, root_url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
@@ -289,13 +289,13 @@ impl Draft {
                 continue;
             };
             if pos & POS_SELF != 0 {
-                let ptr = format!("{ptr}/{kw}");
+                let ptr = format!("{root_ptr}/{kw}");
                 self.collect_resources(v, base, ptr, root_url, resources)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
-                        let ptr = format!("{ptr}/{kw}/{i}");
+                        let ptr = format!("{root_ptr}/{kw}/{i}");
                         self.collect_resources(item, base, ptr, root_url, resources)?;
                     }
                 }
@@ -303,7 +303,7 @@ impl Draft {
             if pos & POS_PROP != 0 {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
-                        let ptr = format!("{ptr}/{kw}/{}", escape(pname));
+                        let ptr = format!("{root_ptr}/{kw}/{}", escape(pname));
                         self.collect_resources(pvalue, base, ptr, root_url, resources)?;
                     }
                 }
