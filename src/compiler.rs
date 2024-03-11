@@ -910,7 +910,7 @@ impl Display for CompileError {
                     write!(f, "invalid $schema in {url}")
                 }
             }
-            Self::UnsupportedDraft { url } => write!(f, "draft {url} is unsupported"),
+            Self::UnsupportedDraft { url } => write!(f, "draft {url} is not supported"),
             Self::MetaSchemaCycle { url } => {
                 write!(f, "cycle in resolving $schema in {url}")
             }
