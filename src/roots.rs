@@ -83,12 +83,11 @@ impl Roots {
             if let Some(r) = self.map.get(&sch) {
                 return Ok((r.draft, r.get_reqd_vocabs()?));
             }
+            if sch == url {
+                return Err(UnsupportedDraft { url: sch.into() });
+            }
             if !cycle.insert(sch.clone()) {
-                if sch == url {
-                    return Err(UnsupportedDraft { url: sch.into() });
-                } else {
-                    return Err(MetaSchemaCycle { url: sch.into() });
-                }
+                return Err(MetaSchemaCycle { url: sch.into() });
             }
             let doc = self.loader.load(&sch)?;
             let meta_root = &self.add_root(cycle, sch, doc)?;
