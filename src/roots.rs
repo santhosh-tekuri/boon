@@ -101,7 +101,7 @@ impl Roots {
             m
         };
 
-        if !url.as_str().contains("//json-schema.org/") {
+        if !matches!(url.host_str(), Some("json-schema.org")) {
             if let Some(std_sch) = draft.get_schema() {
                 STD_METASCHEMAS.validate(&doc, std_sch).map_err(|src| {
                     CompileError::ValidationError {
