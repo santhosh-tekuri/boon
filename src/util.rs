@@ -1,7 +1,7 @@
 use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, str::Utf8Error};
 
 use ahash::AHasher;
-use percent_encoding::percent_decode_str;
+use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
 use serde_json::Value;
 use url::Url;
 
@@ -106,6 +106,18 @@ pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
         tilde = i;
     }
     Ok(Cow::Owned(s))
+}
+
+pub(crate) fn percent_encode(frag: &str) -> String {
+    // https://url.spec.whatwg.org/#fragment-percent-encode-set
+    const FRAGMENT: &AsciiSet = &CONTROLS
+        .add(b'%')
+        .add(b' ')
+        .add(b'"')
+        .add(b'<')
+        .add(b'>')
+        .add(b'`');
+    percent_encoding::utf8_percent_encode(frag, FRAGMENT).to_string()
 }
 
 pub(crate) struct Fragment<'a>(&'a str);
