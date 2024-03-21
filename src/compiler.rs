@@ -702,7 +702,12 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
-                    let loc = format!("{}/{pname}/{}", self.loc, escape(k));
+                    let loc = format!(
+                        "{}/{}/{}",
+                        self.loc,
+                        percent_encode(&escape(pname)),
+                        percent_encode(&escape(k))
+                    );
                     (k.clone(), self.schemas.enqueue(self.queue, loc))
                 })
                 .collect()
