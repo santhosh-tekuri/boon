@@ -668,13 +668,13 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 // enqueue helpers
 impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     fn enqueue_path(&mut self, path: String) -> SchemaIndex {
-        let loc = format!("{}/{path}", self.loc); // todo: path needs url-encode
+        let loc = format!("{}/{}", self.loc, percent_encode(&path));
         self.schemas.enqueue(self.queue, loc)
     }
 
     fn enqueue_prop(&mut self, pname: &'static str) -> Option<SchemaIndex> {
         if self.obj.contains_key(pname) {
-            let loc = format!("{}/{pname}", self.loc);
+            let loc = format!("{}/{}", self.loc, percent_encode(&escape(pname)));
             Some(self.schemas.enqueue(self.queue, loc))
         } else {
             None
