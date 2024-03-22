@@ -274,6 +274,22 @@ mod tests {
     }
 
     #[test]
+    fn test_unescape() {
+        let tests = [
+            ("bar~0", Some("bar~")),
+            ("bar~1", Some("bar/")),
+            ("bar~01", Some("bar~1")),
+            ("bar~", None),
+            ("bar~~", None),
+        ];
+        for (tok, want) in tests {
+            let res = unescape(tok).ok();
+            let got = res.as_ref().map(|c| c.as_ref());
+            assert_eq!(got, want, "unescape({:?})", tok)
+        }
+    }
+
+    #[test]
     fn test_equals() {
         let tests = [["1.0", "1"], ["-1.0", "-1"]];
         for [a, b] in tests {
