@@ -316,7 +316,8 @@ impl Compiler {
                     let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
                         "dynamicAnchor must be collected in resource".into(),
                     ))?;
-                    let danchor_sch = schemas.enqueue(queue, format!("{url}#{danchor_ptr}"));
+                    let danchor_sch =
+                        schemas.enqueue(queue, format!("{}#{}", url, percent_encode(danchor_ptr)));
                     s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
                 }
             }
