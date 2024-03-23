@@ -685,7 +685,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if let Some(Value::Array(arr)) = self.obj.get(pname) {
             (0..arr.len())
                 .map(|i| {
-                    let loc = format!("{}/{pname}/{i}", self.loc);
+                    let loc = format!("{}/{}/{i}", self.loc, percent_encode(&escape(pname)));
                     self.schemas.enqueue(self.queue, loc)
                 })
                 .collect()
