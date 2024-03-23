@@ -182,19 +182,15 @@ impl Compiler {
 
     The argument `loc` can be file path or url. any fragment in `url` is ignored.
 
-    If resource with same `url` already loaded, it returns `false`.
-
     # Errors
 
-    returns [`CompileError`] if basic validations fail, such as
-    - url parsing
-    - duplicate anchor or id
-    - metaschema resolution etc
+    returns [`CompileError`] if url parsing failed.
     */
-    pub fn add_resource(&mut self, mut url: &str, json: Value) -> Result<bool, CompileError> {
+    pub fn add_resource(&mut self, mut url: &str, json: Value) -> Result<(), CompileError> {
         (url, _) = split(url); // strip fragment if any
         let url = to_url(url)?;
-        self.roots.or_insert(url, json)
+        self.roots.loader.add_resource(url, json);
+        Ok(())
     }
 
     /**

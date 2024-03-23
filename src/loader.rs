@@ -32,21 +32,31 @@ impl UrlLoader for FileLoader {
 
 // --
 
-pub(crate) struct DefaultUrlLoader(HashMap<&'static str, Box<dyn UrlLoader>>);
+pub(crate) struct DefaultUrlLoader {
+    resources: HashMap<Url, Value>,
+    loaders: HashMap<&'static str, Box<dyn UrlLoader>>,
+}
 
 impl DefaultUrlLoader {
     pub fn new() -> Self {
-        let mut v = Self(Default::default());
+        let mut v = Self {
+            resources: Default::default(),
+            loaders: Default::default(),
+        };
         #[cfg(not(target_arch = "wasm32"))]
-        v.0.insert("file", Box::new(FileLoader));
+        v.loaders.insert("file", Box::new(FileLoader));
         v
     }
 
-    pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
-        self.0.insert(schema, loader);
+    pub fn add_resource(&mut self, url: Url, json: Value) {
+        self.resources.insert(url, json);
     }
 
-    pub(crate) fn load(&self, url: &Url) -> Result<Value, CompileError> {
+    pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
+        self.loaders.insert(schema, loader);
+    }
+
+    pub(crate) fn load(&mut self, url: &Url) -> Result<Value, CompileError> {
         // check in STD_METAFILES
         let meta = url
             .as_str()
@@ -63,7 +73,11 @@ impl DefaultUrlLoader {
             }
         }
 
-        match self.0.get(url.scheme()) {
+        if let Some(v) = self.resources.remove(url) {
+            return Ok(v);
+        }
+
+        match self.loaders.get(url.scheme()) {
             Some(loader) => loader
                 .load(url.as_str())
                 .map_err(|src| CompileError::LoadUrlError {

@@ -40,16 +40,6 @@ impl Roots {
         self.map.get(url)
     }
 
-    pub(crate) fn or_insert(&mut self, mut url: Url, doc: Value) -> Result<bool, CompileError> {
-        url.set_fragment(None);
-        if !self.map.contains_key(&url) {
-            self.add_root(HashSet::new(), url, doc)?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
     pub(crate) fn or_load(&mut self, url: Url) -> Result<(), CompileError> {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
         if !self.map.contains_key(&url) {
