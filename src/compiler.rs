@@ -252,21 +252,29 @@ impl Compiler {
         while queue.schemas.len() > compiled.len() {
             let loc = &queue.schemas[compiled.len()];
             let (url, frag) = split(loc);
-            let root = {
-                let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
-                    url: url.to_owned(),
-                    src: e.into(),
-                })?;
-                self.roots.or_load(url.clone())?;
-                self.roots
-                    .get(&url)
-                    .ok_or(CompileError::Bug("or_load didn't add".into()))?
-            };
-            debug_assert!(!frag.is_anchor(), "ony non-achors should be in queue");
-            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+            let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
                 url: url.to_owned(),
                 src: e.into(),
             })?;
+            debug_assert!(!frag.is_anchor(), "ony non-achors should be in queue");
+            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
+                url: url.to_string(),
+                src: e.into(),
+            })?;
+
+            self.roots.or_load(url.clone())?;
+            let root = self
+                .roots
+                .get_mut(&url)
+                .ok_or(CompileError::Bug("or_load didn't add".into()))?;
+            if !root.draft.is_subschema(ptr.as_ref()) {
+                root.add_subschema(ptr.as_ref())?;
+            }
+            let root = self
+                .roots
+                .get(&url)
+                .ok_or(CompileError::Bug("or_load didn't add".into()))?;
+
             let v = root
                 .lookup_ptr(ptr.as_ref())
                 .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;

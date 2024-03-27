@@ -40,6 +40,10 @@ impl Roots {
         self.map.get(url)
     }
 
+    pub(crate) fn get_mut(&mut self, url: &Url) -> Option<&mut Root> {
+        self.map.get_mut(url)
+    }
+
     pub(crate) fn or_load(&mut self, url: Url) -> Result<(), CompileError> {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
         if !self.map.contains_key(&url) {

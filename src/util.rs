@@ -1,4 +1,4 @@
-use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, str::Utf8Error};
+use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, str::FromStr, str::Utf8Error};
 
 use ahash::AHasher;
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
@@ -208,6 +208,34 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
     }
 }
 
+pub(crate) fn lookup_ptr<'a>(mut v: &'a Value, ptr: &str) -> Result<Option<&'a Value>, ()> {
+    debug_assert!(
+        ptr.is_empty() || ptr.starts_with('/'),
+        "lookup_ptr: {ptr} is not json-pointer"
+    );
+    for tok in ptr.split('/').skip(1) {
+        let tok = unescape(tok)?;
+        match v {
+            Value::Object(obj) => {
+                if let Some(pvalue) = obj.get(tok.as_ref()) {
+                    v = pvalue;
+                    continue;
+                }
+            }
+            Value::Array(arr) => {
+                if let Ok(i) = usize::from_str(tok.as_ref()) {
+                    if let Some(item) = arr.get(i) {
+                        v = item;
+                        continue;
+                    }
+                };
+            }
+            _ => {}
+        }
+        return Ok(None);
+    }
+    Ok(Some(v))
+}
 // HashedValue --
 
 // Based on implementation proposed by Sven Marnach:

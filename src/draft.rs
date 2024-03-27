@@ -1,4 +1,8 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    str::FromStr,
+    usize,
+};
 
 use once_cell::sync::Lazy;
 use serde_json::{Map, Value};
@@ -179,7 +183,7 @@ impl Draft {
 
     // collects anchors/dynamic_achors from `sch` into `res`.
     // note this does not collect from subschemas in sch.
-    fn collect_anchors(
+    pub(crate) fn collect_anchors(
         &self,
         sch: &Value,
         root_ptr: &str,
@@ -192,6 +196,10 @@ impl Draft {
 
         let mut add_anchor = |anchor: String| match res.anchors.entry(anchor) {
             Entry::Occupied(entry) => {
+                if entry.get() == root_ptr {
+                    // anchor with same root_ptr already exists
+                    return Ok(());
+                }
                 return Err(CompileError::DuplicateAnchor {
                     url: root_url.as_str().to_owned(),
                     anchor: entry.key().to_owned(),
@@ -246,6 +254,10 @@ impl Draft {
         root_url: &Url,
         resources: &mut HashMap<String, Resource>,
     ) -> Result<(), CompileError> {
+        if resources.contains_key(&root_ptr) {
+            // resources are already collected
+            return Ok(());
+        }
         if let Value::Bool(_) = sch {
             if root_ptr.is_empty() {
                 // root resource
@@ -310,6 +322,44 @@ impl Draft {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn is_subschema(&self, ptr: &str) -> bool {
+        if ptr.is_empty() {
+            return true;
+        }
+
+        fn split(ptr: &str) -> (&str, &str) {
+            if let Some(i) = ptr[1..].find('/') {
+                (&ptr[1..i + 1], &ptr[1 + i..])
+            } else {
+                (&ptr[1..], "")
+            }
+        }
+
+        let (token, ptr) = split(ptr);
+
+        if let Some(&pos) = self.subschemas.get(token) {
+            if pos & POS_SELF != 0 && self.is_subschema(ptr) {
+                return true;
+            }
+            if !ptr.is_empty() {
+                if pos & POS_PROP != 0 {
+                    let (_, ptr) = split(ptr);
+                    if self.is_subschema(ptr) {
+                        return true;
+                    }
+                }
+                if pos & POS_ITEM != 0 {
+                    let (tok, ptr) = split(ptr);
+                    if usize::from_str(tok).is_ok() && self.is_subschema(ptr) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -452,5 +502,14 @@ mod tests {
             want.insert("c2".into(), "/$defs/s2/items/1/items/1".into());
             want
         });
+    }
+
+    #[test]
+    fn test_is_subschema() {
+        let tests = vec![("/allOf/0", true)];
+        for test in tests {
+            let got = DRAFT2020.is_subschema(test.0);
+            assert_eq!(got, test.1, "{}", test.0);
+        }
     }
 }

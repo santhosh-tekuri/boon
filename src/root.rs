@@ -1,9 +1,10 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::collections::{HashMap, HashSet};
 
-use crate::{compiler::CompileError, draft::*, util::*};
+use crate::{
+    compiler::CompileError,
+    draft::*,
+    util::{self, *},
+};
 
 use serde_json::Value;
 use url::Url;
@@ -106,33 +107,7 @@ impl Root {
     }
 
     pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, ()> {
-        debug_assert!(
-            ptr.is_empty() || ptr.starts_with('/'),
-            "lookup_ptr: {ptr} is not json-pointer"
-        );
-        let mut v = &self.doc;
-        for tok in ptr.split('/').skip(1) {
-            let tok = unescape(tok)?;
-            match v {
-                Value::Object(obj) => {
-                    if let Some(pvalue) = obj.get(tok.as_ref()) {
-                        v = pvalue;
-                        continue;
-                    }
-                }
-                Value::Array(arr) => {
-                    if let Ok(i) = usize::from_str(tok.as_ref()) {
-                        if let Some(item) = arr.get(i) {
-                            v = item;
-                            continue;
-                        }
-                    };
-                }
-                _ => {}
-            }
-            return Ok(None);
-        }
-        Ok(Some(v))
+        util::lookup_ptr(&self.doc, ptr)
     }
 
     pub(crate) fn get_reqd_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
@@ -164,6 +139,40 @@ impl Root {
             }
         }
         Ok(Some(vocabs))
+    }
+
+    pub(crate) fn add_subschema(&mut self, ptr: &str) -> Result<(), CompileError> {
+        let v = util::lookup_ptr(&self.doc, ptr).map_err(|_| {
+            CompileError::InvalidJsonPointer(format!("{}#{}", self.url, percent_encode(ptr)))
+        })?;
+        let Some(v) = v else {
+            let loc = format!("{}#{}", self.url, percent_encode(ptr));
+            return Err(CompileError::JsonPointerNotFound(loc))?;
+        };
+        let base_url = self.base_url(ptr).clone();
+        self.draft.collect_resources(
+            v,
+            &base_url,
+            ptr.to_string(),
+            &self.url,
+            &mut self.resources,
+        )?;
+        if !self.resources.contains_key(ptr) {
+            if let Some(res) = self.resource(ptr) {
+                if let Some(res_ptr) = self
+                    .resources
+                    .iter()
+                    .find(|(_, v)| v.id == res.id)
+                    .map(|(k, _)| k)
+                {
+                    if let Some(res) = self.resources.get_mut(&res_ptr.to_string()) {
+                        self.draft
+                            .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 

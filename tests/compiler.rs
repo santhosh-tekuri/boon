@@ -51,3 +51,37 @@ fn test_compile_anchor() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_compile_nonstd() -> Result<(), Box<dyn Error>> {
+    let schema = json!({
+        "components": {
+            "schemas": {
+                "foo" : {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "$defs": {
+                        "x": {
+                            "$anchor": "a",
+                            "type": "number"
+                        },
+                        "y": {
+                            "$id": "http://temp.com/y",
+                            "type": "string"
+                        }
+                    },
+                    "oneOf": [
+                        { "$ref": "#a" },
+                        { "$ref": "http://temp.com/y" },
+                    ]
+                }
+            }
+        }
+    });
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler.add_resource("schema.json", schema)?;
+    compiler.compile("schema.json#/components/schemas/foo", &mut schemas)?;
+
+    Ok(())
+}
