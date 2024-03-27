@@ -325,17 +325,14 @@ impl Compiler {
                 url: loc.to_owned(),
                 src: e.into(),
             })?;
-            if let Some(res) = root.resource(ptr.as_ref()) {
-                for danchor in &res.dynamic_anchors {
-                    let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
-                        "dynamicAnchor must be collected in resource".into(),
-                    ))?;
-                    let danchor_sch = queue.enqueue_schema(
-                        schemas,
-                        format!("{}#{}", url, percent_encode(danchor_ptr)),
-                    );
-                    s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
-                }
+            let res = root.resource(ptr.as_ref());
+            for danchor in &res.dynamic_anchors {
+                let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
+                    "dynamicAnchor must be collected in resource".into(),
+                ))?;
+                let danchor_sch = queue
+                    .enqueue_schema(schemas, format!("{}#{}", url, percent_encode(danchor_ptr)));
+                s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
             }
         }
 

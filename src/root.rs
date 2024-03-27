@@ -86,24 +86,21 @@ impl Root {
         }
     }
 
-    pub(crate) fn resource(&self, mut ptr: &str) -> Option<&Resource> {
+    pub(crate) fn resource(&self, mut ptr: &str) -> &Resource {
         loop {
             if let Some(res) = self.resources.get(ptr) {
-                return Some(res);
+                return res;
             }
             let Some(slash) = ptr.rfind('/') else {
                 break;
             };
             ptr = &ptr[..slash];
         }
-        None
+        self.resources.get("").expect("root resource should exist")
     }
 
     pub(crate) fn base_url(&self, ptr: &str) -> &Url {
-        if let Some(Resource { id, .. }) = self.resource(ptr) {
-            return id;
-        }
-        &self.url
+        &self.resource(ptr).id
     }
 
     pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, ()> {
@@ -158,11 +155,10 @@ impl Root {
             &mut self.resources,
         )?;
         if !self.resources.contains_key(ptr) {
-            if let Some(res) = self.resource(ptr) {
-                if let Some(res) = self.resources.get_mut(&res.ptr.to_string()) {
-                    self.draft
-                        .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
-                }
+            let res = self.resource(ptr);
+            if let Some(res) = self.resources.get_mut(&res.ptr.to_string()) {
+                self.draft
+                    .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
             }
         }
         Ok(())
