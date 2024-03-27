@@ -226,18 +226,32 @@ impl Compiler {
     ) -> Result<SchemaIndex, CompileError> {
         debug_assert!(loc.contains('#'));
 
-        let mut queue = vec![];
-        let mut compiled = vec![];
+        let mut queue = Queue::new();
+        let mut compiled = Vec::new();
 
-        let index = target.enqueue(&mut queue, loc);
-        if queue.is_empty() {
+        // resolve anchor
+        let (url, _) = split(loc.as_str());
+        let root = {
+            let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
+                url: url.to_owned(),
+                src: e.into(),
+            })?;
+            self.roots.or_load(url.clone())?;
+            self.roots
+                .get(&url)
+                .ok_or(CompileError::Bug("or_load didn't add".into()))?
+        };
+        let loc = root.resolve(&loc)?;
+
+        let index = queue.enqueue_schema(target, loc);
+        if queue.schemas.is_empty() {
             // already got compiled
             return Ok(index);
         }
 
-        while queue.len() > compiled.len() {
-            let mut loc = &queue[compiled.len()];
-            let (url, mut frag) = split(loc);
+        while queue.schemas.len() > compiled.len() {
+            let loc = &queue.schemas[compiled.len()];
+            let (url, frag) = split(loc);
             let root = {
                 let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
                     url: url.to_owned(),
@@ -248,14 +262,7 @@ impl Compiler {
                     .get(&url)
                     .ok_or(CompileError::Bug("or_load didn't add".into()))?
             };
-            let tmp;
-            if frag.is_anchor() {
-                tmp = root.resolve(loc)?;
-                loc = &tmp;
-                let (prefix, suffix) = split(loc);
-                debug_assert_eq!(prefix, url);
-                frag = suffix;
-            }
+            debug_assert!(!frag.is_anchor(), "ony non-achors should be in queue");
             let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
                 url: url.to_owned(),
                 src: e.into(),
@@ -269,9 +276,10 @@ impl Compiler {
 
             let sch = self.compile_value(target, v, &loc.to_owned(), root, &mut queue)?;
             compiled.push(sch);
+            self.roots.insert(&mut queue.roots);
         }
 
-        target.insert(queue, compiled);
+        target.insert(queue.schemas, compiled);
         Ok(index)
     }
 
@@ -281,13 +289,15 @@ impl Compiler {
         v: &Value,
         loc: &str,
         root: &Root,
-        queue: &mut Vec<String>,
+        queue: &mut Queue,
     ) -> Result<Schema, CompileError> {
         let mut s = Schema::new(loc.to_owned());
         s.draft_version = root.draft.version;
 
         // we know it is already in queue, we just want to get its index
-        s.idx = schemas.enqueue(queue, loc.to_owned());
+        let len = queue.schemas.len();
+        s.idx = queue.enqueue_schema(schemas, loc.to_owned());
+        debug_assert_eq!(queue.schemas.len(), len, "{loc} should already be in queue");
 
         s.resource = {
             let (_, frag) = split(loc);
@@ -297,7 +307,7 @@ impl Compiler {
             })?;
             let base = root.base_url(ptr.as_ref());
             let base_loc = root.resolve(base.as_str())?;
-            schemas.enqueue(queue, base_loc)
+            queue.enqueue_schema(schemas, base_loc)
         };
 
         // if resource, enqueue dynamicAnchors for compilation
@@ -312,8 +322,10 @@ impl Compiler {
                     let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
                         "dynamicAnchor must be collected in resource".into(),
                     ))?;
-                    let danchor_sch =
-                        schemas.enqueue(queue, format!("{}#{}", url, percent_encode(danchor_ptr)));
+                    let danchor_sch = queue.enqueue_schema(
+                        schemas,
+                        format!("{}#{}", url, percent_encode(danchor_ptr)),
+                    );
                     s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
                 }
             }
@@ -361,7 +373,7 @@ struct ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     loc: &'l str,
     schemas: &'s Schemas,
     root: &'r Root,
-    queue: &'q mut Vec<String>,
+    queue: &'q mut Queue,
 }
 
 // compile supported drafts
@@ -664,15 +676,19 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
 // enqueue helpers
 impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+    fn enqueue_schema(&mut self, loc: String) -> SchemaIndex {
+        self.queue.enqueue_schema(self.schemas, loc)
+    }
+
     fn enqueue_path(&mut self, path: String) -> SchemaIndex {
         let loc = format!("{}/{}", self.loc, percent_encode(&path));
-        self.schemas.enqueue(self.queue, loc)
+        self.enqueue_schema(loc)
     }
 
     fn enqueue_prop(&mut self, pname: &'static str) -> Option<SchemaIndex> {
         if self.obj.contains_key(pname) {
             let loc = format!("{}/{}", self.loc, percent_encode(&escape(pname)));
-            Some(self.schemas.enqueue(self.queue, loc))
+            Some(self.enqueue_schema(loc))
         } else {
             None
         }
@@ -683,7 +699,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             (0..arr.len())
                 .map(|i| {
                     let loc = format!("{}/{}/{i}", self.loc, percent_encode(&escape(pname)));
-                    self.schemas.enqueue(self.queue, loc)
+                    self.enqueue_schema(loc)
                 })
                 .collect()
         } else {
@@ -705,7 +721,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                         percent_encode(&escape(pname)),
                         percent_encode(&escape(k))
                     );
-                    (k.clone(), self.schemas.enqueue(self.queue, loc))
+                    (k.clone(), self.enqueue_schema(loc))
                 })
                 .collect()
         } else {
@@ -730,19 +746,21 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         })?;
         let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
 
-        // handle if external anchor
-        let (url, frag) = split(&resolved_ref);
-        if frag.is_anchor() {
-            let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
-                url: url.to_owned(),
-                src: e.into(),
-            })?;
-            if let Some(root) = self.c.roots.get(&url) {
-                resolved_ref = root.resolve(abs_ref.as_str())?;
-            }
-        }
+        resolved_ref = self.queue.resolve_anchor(resolved_ref, &self.c.roots)?;
 
-        Ok(Some(self.schemas.enqueue(self.queue, resolved_ref)))
+        // handle if external anchor
+        // let (url, frag) = split(&resolved_ref);
+        // if frag.is_anchor() {
+        //     let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
+        //         url: url.to_owned(),
+        //         src: e.into(),
+        //     })?;
+        //     if let Some(root) = self.c.roots.get(&url) {
+        //         resolved_ref = root.resolve(abs_ref.as_str())?;
+        //     }
+        // }
+
+        Ok(Some(self.enqueue_schema(resolved_ref)))
     }
 
     fn enquue_additional(&mut self, pname: &'static str) -> Option<Additional> {
@@ -985,5 +1003,62 @@ fn to_strings(v: &Value) -> Vec<String> {
             .collect()
     } else {
         vec![]
+    }
+}
+
+pub(crate) struct Queue {
+    pub(crate) schemas: Vec<String>,
+    pub(crate) roots: HashMap<Url, Root>,
+}
+
+impl Queue {
+    fn new() -> Self {
+        Self {
+            schemas: vec![],
+            roots: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn resolve_anchor(
+        &mut self,
+        loc: String,
+        roots: &Roots,
+    ) -> Result<String, CompileError> {
+        let (url, frag) = split(&loc);
+        if frag.is_anchor() {
+            let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
+                url: url.to_owned(),
+                src: e.into(),
+            })?;
+            if let Some(root) = roots.get(&url).or_else(|| self.roots.get(&url)) {
+                return root.resolve(&loc);
+            }
+            let root = roots.enqueue_root(url, &mut self.roots)?;
+            return root.resolve(&loc);
+        }
+        Ok(loc)
+    }
+
+    pub(crate) fn enqueue_schema(&mut self, schemas: &Schemas, mut loc: String) -> SchemaIndex {
+        if loc.rfind('#').is_none() {
+            loc.push('#');
+        }
+
+        // handle if external anchor
+        let (_, frag) = split(&loc);
+        debug_assert!(!frag.is_anchor(), "anchor {loc} should not be enqueued");
+
+        if let Some(sch) = schemas.get_by_loc(&loc) {
+            // already got compiled
+            return sch.idx;
+        }
+        if let Some(qindex) = self.schemas.iter().position(|e| *e == loc) {
+            // already queued for compilation
+            return SchemaIndex(schemas.size() + qindex);
+        }
+
+        // new compilation request
+        self.schemas.push(loc);
+        SchemaIndex(schemas.size() + self.schemas.len() - 1)
     }
 }

@@ -29,3 +29,25 @@ fn test_metaschema_resource() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_compile_anchor() -> Result<(), Box<dyn Error>> {
+    let schema = json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {
+            "x": {
+                "$anchor": "a1",
+                "type": "number"
+            }
+        }
+    });
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler.add_resource("schema.json", schema)?;
+    let sch_index1 = compiler.compile("schema.json#a1", &mut schemas)?;
+    let sch_index2 = compiler.compile("schema.json#/$defs/x", &mut schemas)?;
+    assert_eq!(sch_index1, sch_index2);
+
+    Ok(())
+}

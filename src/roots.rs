@@ -44,23 +44,34 @@ impl Roots {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
         if !self.map.contains_key(&url) {
             let doc = self.loader.load(&url)?;
-            self.add_root(HashSet::new(), url, doc)?;
+            Roots::add_root(
+                self.default_draft,
+                &HashMap::new(),
+                &mut self.map,
+                &self.loader,
+                HashSet::new(),
+                url,
+                doc,
+            )?;
         }
         Ok(())
     }
 
-    fn add_root(
-        &mut self,
+    fn add_root<'a>(
+        default_draft: &'static Draft,
+        rmap: &HashMap<Url, Root>,
+        wmap: &'a mut HashMap<Url, Root>,
+        loader: &DefaultUrlLoader,
         mut cycle: HashSet<Url>,
         url: Url,
         doc: Value,
-    ) -> Result<&Root, CompileError> {
+    ) -> Result<&'a Root, CompileError> {
         let (draft, vocabs) = (|| {
             let Value::Object(obj) = &doc else {
-                return Ok((self.default_draft, None));
+                return Ok((default_draft, None));
             };
             let Some(Value::String(sch)) = obj.get("$schema") else {
-                return Ok((self.default_draft, None));
+                return Ok((default_draft, None));
             };
             if let Some(draft) = Draft::from_url(sch) {
                 return Ok((draft, None));
@@ -70,7 +81,10 @@ impl Roots {
                 url: url.as_str().to_owned(),
                 src: e.into(),
             })?;
-            if let Some(r) = self.map.get(&sch) {
+            if let Some(r) = rmap.get(&sch) {
+                return Ok((r.draft, r.get_reqd_vocabs()?));
+            }
+            if let Some(r) = wmap.get(&sch) {
                 return Ok((r.draft, r.get_reqd_vocabs()?));
             }
             if sch == url {
@@ -79,8 +93,8 @@ impl Roots {
             if !cycle.insert(sch.clone()) {
                 return Err(MetaSchemaCycle { url: sch.into() });
             }
-            let doc = self.loader.load(&sch)?;
-            let meta_root = &self.add_root(cycle, sch, doc)?;
+            let doc = loader.load(&sch)?;
+            let meta_root = Roots::add_root(default_draft, rmap, wmap, loader, cycle, sch, doc)?;
             Ok((meta_root.draft, meta_root.get_reqd_vocabs()?))
         })()?;
 
@@ -114,6 +128,27 @@ impl Roots {
         };
         r.check_duplicate_id()?;
 
-        Ok(self.map.entry(url).or_insert(r))
+        Ok(wmap.entry(url).or_insert(r))
+    }
+
+    pub(crate) fn enqueue_root<'a>(
+        &self,
+        url: Url,
+        target: &'a mut HashMap<Url, Root>,
+    ) -> Result<&'a Root, CompileError> {
+        let doc = self.loader.load(&url)?;
+        Self::add_root(
+            self.default_draft,
+            &self.map,
+            target,
+            &self.loader,
+            HashSet::new(),
+            url,
+            doc,
+        )
+    }
+
+    pub(crate) fn insert(&mut self, roots: &mut HashMap<Url, Root>) {
+        self.map.extend(roots.drain());
     }
 }

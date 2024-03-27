@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error};
+use std::{cell::RefCell, collections::HashMap, error::Error};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs::File;
@@ -33,7 +33,7 @@ impl UrlLoader for FileLoader {
 // --
 
 pub(crate) struct DefaultUrlLoader {
-    resources: HashMap<Url, Value>,
+    resources: RefCell<HashMap<Url, Value>>,
     loaders: HashMap<&'static str, Box<dyn UrlLoader>>,
 }
 
@@ -49,14 +49,14 @@ impl DefaultUrlLoader {
     }
 
     pub fn add_resource(&mut self, url: Url, json: Value) {
-        self.resources.insert(url, json);
+        self.resources.get_mut().insert(url, json);
     }
 
     pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
         self.loaders.insert(schema, loader);
     }
 
-    pub(crate) fn load(&mut self, url: &Url) -> Result<Value, CompileError> {
+    pub(crate) fn load(&self, url: &Url) -> Result<Value, CompileError> {
         // check in STD_METAFILES
         let meta = url
             .as_str()
@@ -73,7 +73,7 @@ impl DefaultUrlLoader {
             }
         }
 
-        if let Some(v) = self.resources.remove(url) {
+        if let Some(v) = self.resources.borrow_mut().remove(url) {
             return Ok(v);
         }
 

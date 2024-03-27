@@ -148,25 +148,6 @@ impl Schemas {
         Self::default()
     }
 
-    fn enqueue(&self, queue: &mut Vec<String>, mut loc: String) -> SchemaIndex {
-        if loc.rfind('#').is_none() {
-            loc.push('#');
-        }
-
-        if let Some(&index) = self.map.get(&loc) {
-            // already got compiled
-            return SchemaIndex(index);
-        }
-        if let Some(qindex) = queue.iter().position(|e| *e == loc) {
-            // already queued for compilation
-            return SchemaIndex(self.list.len() + qindex);
-        }
-
-        // new compilation request
-        queue.push(loc);
-        SchemaIndex(self.list.len() + queue.len() - 1)
-    }
-
     fn insert(&mut self, locs: Vec<String>, compiled: Vec<Schema>) {
         for (loc, sch) in locs.into_iter().zip(compiled.into_iter()) {
             let i = self.list.len();
@@ -192,6 +173,10 @@ impl Schemas {
     /// Returns true if `sch_index` is generated for this instance.
     pub fn contains(&self, sch_index: SchemaIndex) -> bool {
         self.list.get(sch_index.0).is_some()
+    }
+
+    pub fn size(&self) -> usize {
+        self.list.len()
     }
 
     /**
