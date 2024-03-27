@@ -159,16 +159,9 @@ impl Root {
         )?;
         if !self.resources.contains_key(ptr) {
             if let Some(res) = self.resource(ptr) {
-                if let Some(res_ptr) = self
-                    .resources
-                    .iter()
-                    .find(|(_, v)| v.id == res.id)
-                    .map(|(k, _)| k)
-                {
-                    if let Some(res) = self.resources.get_mut(&res_ptr.to_string()) {
-                        self.draft
-                            .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
-                    }
+                if let Some(res) = self.resources.get_mut(&res.ptr.to_string()) {
+                    self.draft
+                        .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
                 }
             }
         }
@@ -178,14 +171,16 @@ impl Root {
 
 #[derive(Debug)]
 pub(crate) struct Resource {
+    pub(crate) ptr: String, // from root
     pub(crate) id: Url,
     pub(crate) anchors: HashMap<String, String>, // anchor => ptr
     pub(crate) dynamic_anchors: HashSet<String>,
 }
 
 impl Resource {
-    pub(crate) fn new(id: Url) -> Self {
+    pub(crate) fn new(ptr: String, id: Url) -> Self {
         Self {
+            ptr,
             id,
             anchors: HashMap::new(),
             dynamic_anchors: HashSet::new(),

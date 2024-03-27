@@ -261,7 +261,7 @@ impl Draft {
         if let Value::Bool(_) = sch {
             if root_ptr.is_empty() {
                 // root resource
-                resources.insert(root_ptr, Resource::new(base.clone()));
+                resources.insert(root_ptr.clone(), Resource::new(root_ptr, base.clone()));
             }
             return Ok(());
         }
@@ -281,12 +281,18 @@ impl Draft {
                 url.set_fragment(Some(&root_ptr));
                 return Err(CompileError::ParseIdError { loc: url.into() });
             };
-            resources.insert(root_ptr.clone(), Resource::new(id.clone()));
+            resources.insert(
+                root_ptr.clone(),
+                Resource::new(root_ptr.clone(), id.clone()),
+            );
             tmp = id;
             base = &tmp;
         } else if root_ptr.is_empty() {
             // root resource
-            resources.insert(root_ptr.clone(), Resource::new(base.clone()));
+            resources.insert(
+                root_ptr.clone(),
+                Resource::new(root_ptr.clone(), base.clone()),
+            );
         }
 
         // collect anchors
