@@ -28,21 +28,6 @@ impl Root {
         self.draft.default_vocabs.contains(&name)
     }
 
-    pub(crate) fn check_duplicate_id(&self) -> Result<(), CompileError> {
-        let mut map = HashMap::new();
-        for (ptr, Resource { id, .. }) in &self.resources {
-            if let Some(ptr2) = map.insert(id, ptr) {
-                return Err(CompileError::DuplicateId {
-                    url: self.url.as_str().to_owned(),
-                    id: id.as_str().to_owned(),
-                    ptr1: ptr.to_owned(),
-                    ptr2: ptr2.to_owned(),
-                });
-            }
-        }
-        Ok(())
-    }
-
     // resolves `loc` to root-url#json-pointer
     pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
         let (url, frag) = split(loc);

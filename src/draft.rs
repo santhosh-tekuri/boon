@@ -274,25 +274,32 @@ impl Draft {
 
         let mut base = base;
         let tmp;
-        if let Some(Value::String(id)) = id {
+        let res = if let Some(Value::String(id)) = id {
             let (id, _) = split(id);
             let Ok(id) = base.join(id) else {
                 let mut url = base.clone();
                 url.set_fragment(Some(&root_ptr));
                 return Err(CompileError::ParseIdError { loc: url.into() });
             };
-            resources.insert(
-                root_ptr.clone(),
-                Resource::new(root_ptr.clone(), id.clone()),
-            );
             tmp = id;
             base = &tmp;
+            Some(Resource::new(root_ptr.clone(), base.clone()))
         } else if root_ptr.is_empty() {
             // root resource
-            resources.insert(
-                root_ptr.clone(),
-                Resource::new(root_ptr.clone(), base.clone()),
-            );
+            Some(Resource::new(root_ptr.clone(), base.clone()))
+        } else {
+            None
+        };
+        if let Some(res) = res {
+            if let Some(dup) = resources.values_mut().find(|res| res.id == *base) {
+                return Err(CompileError::DuplicateId {
+                    url: root_url.to_string(),
+                    id: base.to_string(),
+                    ptr1: res.ptr.to_string(),
+                    ptr2: dup.ptr.to_string(),
+                });
+            }
+            resources.insert(root_ptr.clone(), res);
         }
 
         // collect anchors

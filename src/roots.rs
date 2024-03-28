@@ -130,8 +130,6 @@ impl Roots {
             doc,
             meta_vocabs: vocabs,
         };
-        r.check_duplicate_id()?;
-
         Ok(wmap.entry(url).or_insert(r))
     }
 
