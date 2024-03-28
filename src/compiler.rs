@@ -750,20 +750,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
             }
         })?;
         let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
-
         resolved_ref = self.queue.resolve_anchor(resolved_ref, &self.c.roots)?;
-
-        // handle if external anchor
-        // let (url, frag) = split(&resolved_ref);
-        // if frag.is_anchor() {
-        //     let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
-        //         url: url.to_owned(),
-        //         src: e.into(),
-        //     })?;
-        //     if let Some(root) = self.c.roots.get(&url) {
-        //         resolved_ref = root.resolve(abs_ref.as_str())?;
-        //     }
-        // }
 
         Ok(Some(self.enqueue_schema(resolved_ref)))
     }
