@@ -140,7 +140,7 @@ pub struct SchemaIndex(usize);
 #[derive(Default)]
 pub struct Schemas {
     list: Vec<Schema>,
-    map: HashMap<String, usize>, // loc => schema-index
+    map: HashMap<UrlPtr, usize>, // loc => schema-index
 }
 
 impl Schemas {
@@ -148,11 +148,11 @@ impl Schemas {
         Self::default()
     }
 
-    fn insert(&mut self, locs: Vec<String>, compiled: Vec<Schema>) {
-        for (loc, sch) in locs.into_iter().zip(compiled.into_iter()) {
+    fn insert(&mut self, locs: Vec<UrlPtr>, compiled: Vec<Schema>) {
+        for (up, sch) in locs.into_iter().zip(compiled.into_iter()) {
             let i = self.list.len();
             self.list.push(sch);
-            self.map.insert(loc, i);
+            self.map.insert(up, i);
         }
     }
 
@@ -160,14 +160,8 @@ impl Schemas {
         &self.list[idx.0] // todo: return bug
     }
 
-    fn get_by_loc(&self, loc: &str) -> Option<&Schema> {
-        let mut loc = Cow::from(loc);
-        if loc.rfind('#').is_none() {
-            let mut s = loc.into_owned();
-            s.push('#');
-            loc = Cow::from(s);
-        }
-        self.map.get(loc.as_ref()).and_then(|&i| self.list.get(i))
+    fn get_by_loc(&self, up: &UrlPtr) -> Option<&Schema> {
+        self.map.get(up).and_then(|&i| self.list.get(i))
     }
 
     /// Returns true if `sch_index` is generated for this instance.

@@ -1,4 +1,12 @@
-use std::{borrow::Cow, env, fmt::Display, hash::Hash, hash::Hasher, str::FromStr, str::Utf8Error};
+use std::{
+    borrow::{Borrow, Cow},
+    env,
+    error::Error,
+    fmt::Display,
+    hash::Hash,
+    hash::Hasher,
+    str::FromStr,
+};
 
 use ahash::AHasher;
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
@@ -6,6 +14,306 @@ use serde_json::Value;
 use url::Url;
 
 use crate::CompileError;
+
+// --
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub(crate) struct JsonPointer(pub(crate) String);
+
+impl JsonPointer {
+    pub(crate) fn escape(token: &str) -> Cow<str> {
+        const SPECIAL: [char; 2] = ['~', '/'];
+        if token.contains(SPECIAL) {
+            token.replace('~', "~0").replace('/', "~1").into()
+        } else {
+            token.into()
+        }
+    }
+
+    pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
+        let Some(mut tilde) = token.find('~') else {
+            return Ok(Cow::Borrowed(token));
+        };
+        let mut s = String::with_capacity(token.len());
+        loop {
+            s.push_str(&token[..tilde]);
+            token = &token[tilde + 1..];
+            match token.chars().next() {
+                Some('1') => s.push('/'),
+                Some('0') => s.push('~'),
+                _ => return Err(()),
+            }
+            token = &token[1..];
+            let Some(i) = token.find('~') else {
+                s.push_str(token);
+                break;
+            };
+            tilde = i;
+        }
+        Ok(Cow::Owned(s))
+    }
+
+    pub(crate) fn lookup<'a>(
+        &self,
+        mut v: &'a Value,
+        v_url: &Url,
+    ) -> Result<&'a Value, CompileError> {
+        for tok in self.0.split('/').skip(1) {
+            let Ok(tok) = Self::unescape(tok) else {
+                let loc = UrlFrag::format(v_url, self.as_str());
+                return Err(CompileError::InvalidJsonPointer(loc));
+            };
+            match v {
+                Value::Object(obj) => {
+                    if let Some(pvalue) = obj.get(tok.as_ref()) {
+                        v = pvalue;
+                        continue;
+                    }
+                }
+                Value::Array(arr) => {
+                    if let Ok(i) = usize::from_str(tok.as_ref()) {
+                        if let Some(item) = arr.get(i) {
+                            v = item;
+                            continue;
+                        }
+                    };
+                }
+                _ => {}
+            }
+            let loc = UrlFrag::format(v_url, self.as_str());
+            return Err(CompileError::JsonPointerNotFound(loc));
+        }
+        Ok(v)
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn concat(&self, next: &Self) -> Self {
+        JsonPointer(format!("{}{}", self.0, next.0))
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub(crate) fn append(&self, tok: &str) -> Self {
+        Self(format!("{}/{}", self, Self::escape(tok)))
+    }
+
+    pub(crate) fn append2(&self, tok1: &str, tok2: &str) -> Self {
+        Self(format!(
+            "{}/{}/{}",
+            self,
+            Self::escape(tok1),
+            Self::escape(tok2)
+        ))
+    }
+}
+
+impl Display for JsonPointer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Borrow<str> for JsonPointer {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for JsonPointer {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
+// --
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub(crate) struct Anchor(pub(crate) String);
+
+impl Display for Anchor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Borrow<str> for Anchor {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for Anchor {
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
+// --
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) enum Fragment {
+    Anchor(Anchor),
+    JsonPointer(JsonPointer),
+}
+
+impl Fragment {
+    pub(crate) fn split(s: &str) -> Result<(&str, Fragment), Box<dyn Error>> {
+        let (u, frag) = if let Some(i) = s.find('#') {
+            (&s[..i], &s[i + 1..])
+        } else {
+            (s, "")
+        };
+
+        let frag = percent_decode_str(frag).decode_utf8()?.to_string();
+        let frag = if frag.is_empty() || frag.starts_with('/') {
+            Fragment::JsonPointer(JsonPointer(frag))
+        } else {
+            Fragment::Anchor(Anchor(frag))
+        };
+        Ok((u, frag))
+    }
+
+    pub(crate) fn encode(frag: &str) -> String {
+        // https://url.spec.whatwg.org/#fragment-percent-encode-set
+        const FRAGMENT: &AsciiSet = &CONTROLS
+            .add(b'%')
+            .add(b' ')
+            .add(b'"')
+            .add(b'<')
+            .add(b'>')
+            .add(b'`');
+        percent_encoding::utf8_percent_encode(frag, FRAGMENT).to_string()
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            Fragment::Anchor(s) => &s.0,
+            Fragment::JsonPointer(s) => &s.0,
+        }
+    }
+}
+
+// --
+
+#[derive(Clone)]
+pub(crate) struct UrlFrag {
+    pub(crate) url: Url,
+    pub(crate) frag: Fragment,
+}
+
+impl UrlFrag {
+    pub(crate) fn absolute(input: &str) -> Result<UrlFrag, CompileError> {
+        let (u, frag) = Fragment::split(input).map_err(|e| CompileError::ParseUrlError {
+            url: input.to_string(),
+            src: e,
+        })?;
+
+        // note: windows drive letter is treated as url scheme by url parser
+        #[cfg(not(target_arch = "wasm32"))]
+        if std::env::consts::OS == "windows" && starts_with_windows_drive(u) {
+            let url = Url::from_file_path(u)
+                .map_err(|_| CompileError::Bug(format!("failed to convert {u} into url").into()))?;
+            return Ok(UrlFrag { url, frag });
+        }
+
+        match Url::parse(u) {
+            Ok(url) => Ok(UrlFrag { url, frag }),
+            #[cfg(not(target_arch = "wasm32"))]
+            Err(url::ParseError::RelativeUrlWithoutBase) => {
+                // TODO(unstable): replace with `path::absolute` once it is stabilized
+                use std::path::Path;
+                let mut path = Path::new(u);
+                let tmp;
+                if !path.is_absolute() {
+                    tmp = env::current_dir()
+                        .map_err(|e| CompileError::ParseUrlError {
+                            url: u.to_owned(),
+                            src: e.into(),
+                        })?
+                        .join(path);
+                    path = tmp.as_path();
+                }
+
+                let url = Url::from_file_path(path).map_err(|_| {
+                    CompileError::Bug(format!("failed to convert {u} into url").into())
+                })?;
+                Ok(UrlFrag { url, frag })
+            }
+            Err(e) => Err(CompileError::ParseUrlError {
+                url: u.to_owned(),
+                src: e.into(),
+            }),
+        }
+    }
+
+    pub(crate) fn join(url: &Url, input: &str) -> Result<UrlFrag, CompileError> {
+        let (input, frag) = Fragment::split(input).map_err(|e| CompileError::ParseUrlError {
+            url: input.to_string(),
+            src: e,
+        })?;
+        if input.is_empty() {
+            return Ok(UrlFrag {
+                url: url.clone(),
+                frag,
+            });
+        }
+        let url = url.join(input).map_err(|e| CompileError::ParseUrlError {
+            url: input.to_string(),
+            src: e.into(),
+        })?;
+
+        Ok(UrlFrag { url, frag })
+    }
+
+    pub(crate) fn format(url: &Url, frag: &str) -> String {
+        if frag.is_empty() {
+            url.to_string()
+        } else {
+            format!("{}#{}", url, Fragment::encode(frag))
+        }
+    }
+}
+
+impl Display for UrlFrag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}#{}", self.url, Fragment::encode(self.frag.as_str()))
+    }
+}
+
+// --
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub(crate) struct UrlPtr {
+    pub(crate) url: Url,
+    pub(crate) ptr: JsonPointer,
+}
+
+impl UrlPtr {
+    pub(crate) fn lookup<'a>(&self, doc: &'a Value) -> Result<&'a Value, CompileError> {
+        self.ptr.lookup(doc, &self.url)
+    }
+
+    pub(crate) fn format(&self, tok: &str) -> String {
+        format!(
+            "{}#{}/{}",
+            self.url,
+            Fragment::encode(self.ptr.as_str()),
+            Fragment::encode(JsonPointer::escape(tok).as_ref()),
+        )
+    }
+}
+
+impl Display for UrlPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}#{}", self.url, Fragment::encode(self.ptr.as_str()))
+    }
+}
+
+// --
 
 pub(crate) fn is_integer(v: &Value) -> bool {
     match v {
@@ -18,41 +326,6 @@ pub(crate) fn is_integer(v: &Value) -> bool {
 
 fn starts_with_windows_drive(p: &str) -> bool {
     p.chars().next().filter(char::is_ascii_uppercase).is_some() && p[1..].starts_with(":\\")
-}
-
-pub(crate) fn to_url(s: &str) -> Result<Url, CompileError> {
-    debug_assert!(!s.contains('#'));
-
-    // note: windows drive letter is treated as url scheme by url parser
-    #[cfg(not(target_arch = "wasm32"))]
-    if std::env::consts::OS == "windows" && starts_with_windows_drive(s) {
-        return Url::from_file_path(s)
-            .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()));
-    }
-    match Url::parse(s) {
-        Ok(url) => Ok(url),
-        #[cfg(not(target_arch = "wasm32"))]
-        Err(url::ParseError::RelativeUrlWithoutBase) => {
-            use std::path::Path;
-            let mut path = Path::new(s);
-            let tmp;
-            if !path.is_absolute() {
-                tmp = env::current_dir()
-                    .map_err(|e| CompileError::ParseUrlError {
-                        url: s.to_owned(),
-                        src: e.into(),
-                    })?
-                    .join(path);
-                path = tmp.as_path();
-            }
-            Url::from_file_path(path)
-                .map_err(|_| CompileError::Bug(format!("failed to convert {s} into url").into()))
-        }
-        Err(e) => Err(CompileError::ParseUrlError {
-            url: s.to_owned(),
-            src: e.into(),
-        }),
-    }
 }
 
 /// returns single-quoted string
@@ -77,91 +350,14 @@ where
 }
 
 pub(crate) fn escape(token: &str) -> Cow<str> {
-    const SPECIAL: [char; 2] = ['~', '/'];
-    if token.contains(SPECIAL) {
-        token.replace('~', "~0").replace('/', "~1").into()
-    } else {
-        token.into()
-    }
+    JsonPointer::escape(token)
 }
 
-pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
-    let Some(mut tilde) = token.find('~') else {
-        return Ok(Cow::Borrowed(token));
-    };
-    let mut s = String::with_capacity(token.len());
-    loop {
-        s.push_str(&token[..tilde]);
-        token = &token[tilde + 1..];
-        match token.chars().next() {
-            Some('1') => s.push('/'),
-            Some('0') => s.push('~'),
-            _ => return Err(()),
-        }
-        token = &token[1..];
-        let Some(i) = token.find('~') else {
-            s.push_str(token);
-            break;
-        };
-        tilde = i;
-    }
-    Ok(Cow::Owned(s))
-}
-
-pub(crate) fn percent_encode(frag: &str) -> String {
-    // https://url.spec.whatwg.org/#fragment-percent-encode-set
-    const FRAGMENT: &AsciiSet = &CONTROLS
-        .add(b'%')
-        .add(b' ')
-        .add(b'"')
-        .add(b'<')
-        .add(b'>')
-        .add(b'`');
-    percent_encoding::utf8_percent_encode(frag, FRAGMENT).to_string()
-}
-
-pub(crate) struct Fragment<'a>(&'a str);
-
-impl<'a> Fragment<'a> {
-    pub(crate) fn as_str(&self) -> &'a str {
-        self.0
-    }
-
-    fn is_json_pointer(&self) -> bool {
-        self.0.is_empty()
-            || self.0.starts_with('/')
-            || self.0.starts_with("%2F")
-            || self.0.starts_with("%2f")
-    }
-
-    pub(crate) fn is_anchor(&self) -> bool {
-        !self.is_json_pointer()
-    }
-
-    pub(crate) fn decode(&self) -> Result<Cow<str>, Utf8Error> {
-        return percent_decode_str(self.0).decode_utf8();
-    }
-
-    pub(crate) fn to_anchor(&self) -> Result<Option<Cow<str>>, Utf8Error> {
-        if self.is_json_pointer() {
-            Ok(None) // json-pointer
-        } else {
-            Ok(Some(self.decode()?)) // anchor
-        }
-    }
-}
-
-impl<'a> Display for Fragment<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-pub(crate) fn split(url: &str) -> (&str, Fragment) {
+pub(crate) fn split(url: &str) -> (&str, &str) {
     if let Some(i) = url.find('#') {
-        (&url[..i], Fragment(&url[i + 1..]))
+        (&url[..i], &url[i + 1..])
     } else {
-        (url, Fragment(""))
+        (url, "")
     }
 }
 
@@ -208,34 +404,6 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
     }
 }
 
-pub(crate) fn lookup_ptr<'a>(mut v: &'a Value, ptr: &str) -> Result<Option<&'a Value>, ()> {
-    debug_assert!(
-        ptr.is_empty() || ptr.starts_with('/'),
-        "lookup_ptr: {ptr} is not json-pointer"
-    );
-    for tok in ptr.split('/').skip(1) {
-        let tok = unescape(tok)?;
-        match v {
-            Value::Object(obj) => {
-                if let Some(pvalue) = obj.get(tok.as_ref()) {
-                    v = pvalue;
-                    continue;
-                }
-            }
-            Value::Array(arr) => {
-                if let Ok(i) = usize::from_str(tok.as_ref()) {
-                    if let Some(item) = arr.get(i) {
-                        v = item;
-                        continue;
-                    }
-                };
-            }
-            _ => {}
-        }
-        return Ok(None);
-    }
-    Ok(Some(v))
-}
 // HashedValue --
 
 // Based on implementation proposed by Sven Marnach:
@@ -292,13 +460,16 @@ mod tests {
 
     #[test]
     fn test_fragment_to_anchor() {
-        assert_eq!(Fragment("").to_anchor(), Ok(None));
-        assert_eq!(Fragment("/a/b").to_anchor(), Ok(None));
-        assert_eq!(Fragment("abcd").to_anchor(), Ok(Some(Cow::from("abcd"))));
-        assert_eq!(
-            Fragment("%61%62%63%64").to_anchor(),
-            Ok(Some(Cow::from("abcd")))
-        );
+        let tests = [
+            ("#", Fragment::JsonPointer("".into())),
+            ("#/a/b", Fragment::JsonPointer("/a/b".into())),
+            ("#abcd", Fragment::Anchor("abcd".into())),
+            ("#%61%62%63%64", Fragment::Anchor("abcd".into())),
+        ];
+        for test in tests {
+            let (_, got) = Fragment::split(test.0).unwrap();
+            assert_eq!(got, test.1, "Fragment::split({:?})", test.0);
+        }
     }
 
     #[test]
@@ -311,7 +482,7 @@ mod tests {
             ("bar~~", None),
         ];
         for (tok, want) in tests {
-            let res = unescape(tok).ok();
+            let res = JsonPointer::unescape(tok).ok();
             let got = res.as_ref().map(|c| c.as_ref());
             assert_eq!(got, want, "unescape({:?})", tok)
         }

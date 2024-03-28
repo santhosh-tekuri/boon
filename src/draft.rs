@@ -132,8 +132,8 @@ pub(crate) struct Draft {
 
 impl Draft {
     pub(crate) fn from_url(url: &str) -> Option<&'static Draft> {
-        let (mut url, fragment) = split(url);
-        if !fragment.as_str().is_empty() {
+        let (mut url, frag) = split(url);
+        if !frag.is_empty() {
             return None;
         }
         if let Some(s) = url.strip_prefix("http://") {
@@ -154,16 +154,19 @@ impl Draft {
     }
 
     pub(crate) fn get_schema(&self) -> Option<SchemaIndex> {
-        let loc = match self.version {
-            2020 => Some("https://json-schema.org/draft/2020-12/schema#"),
-            2019 => Some("https://json-schema.org/draft/2019-09/schema#"),
-            7 => Some("http://json-schema.org/draft-07/schema#"),
-            6 => Some("http://json-schema.org/draft-06/schema#"),
-            4 => Some("http://json-schema.org/draft-04/schema#"),
-            _ => None,
+        let url = match self.version {
+            2020 => "https://json-schema.org/draft/2020-12/schema",
+            2019 => "https://json-schema.org/draft/2019-09/schema",
+            7 => "http://json-schema.org/draft-07/schema",
+            6 => "http://json-schema.org/draft-06/schema",
+            4 => "http://json-schema.org/draft-04/schema",
+            _ => return None,
         };
-        loc.and_then(|loc| STD_METASCHEMAS.get_by_loc(loc))
-            .map(|s| s.idx)
+        let up = UrlPtr {
+            url: Url::parse(url).expect(&format!("{url} should be valid url")),
+            ptr: "".into(),
+        };
+        STD_METASCHEMAS.get_by_loc(&up).map(|s| s.idx)
     }
 
     fn get_id<'a>(&self, obj: &'a Map<String, Value>) -> Option<&'a Value> {
@@ -186,7 +189,7 @@ impl Draft {
     pub(crate) fn collect_anchors(
         &self,
         sch: &Value,
-        root_ptr: &str,
+        root_ptr: &JsonPointer,
         res: &mut Resource,
         root_url: &Url,
     ) -> Result<(), CompileError> {
@@ -194,7 +197,7 @@ impl Draft {
             return Ok(());
         };
 
-        let mut add_anchor = |anchor: String| match res.anchors.entry(anchor) {
+        let mut add_anchor = |anchor: Anchor| match res.anchors.entry(anchor) {
             Entry::Occupied(entry) => {
                 if entry.get() == root_ptr {
                     // anchor with same root_ptr already exists
@@ -202,9 +205,9 @@ impl Draft {
                 }
                 return Err(CompileError::DuplicateAnchor {
                     url: root_url.as_str().to_owned(),
-                    anchor: entry.key().to_owned(),
-                    ptr1: entry.get().to_owned(),
-                    ptr2: root_ptr.to_owned(),
+                    anchor: entry.key().to_string(),
+                    ptr1: entry.get().to_string(),
+                    ptr2: root_ptr.to_string(),
                 });
             }
             entry => {
@@ -219,27 +222,25 @@ impl Draft {
             }
             // anchor is specified in id
             if let Some(Value::String(id)) = obj.get(self.id) {
-                let (_, frag) = split(id);
-                let Ok(anchor) = frag.to_anchor() else {
-                    let mut url = root_url.clone();
-                    url.set_fragment(Some(root_ptr));
-                    return Err(CompileError::ParseAnchorError { loc: url.into() });
+                let Ok((_, frag)) = Fragment::split(id) else {
+                    let loc = UrlFrag::format(root_url, root_ptr.as_str());
+                    return Err(CompileError::ParseAnchorError { loc });
                 };
-                if let Some(anchor) = anchor {
-                    add_anchor(anchor.into())?;
+                if let Fragment::Anchor(anchor) = frag {
+                    add_anchor(anchor)?;
                 };
                 return Ok(());
             }
         }
         if self.version >= 2019 {
             if let Some(Value::String(anchor)) = obj.get("$anchor") {
-                add_anchor(anchor.into())?;
+                add_anchor(anchor.as_str().into())?;
             }
         }
         if self.version >= 2020 {
             if let Some(Value::String(anchor)) = obj.get("$dynamicAnchor") {
-                add_anchor(anchor.clone())?;
-                res.dynamic_anchors.insert(anchor.clone());
+                add_anchor(anchor.as_str().into())?;
+                res.dynamic_anchors.insert(anchor.as_str().into());
             }
         }
         Ok(())
@@ -249,10 +250,10 @@ impl Draft {
     pub(crate) fn collect_resources(
         &self,
         sch: &Value,
-        base: &Url,       // base of json
-        root_ptr: String, // ptr of json
+        base: &Url,            // base of json
+        root_ptr: JsonPointer, // ptr of json
         root_url: &Url,
-        resources: &mut HashMap<String, Resource>,
+        resources: &mut HashMap<JsonPointer, Resource>,
     ) -> Result<(), CompileError> {
         if resources.contains_key(&root_ptr) {
             // resources are already collected
@@ -275,13 +276,11 @@ impl Draft {
         let mut base = base;
         let tmp;
         let res = if let Some(Value::String(id)) = id {
-            let (id, _) = split(id);
-            let Ok(id) = base.join(id) else {
-                let mut url = base.clone();
-                url.set_fragment(Some(&root_ptr));
-                return Err(CompileError::ParseIdError { loc: url.into() });
+            let Ok(id) = UrlFrag::join(base, id) else {
+                let loc = UrlFrag::format(root_url, root_ptr.as_str());
+                return Err(CompileError::ParseIdError { loc });
             };
-            tmp = id;
+            tmp = id.url;
             base = &tmp;
             Some(Resource::new(root_ptr.clone(), base.clone()))
         } else if root_ptr.is_empty() {
@@ -314,13 +313,13 @@ impl Draft {
                 continue;
             };
             if pos & POS_SELF != 0 {
-                let ptr = format!("{root_ptr}/{kw}");
+                let ptr = root_ptr.append(kw);
                 self.collect_resources(v, base, ptr, root_url, resources)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
-                        let ptr = format!("{root_ptr}/{kw}/{i}");
+                        let ptr = root_ptr.append2(kw, &i.to_string());
                         self.collect_resources(item, base, ptr, root_url, resources)?;
                     }
                 }
@@ -328,7 +327,7 @@ impl Draft {
             if pos & POS_PROP != 0 {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
-                        let ptr = format!("{root_ptr}/{kw}/{}", escape(pname));
+                        let ptr = root_ptr.append2(kw, pname);
                         self.collect_resources(pvalue, base, ptr, root_url, resources)?;
                     }
                 }
@@ -463,11 +462,11 @@ mod tests {
         };
         let mut got = HashMap::new();
         DRAFT4
-            .collect_resources(&json, &url, String::new(), &url, &mut got)
+            .collect_resources(&json, &url, "".into(), &url, &mut got)
             .unwrap();
         let got = got
             .iter()
-            .map(|(k, v)| (k.as_ref(), v.id.as_str()))
+            .map(|(k, v)| (k.as_str(), v.id.as_str()))
             .collect::<HashMap<&str, &str>>();
         assert_eq!(got, want);
     }
@@ -499,7 +498,7 @@ mod tests {
         .unwrap();
         let mut resources = HashMap::new();
         DRAFT2020
-            .collect_resources(&json, &url, String::new(), &url, &mut resources)
+            .collect_resources(&json, &url, "".into(), &url, &mut resources)
             .unwrap();
         assert!(resources.get("").unwrap().anchors.is_empty());
         assert_eq!(resources.get("/$defs/s2").unwrap().anchors, {

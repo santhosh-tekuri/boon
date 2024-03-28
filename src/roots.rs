@@ -40,8 +40,23 @@ impl Roots {
         self.map.get(url)
     }
 
-    pub(crate) fn get_mut(&mut self, url: &Url) -> Option<&mut Root> {
-        self.map.get_mut(url)
+    pub(crate) fn resolve_fragment(&mut self, uf: UrlFrag) -> Result<UrlPtr, CompileError> {
+        self.or_load(uf.url.clone())?;
+        let Some(root) = self.map.get(&uf.url) else {
+            return Err(CompileError::Bug("or_load didn't add".into()));
+        };
+        root.resolve_fragment(&uf.frag)
+    }
+
+    pub(crate) fn ensure_subschema(&mut self, up: &UrlPtr) -> Result<(), CompileError> {
+        self.or_load(up.url.clone())?;
+        let Some(root) = self.map.get_mut(&up.url) else {
+            return Err(CompileError::Bug("or_load didn't add".into()));
+        };
+        if !root.draft.is_subschema(up.ptr.as_str()) {
+            root.add_subschema(&up.ptr)?;
+        }
+        Ok(())
     }
 
     pub(crate) fn or_load(&mut self, url: Url) -> Result<(), CompileError> {
@@ -104,7 +119,7 @@ impl Roots {
 
         let resources = {
             let mut m = HashMap::default();
-            draft.collect_resources(&doc, &url, String::new(), &url, &mut m)?;
+            draft.collect_resources(&doc, &url, "".into(), &url, &mut m)?;
             m
         };
 

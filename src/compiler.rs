@@ -186,10 +186,9 @@ impl Compiler {
 
     returns [`CompileError`] if url parsing failed.
     */
-    pub fn add_resource(&mut self, mut url: &str, json: Value) -> Result<(), CompileError> {
-        (url, _) = split(url); // strip fragment if any
-        let url = to_url(url)?;
-        self.roots.loader.add_resource(url, json);
+    pub fn add_resource(&mut self, url: &str, json: Value) -> Result<(), CompileError> {
+        let uf = UrlFrag::absolute(url)?;
+        self.roots.loader.add_resource(uf.url, json);
         Ok(())
     }
 
@@ -208,11 +207,11 @@ impl Compiler {
         loc: &str,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
-        let (url, frag) = split(loc);
-        let url = to_url(url)?;
-        let loc = format!("{url}#{frag}");
+        let uf = UrlFrag::absolute(loc)?;
+        // resolve anchor
+        let up = self.roots.resolve_fragment(uf)?;
 
-        let result = self.do_compile(loc, target);
+        let result = self.do_compile(up, target);
         if let Err(bug @ CompileError::Bug(_)) = &result {
             debug_assert!(false, "{bug}");
         }
@@ -221,68 +220,26 @@ impl Compiler {
 
     fn do_compile(
         &mut self,
-        loc: String,
+        up: UrlPtr,
         target: &mut Schemas,
     ) -> Result<SchemaIndex, CompileError> {
-        debug_assert!(loc.contains('#'));
-
         let mut queue = Queue::new();
         let mut compiled = Vec::new();
 
-        // resolve anchor
-        let (url, _) = split(loc.as_str());
-        let root = {
-            let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
-                url: url.to_owned(),
-                src: e.into(),
-            })?;
-            self.roots.or_load(url.clone())?;
-            self.roots
-                .get(&url)
-                .ok_or(CompileError::Bug("or_load didn't add".into()))?
-        };
-        let loc = root.resolve(&loc)?;
-
-        let index = queue.enqueue_schema(target, loc);
+        let index = queue.enqueue_schema(target, up);
         if queue.schemas.is_empty() {
             // already got compiled
             return Ok(index);
         }
 
         while queue.schemas.len() > compiled.len() {
-            let loc = &queue.schemas[compiled.len()];
-            let (url, frag) = split(loc);
-            let url = Url::parse(url).map_err(|e| CompileError::LoadUrlError {
-                url: url.to_owned(),
-                src: e.into(),
-            })?;
-            debug_assert!(!frag.is_anchor(), "ony non-achors should be in queue");
-            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
-                url: url.to_string(),
-                src: e.into(),
-            })?;
-
-            self.roots.or_load(url.clone())?;
-            let root = self
-                .roots
-                .get_mut(&url)
-                .ok_or(CompileError::Bug("or_load didn't add".into()))?;
-            if !root.draft.is_subschema(ptr.as_ref()) {
-                root.add_subschema(ptr.as_ref())?;
-            }
-            let root = self
-                .roots
-                .get(&url)
-                .ok_or(CompileError::Bug("or_load didn't add".into()))?;
-
-            let v = root
-                .lookup_ptr(ptr.as_ref())
-                .map_err(|_| CompileError::InvalidJsonPointer(loc.clone()))?;
-            let Some(v) = v else {
-                return Err(CompileError::JsonPointerNotFound(loc.to_owned()));
+            let up = &queue.schemas[compiled.len()];
+            self.roots.ensure_subschema(up)?;
+            let Some(root) = self.roots.get(&up.url) else {
+                return Err(CompileError::Bug("or_load didn't add".into()));
             };
-
-            let sch = self.compile_value(target, v, &loc.to_owned(), root, &mut queue)?;
+            let v = up.lookup(&root.doc)?;
+            let sch = self.compile_value(target, v, &up.clone(), root, &mut queue)?;
             compiled.push(sch);
             self.roots.insert(&mut queue.roots);
         }
@@ -295,44 +252,38 @@ impl Compiler {
         &self,
         schemas: &Schemas,
         v: &Value,
-        loc: &str,
+        up: &UrlPtr,
         root: &Root,
         queue: &mut Queue,
     ) -> Result<Schema, CompileError> {
-        let mut s = Schema::new(loc.to_owned());
+        let mut s = Schema::new(up.to_string());
         s.draft_version = root.draft.version;
 
         // we know it is already in queue, we just want to get its index
         let len = queue.schemas.len();
-        s.idx = queue.enqueue_schema(schemas, loc.to_owned());
-        debug_assert_eq!(queue.schemas.len(), len, "{loc} should already be in queue");
+        s.idx = queue.enqueue_schema(schemas, up.to_owned());
+        debug_assert_eq!(queue.schemas.len(), len, "{up} should already be in queue");
 
         s.resource = {
-            let (_, frag) = split(loc);
-            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
-                url: loc.to_owned(),
-                src: e.into(),
-            })?;
-            let base = root.base_url(ptr.as_ref());
-            let base_loc = root.resolve(base.as_str())?;
-            queue.enqueue_schema(schemas, base_loc)
+            let base = UrlPtr {
+                url: up.url.clone(),
+                ptr: root.resource(&up.ptr).ptr.clone(),
+            };
+            queue.enqueue_schema(schemas, base)
         };
 
         // if resource, enqueue dynamicAnchors for compilation
         if s.idx == s.resource && root.draft.version >= 2020 {
-            let (url, frag) = split(loc);
-            let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
-                url: loc.to_owned(),
-                src: e.into(),
-            })?;
-            let res = root.resource(ptr.as_ref());
-            for danchor in &res.dynamic_anchors {
-                let danchor_ptr = res.anchors.get(danchor).ok_or(CompileError::Bug(
-                    "dynamicAnchor must be collected in resource".into(),
-                ))?;
-                let danchor_sch = queue
-                    .enqueue_schema(schemas, format!("{}#{}", url, percent_encode(danchor_ptr)));
-                s.dynamic_anchors.insert(danchor.to_owned(), danchor_sch);
+            let res = root.resource(&up.ptr);
+            for (anchor, anchor_ptr) in &res.anchors {
+                if res.dynamic_anchors.contains(anchor) {
+                    let up = UrlPtr {
+                        url: up.url.clone(),
+                        ptr: anchor_ptr.clone(),
+                    };
+                    let danchor_sch = queue.enqueue_schema(schemas, up);
+                    s.dynamic_anchors.insert(anchor.to_string(), danchor_sch);
+                }
             }
         }
 
@@ -344,7 +295,7 @@ impl Compiler {
                     ObjCompiler {
                         c: self,
                         obj,
-                        loc,
+                        up,
                         schemas,
                         root,
                         queue,
@@ -375,7 +326,7 @@ impl Compiler {
 struct ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
     c: &'c Compiler,
     obj: &'v Map<String, Value>,
-    loc: &'l str,
+    up: &'l UrlPtr,
     schemas: &'s Schemas,
     root: &'r Root,
     queue: &'q mut Queue,
@@ -432,17 +383,18 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                     for pname in obj.keys() {
                         let ecma =
                             ecma::convert(pname).map_err(|src| CompileError::InvalidRegex {
-                                url: format!("{}/patternProperties", self.loc),
+                                url: self.up.format("patternProperties"),
                                 regex: pname.to_owned(),
                                 src,
                             })?;
                         let regex =
                             Regex::new(ecma.as_ref()).map_err(|e| CompileError::InvalidRegex {
-                                url: format!("{}/patternProperties", self.loc),
+                                url: self.up.format("patternProperties"),
                                 regex: ecma.into_owned(),
                                 src: e.into(),
                             })?;
-                        let sch = self.enqueue_path(format!("patternProperties/{}", escape(pname)));
+                        let ptr = self.up.ptr.append2("patternProperties", pname);
+                        let sch = self.enqueue_schema(ptr);
                         v.push((regex, sch));
                     }
                 }
@@ -457,9 +409,10 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
                     .filter_map(|(k, v)| {
                         let v = match v {
                             Value::Array(_) => Some(Dependency::Props(to_strings(v))),
-                            _ => Some(Dependency::SchemaRef(
-                                self.enqueue_path(format!("dependencies/{}", escape(k))),
-                            )),
+                            _ => {
+                                let ptr = self.up.ptr.append2("dependencies", k);
+                                Some(Dependency::SchemaRef(self.enqueue_schema(ptr)))
+                            }
                         };
                         v.map(|v| (k.clone(), v))
                     })
@@ -654,13 +607,14 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if self.has_vocab("core") {
             if let Some(sch) = self.enqueue_ref("$dynamicRef")? {
                 if let Some(Value::String(dref)) = self.value("$dynamicRef") {
-                    let (_, frag) = split(dref);
-                    let anchor = frag
-                        .to_anchor()
-                        .map_err(|_| CompileError::ParseAnchorError {
-                            loc: format!("{}/$dynamicRef", self.loc),
-                        })?
-                        .map(|a| a.into_owned());
+                    let Ok((_, frag)) = Fragment::split(dref) else {
+                        let loc = self.up.format("$dynamicRef");
+                        return Err(CompileError::ParseAnchorError { loc });
+                    };
+                    let anchor = match frag {
+                        Fragment::Anchor(Anchor(s)) => Some(s),
+                        Fragment::JsonPointer(_) => None,
+                    };
                     s.dynamic_ref = Some(DynamicRef { sch, anchor });
                 }
             };
@@ -681,19 +635,18 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 
 // enqueue helpers
 impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
-    fn enqueue_schema(&mut self, loc: String) -> SchemaIndex {
-        self.queue.enqueue_schema(self.schemas, loc)
-    }
-
-    fn enqueue_path(&mut self, path: String) -> SchemaIndex {
-        let loc = format!("{}/{}", self.loc, percent_encode(&path));
-        self.enqueue_schema(loc)
+    fn enqueue_schema(&mut self, ptr: JsonPointer) -> SchemaIndex {
+        let up = UrlPtr {
+            url: self.up.url.clone(),
+            ptr,
+        };
+        self.queue.enqueue_schema(self.schemas, up)
     }
 
     fn enqueue_prop(&mut self, pname: &'static str) -> Option<SchemaIndex> {
         if self.obj.contains_key(pname) {
-            let loc = format!("{}/{}", self.loc, percent_encode(&escape(pname)));
-            Some(self.enqueue_schema(loc))
+            let ptr = self.up.ptr.append(pname);
+            Some(self.enqueue_schema(ptr))
         } else {
             None
         }
@@ -703,8 +656,8 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if let Some(Value::Array(arr)) = self.obj.get(pname) {
             (0..arr.len())
                 .map(|i| {
-                    let loc = format!("{}/{}/{i}", self.loc, percent_encode(&escape(pname)));
-                    self.enqueue_schema(loc)
+                    let ptr = self.up.ptr.append2(pname, &i.to_string());
+                    self.enqueue_schema(ptr)
                 })
                 .collect()
         } else {
@@ -720,13 +673,8 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         if let Some(Value::Object(obj)) = self.obj.get(pname) {
             obj.keys()
                 .map(|k| {
-                    let loc = format!(
-                        "{}/{}/{}",
-                        self.loc,
-                        percent_encode(&escape(pname)),
-                        percent_encode(&escape(k))
-                    );
-                    (k.clone(), self.enqueue_schema(loc))
+                    let ptr = self.up.ptr.append2(pname, k);
+                    (k.clone(), self.enqueue_schema(ptr))
                 })
                 .collect()
         } else {
@@ -738,21 +686,15 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
         let Some(Value::String(ref_)) = self.obj.get(pname) else {
             return Ok(None);
         };
-        let (_, frag) = split(self.loc);
-        let ptr = frag.decode().map_err(|e| CompileError::LoadUrlError {
-            url: self.loc.to_owned(),
-            src: e.into(),
-        })?;
-        let abs_ref = self.root.base_url(ptr.as_ref()).join(ref_).map_err(|e| {
-            CompileError::ParseUrlError {
-                url: ref_.clone(),
-                src: e.into(),
-            }
-        })?;
-        let mut resolved_ref = self.root.resolve(abs_ref.as_str())?;
-        resolved_ref = self.queue.resolve_anchor(resolved_ref, &self.c.roots)?;
-
-        Ok(Some(self.enqueue_schema(resolved_ref)))
+        let base_url = self.root.base_url(&self.up.ptr);
+        let abs_ref = UrlFrag::join(base_url, ref_)?;
+        if let Some(resolved_ref) = self.root.resolve(&abs_ref)? {
+            // local ref
+            return Ok(Some(self.enqueue_schema(resolved_ref.ptr)));
+        }
+        // remote ref
+        let up = self.queue.resolve_anchor(abs_ref, &self.c.roots)?;
+        Ok(Some(self.queue.enqueue_schema(self.schemas, up)))
     }
 
     fn enquue_additional(&mut self, pname: &'static str) -> Option<Additional> {
@@ -999,7 +941,7 @@ fn to_strings(v: &Value) -> Vec<String> {
 }
 
 pub(crate) struct Queue {
-    pub(crate) schemas: Vec<String>,
+    pub(crate) schemas: Vec<UrlPtr>,
     pub(crate) roots: HashMap<Url, Root>,
 }
 
@@ -1013,44 +955,33 @@ impl Queue {
 
     pub(crate) fn resolve_anchor(
         &mut self,
-        loc: String,
+        uf: UrlFrag,
         roots: &Roots,
-    ) -> Result<String, CompileError> {
-        let (url, frag) = split(&loc);
-        if frag.is_anchor() {
-            let url = Url::parse(url).map_err(|e| CompileError::ParseUrlError {
-                url: url.to_owned(),
-                src: e.into(),
-            })?;
-            if let Some(root) = roots.get(&url).or_else(|| self.roots.get(&url)) {
-                return root.resolve(&loc);
+    ) -> Result<UrlPtr, CompileError> {
+        match uf.frag {
+            Fragment::JsonPointer(ptr) => Ok(UrlPtr { url: uf.url, ptr }),
+            Fragment::Anchor(_) => {
+                let root = match roots.get(&uf.url).or_else(|| self.roots.get(&uf.url)) {
+                    Some(root) => root,
+                    None => roots.enqueue_root(uf.url.clone(), &mut self.roots)?,
+                };
+                root.resolve_fragment(&uf.frag)
             }
-            let root = roots.enqueue_root(url, &mut self.roots)?;
-            return root.resolve(&loc);
         }
-        Ok(loc)
     }
 
-    pub(crate) fn enqueue_schema(&mut self, schemas: &Schemas, mut loc: String) -> SchemaIndex {
-        if loc.rfind('#').is_none() {
-            loc.push('#');
-        }
-
-        // handle if external anchor
-        let (_, frag) = split(&loc);
-        debug_assert!(!frag.is_anchor(), "anchor {loc} should not be enqueued");
-
-        if let Some(sch) = schemas.get_by_loc(&loc) {
+    pub(crate) fn enqueue_schema(&mut self, schemas: &Schemas, up: UrlPtr) -> SchemaIndex {
+        if let Some(sch) = schemas.get_by_loc(&up) {
             // already got compiled
             return sch.idx;
         }
-        if let Some(qindex) = self.schemas.iter().position(|e| *e == loc) {
+        if let Some(qindex) = self.schemas.iter().position(|e| *e == up) {
             // already queued for compilation
             return SchemaIndex(schemas.size() + qindex);
         }
 
         // new compilation request
-        self.schemas.push(loc);
+        self.schemas.push(up);
         SchemaIndex(schemas.size() + self.schemas.len() - 1)
     }
 }

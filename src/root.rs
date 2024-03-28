@@ -1,17 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-    compiler::CompileError,
-    draft::*,
-    util::{self, *},
-};
+use crate::{compiler::CompileError, draft::*, util::*};
 
 use serde_json::Value;
 use url::Url;
 
 pub(crate) struct Root {
     pub(crate) draft: &'static Draft,
-    pub(crate) resources: HashMap<String, Resource>, // ptr => _
+    pub(crate) resources: HashMap<JsonPointer, Resource>, // ptr => _
     pub(crate) url: Url,
     pub(crate) doc: Value,
     pub(crate) meta_vocabs: Option<Vec<String>>,
@@ -28,50 +24,72 @@ impl Root {
         self.draft.default_vocabs.contains(&name)
     }
 
-    // resolves `loc` to root-url#json-pointer
-    pub(crate) fn resolve(&self, loc: &str) -> Result<String, CompileError> {
-        let (url, frag) = split(loc);
+    fn resolve_fragment_in(&self, frag: &Fragment, res: &Resource) -> Result<UrlPtr, CompileError> {
+        let ptr = match frag {
+            Fragment::Anchor(anchor) => {
+                let Some(ptr) = res.anchors.get(anchor) else {
+                    return Err(CompileError::AnchorNotFound {
+                        url: self.url.to_string(),
+                        reference: UrlFrag::format(&self.url, frag.as_str()),
+                    });
+                };
+                ptr
+            }
+            Fragment::JsonPointer(ptr) => ptr,
+        };
+        Ok(UrlPtr {
+            url: self.url.clone(),
+            ptr: ptr.clone(),
+        })
+    }
 
-        let (res_ptr, res) = {
-            if url == self.url.as_str() {
-                let res = self.resources.get("").ok_or(CompileError::Bug(
-                    format!("no root resource found for {url}").into(),
-                ))?;
-                ("", res)
+    pub(crate) fn resolve_fragment(&self, frag: &Fragment) -> Result<UrlPtr, CompileError> {
+        let res = self.resources.get("").ok_or(CompileError::Bug(
+            format!("no root resource found for {}", self.url).into(),
+        ))?;
+        self.resolve_fragment_in(frag, res)
+    }
+
+    // resolves `loc` to root-url#json-pointer
+    pub(crate) fn resolve(&self, loc: &UrlFrag) -> Result<Option<UrlPtr>, CompileError> {
+        let res = {
+            if loc.url == self.url {
+                self.resources.get("").ok_or(CompileError::Bug(
+                    format!("no root resource found for {}", self.url).into(),
+                ))?
             } else {
                 // look for resource with id==url
-                let entry = self
-                    .resources
-                    .iter()
-                    .find(|(_res_ptr, res)| res.id.as_str() == url);
-
-                match entry {
-                    Some((ptr, res)) => (ptr.as_str(), res),
-                    _ => return Ok(loc.to_owned()), // external url
+                let res = self.resources.values().find(|res| res.id == loc.url);
+                match res {
+                    Some(res) => res,
+                    _ => return Ok(None), // external url
                 }
             }
         };
 
-        let anchor = frag.to_anchor().map_err(|e| CompileError::ParseUrlError {
-            url: loc.to_owned(),
-            src: e.into(),
-        })?;
-
-        if let Some(anchor) = anchor {
-            if let Some(anchor_ptr) = res.anchors.get(anchor.as_ref()) {
-                Ok(format!("{}#{}", self.url, percent_encode(anchor_ptr)))
-            } else {
-                Err(CompileError::AnchorNotFound {
-                    url: self.url.as_str().to_owned(),
-                    reference: loc.to_owned(),
-                })
+        let up = match &loc.frag {
+            Fragment::JsonPointer(ptr) => UrlPtr {
+                url: self.url.clone(),
+                ptr: res.ptr.concat(ptr),
+            },
+            Fragment::Anchor(anchor) => {
+                let Some(anchor_ptr) = res.anchors.get(anchor) else {
+                    return Err(CompileError::AnchorNotFound {
+                        url: self.url.as_str().to_owned(),
+                        reference: loc.to_string(),
+                    });
+                };
+                UrlPtr {
+                    url: self.url.clone(),
+                    ptr: anchor_ptr.clone(),
+                }
             }
-        } else {
-            Ok(format!("{}#{}{}", self.url, percent_encode(res_ptr), frag))
-        }
+        };
+        Ok(Some(up))
     }
 
-    pub(crate) fn resource(&self, mut ptr: &str) -> &Resource {
+    pub(crate) fn resource(&self, ptr: &JsonPointer) -> &Resource {
+        let mut ptr = ptr.as_str();
         loop {
             if let Some(res) = self.resources.get(ptr) {
                 return res;
@@ -84,12 +102,8 @@ impl Root {
         self.resources.get("").expect("root resource should exist")
     }
 
-    pub(crate) fn base_url(&self, ptr: &str) -> &Url {
+    pub(crate) fn base_url(&self, ptr: &JsonPointer) -> &Url {
         &self.resource(ptr).id
-    }
-
-    pub(crate) fn lookup_ptr(&self, ptr: &str) -> Result<Option<&Value>, ()> {
-        util::lookup_ptr(&self.doc, ptr)
     }
 
     pub(crate) fn get_reqd_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
@@ -123,27 +137,17 @@ impl Root {
         Ok(Some(vocabs))
     }
 
-    pub(crate) fn add_subschema(&mut self, ptr: &str) -> Result<(), CompileError> {
-        let v = util::lookup_ptr(&self.doc, ptr).map_err(|_| {
-            CompileError::InvalidJsonPointer(format!("{}#{}", self.url, percent_encode(ptr)))
-        })?;
-        let Some(v) = v else {
-            let loc = format!("{}#{}", self.url, percent_encode(ptr));
-            return Err(CompileError::JsonPointerNotFound(loc))?;
-        };
+    pub(crate) fn add_subschema(&mut self, ptr: &JsonPointer) -> Result<(), CompileError> {
+        let v = ptr.lookup(&self.doc, &self.url)?;
         let base_url = self.base_url(ptr).clone();
-        self.draft.collect_resources(
-            v,
-            &base_url,
-            ptr.to_string(),
-            &self.url,
-            &mut self.resources,
-        )?;
+        self.draft
+            .collect_resources(v, &base_url, ptr.clone(), &self.url, &mut self.resources)?;
+
+        // collect anchors
         if !self.resources.contains_key(ptr) {
             let res = self.resource(ptr);
-            if let Some(res) = self.resources.get_mut(&res.ptr.to_string()) {
-                self.draft
-                    .collect_anchors(v, ptr.as_ref(), res, &self.url)?;
+            if let Some(res) = self.resources.get_mut(&res.ptr.clone()) {
+                self.draft.collect_anchors(v, ptr, res, &self.url)?;
             }
         }
         Ok(())
@@ -152,14 +156,14 @@ impl Root {
 
 #[derive(Debug)]
 pub(crate) struct Resource {
-    pub(crate) ptr: String, // from root
+    pub(crate) ptr: JsonPointer, // from root
     pub(crate) id: Url,
-    pub(crate) anchors: HashMap<String, String>, // anchor => ptr
-    pub(crate) dynamic_anchors: HashSet<String>,
+    pub(crate) anchors: HashMap<Anchor, JsonPointer>, // anchor => ptr
+    pub(crate) dynamic_anchors: HashSet<Anchor>,
 }
 
 impl Resource {
-    pub(crate) fn new(ptr: String, id: Url) -> Self {
+    pub(crate) fn new(ptr: JsonPointer, id: Url) -> Self {
         Self {
             ptr,
             id,
