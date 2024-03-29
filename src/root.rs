@@ -59,11 +59,10 @@ impl Root {
                 ))?
             } else {
                 // look for resource with id==url
-                let res = self.resources.values().find(|res| res.id == loc.url);
-                match res {
-                    Some(res) => res,
-                    _ => return Ok(None), // external url
-                }
+                let Some(res) = self.resources.values().find(|res| res.id == loc.url) else {
+                    return Ok(None); // external url
+                };
+                res
             }
         };
 
