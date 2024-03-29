@@ -30,16 +30,16 @@ impl Root {
                 let Some(ptr) = res.anchors.get(anchor) else {
                     return Err(CompileError::AnchorNotFound {
                         url: self.url.to_string(),
-                        reference: UrlFrag::format(&self.url, frag.as_str()),
+                        reference: UrlFrag::format(&res.id, frag.as_str()),
                     });
                 };
-                ptr
+                ptr.clone()
             }
-            Fragment::JsonPointer(ptr) => ptr,
+            Fragment::JsonPointer(ptr) => res.ptr.concat(ptr),
         };
         Ok(UrlPtr {
             url: self.url.clone(),
-            ptr: ptr.clone(),
+            ptr,
         })
     }
 
@@ -67,25 +67,7 @@ impl Root {
             }
         };
 
-        let up = match &loc.frag {
-            Fragment::JsonPointer(ptr) => UrlPtr {
-                url: self.url.clone(),
-                ptr: res.ptr.concat(ptr),
-            },
-            Fragment::Anchor(anchor) => {
-                let Some(anchor_ptr) = res.anchors.get(anchor) else {
-                    return Err(CompileError::AnchorNotFound {
-                        url: self.url.as_str().to_owned(),
-                        reference: loc.to_string(),
-                    });
-                };
-                UrlPtr {
-                    url: self.url.clone(),
-                    ptr: anchor_ptr.clone(),
-                }
-            }
-        };
-        Ok(Some(up))
+        self.resolve_fragment_in(&loc.frag, res).map(Some)
     }
 
     pub(crate) fn resource(&self, ptr: &JsonPointer) -> &Resource {
