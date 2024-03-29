@@ -163,7 +163,7 @@ impl Draft {
             _ => return None,
         };
         let up = UrlPtr {
-            url: Url::parse(url).expect(&format!("{url} should be valid url")),
+            url: Url::parse(url).unwrap_or_else(|_| panic!("{url} should be valid url")),
             ptr: "".into(),
         };
         STD_METASCHEMAS.get_by_loc(&up).map(|s| s.idx)
