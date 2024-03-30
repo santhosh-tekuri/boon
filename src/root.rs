@@ -50,23 +50,24 @@ impl Root {
         self.resolve_fragment_in(frag, res)
     }
 
-    // resolves `loc` to root-url#json-pointer
-    pub(crate) fn resolve(&self, loc: &UrlFrag) -> Result<Option<UrlPtr>, CompileError> {
+    // resolves `UrlFrag` to `UrlPtr` from root.
+    // returns `None` if it is external.
+    pub(crate) fn resolve(&self, uf: &UrlFrag) -> Result<Option<UrlPtr>, CompileError> {
         let res = {
-            if loc.url == self.url {
+            if uf.url == self.url {
                 self.resources.get("").ok_or(CompileError::Bug(
                     format!("no root resource found for {}", self.url).into(),
                 ))?
             } else {
                 // look for resource with id==url
-                let Some(res) = self.resources.values().find(|res| res.id == loc.url) else {
+                let Some(res) = self.resources.values().find(|res| res.id == uf.url) else {
                     return Ok(None); // external url
                 };
                 res
             }
         };
 
-        self.resolve_fragment_in(&loc.frag, res).map(Some)
+        self.resolve_fragment_in(&uf.frag, res).map(Some)
     }
 
     pub(crate) fn resource(&self, ptr: &JsonPointer) -> &Resource {
@@ -75,10 +76,10 @@ impl Root {
             if let Some(res) = self.resources.get(ptr) {
                 return res;
             }
-            let Some(slash) = ptr.rfind('/') else {
+            let Some((prefix, _)) = ptr.rsplit_once('/') else {
                 break;
             };
-            ptr = &ptr[..slash];
+            ptr = prefix;
         }
         self.resources.get("").expect("root resource should exist")
     }
