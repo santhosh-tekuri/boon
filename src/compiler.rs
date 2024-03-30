@@ -180,14 +180,14 @@ impl Compiler {
     Adds schema resource which used later in reference resoltion
     If you do not know which schema resources required, then use [`UrlLoader`].
 
-    The argument `loc` can be file path or url. any fragment in `url` is ignored.
+    The argument `loc` can be file path or url. any fragment in `loc` is ignored.
 
     # Errors
 
     returns [`CompileError`] if url parsing failed.
     */
-    pub fn add_resource(&mut self, url: &str, json: Value) -> Result<(), CompileError> {
-        let uf = UrlFrag::absolute(url)?;
+    pub fn add_resource(&mut self, loc: &str, json: Value) -> Result<(), CompileError> {
+        let uf = UrlFrag::absolute(loc)?;
         self.roots.loader.add_resource(uf.url, json);
         Ok(())
     }
