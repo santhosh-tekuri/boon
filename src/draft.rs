@@ -153,7 +153,7 @@ impl Draft {
         }
     }
 
-    pub(crate) fn get_schema(&self) -> Option<SchemaIndex> {
+    fn get_schema(&self) -> Option<SchemaIndex> {
         let url = match self.version {
             2020 => "https://json-schema.org/draft/2020-12/schema",
             2019 => "https://json-schema.org/draft/2019-09/schema",
@@ -167,6 +167,20 @@ impl Draft {
             ptr: "".into(),
         };
         STD_METASCHEMAS.get_by_loc(&up).map(|s| s.idx)
+    }
+
+    pub(crate) fn validate(&self, up: &UrlPtr, v: &Value) -> Result<(), CompileError> {
+        let Some(sch) = self.get_schema() else {
+            return Err(CompileError::Bug(
+                format!("no metaschema preloaded for draft {}", self.version).into(),
+            ));
+        };
+        STD_METASCHEMAS
+            .validate(v, sch)
+            .map_err(|src| CompileError::ValidationError {
+                url: up.to_string(),
+                src: src.clone_static(),
+            })
     }
 
     fn get_id<'a>(&self, obj: &'a Map<String, Value>) -> Option<&'a Value> {

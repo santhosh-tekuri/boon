@@ -54,6 +54,8 @@ impl Roots {
             return Err(CompileError::Bug("or_load didn't add".into()));
         };
         if !root.draft.is_subschema(up.ptr.as_str()) {
+            let v = up.ptr.lookup(&root.doc, &up.url)?;
+            root.draft.validate(up, v)?;
             root.add_subschema(&up.ptr)?;
         }
         Ok(())
@@ -124,18 +126,13 @@ impl Roots {
         };
 
         if !matches!(url.host_str(), Some("json-schema.org")) {
-            if let Some(std_sch) = draft.get_schema() {
-                STD_METASCHEMAS.validate(&doc, std_sch).map_err(|src| {
-                    CompileError::ValidationError {
-                        url: url.to_string(),
-                        src: src.clone_static(),
-                    }
-                })?;
-            } else {
-                return Err(CompileError::Bug(
-                    format!("no metaschema preloaded for draft {}", draft.version).into(),
-                ));
-            }
+            draft.validate(
+                &UrlPtr {
+                    url: url.clone(),
+                    ptr: "".into(),
+                },
+                &doc,
+            )?;
         }
 
         let r = Root {

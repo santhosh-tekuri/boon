@@ -23,7 +23,16 @@
                 "^(abc]": { "type": "string" }
             }
         },
-        "errors": ["ValidationError { url: \"http://fake.com/schema.json\""]
+        "errors": ["ValidationError { url: \"http://fake.com/schema.json#\""]
+    },
+    {
+        "description": "ValidationError-nonsubschema",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "dummy": { "type": 1 },
+            "$ref": "#/dummy"
+        },
+        "errors": ["ValidationError { url: \"http://fake.com/schema.json#/dummy\""]
     },
     {
         "description": "JsonPointerNotFound-obj",
