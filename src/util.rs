@@ -1,7 +1,6 @@
 use std::{
     borrow::{Borrow, Cow},
     env,
-    error::Error,
     fmt::Display,
     hash::Hash,
     hash::Hasher,
@@ -90,12 +89,12 @@ impl JsonPointer {
         &self.0
     }
 
-    pub(crate) fn concat(&self, next: &Self) -> Self {
-        JsonPointer(format!("{}{}", self.0, next.0))
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub(crate) fn concat(&self, next: &Self) -> Self {
+        JsonPointer(format!("{}{}", self.0, next.0))
     }
 
     pub(crate) fn append(&self, tok: &str) -> Self {
@@ -161,14 +160,15 @@ pub(crate) enum Fragment {
 }
 
 impl Fragment {
-    pub(crate) fn split(s: &str) -> Result<(&str, Fragment), Box<dyn Error>> {
-        let (u, frag) = if let Some(i) = s.find('#') {
-            (&s[..i], &s[i + 1..])
-        } else {
-            (s, "")
-        };
-
-        let frag = percent_decode_str(frag).decode_utf8()?.to_string();
+    pub(crate) fn split(s: &str) -> Result<(&str, Fragment), CompileError> {
+        let (u, frag) = split(s);
+        let frag = percent_decode_str(frag)
+            .decode_utf8()
+            .map_err(|src| CompileError::ParseUrlError {
+                url: s.to_string(),
+                src: src.into(),
+            })?
+            .to_string();
         let frag = if frag.is_empty() || frag.starts_with('/') {
             Fragment::JsonPointer(JsonPointer(frag))
         } else {
@@ -207,10 +207,7 @@ pub(crate) struct UrlFrag {
 
 impl UrlFrag {
     pub(crate) fn absolute(input: &str) -> Result<UrlFrag, CompileError> {
-        let (u, frag) = Fragment::split(input).map_err(|e| CompileError::ParseUrlError {
-            url: input.to_string(),
-            src: e,
-        })?;
+        let (u, frag) = Fragment::split(input)?;
 
         // note: windows drive letter is treated as url scheme by url parser
         #[cfg(not(target_arch = "wasm32"))]
@@ -251,10 +248,7 @@ impl UrlFrag {
     }
 
     pub(crate) fn join(url: &Url, input: &str) -> Result<UrlFrag, CompileError> {
-        let (input, frag) = Fragment::split(input).map_err(|e| CompileError::ParseUrlError {
-            url: input.to_string(),
-            src: e,
-        })?;
+        let (input, frag) = Fragment::split(input)?;
         if input.is_empty() {
             return Ok(UrlFrag {
                 url: url.clone(),
