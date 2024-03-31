@@ -402,8 +402,13 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
 
 // Based on implementation proposed by Sven Marnach:
 // https://stackoverflow.com/questions/60882381/what-is-the-fastest-correct-way-to-detect-that-there-are-no-duplicates-in-a-json
-#[derive(PartialEq)]
 pub(crate) struct HashedValue<'a>(pub(crate) &'a Value);
+
+impl PartialEq for HashedValue<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        equals(self.0, other.0)
+    }
+}
 
 impl Eq for HashedValue<'_> {}
 
