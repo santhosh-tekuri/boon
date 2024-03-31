@@ -418,12 +418,12 @@ impl Hash for HashedValue<'_> {
             Value::Null => state.write_u32(3_221_225_473), // chosen randomly
             Value::Bool(ref b) => b.hash(state),
             Value::Number(ref num) => {
-                if let Some(num) = num.as_u64() {
+                if let Some(num) = num.as_f64() {
+                    num.to_bits().hash(state);
+                } else if let Some(num) = num.as_u64() {
                     num.hash(state);
                 } else if let Some(num) = num.as_i64() {
                     num.hash(state);
-                } else if let Some(num) = num.as_f64() {
-                    num.to_bits().hash(state)
                 }
             }
             Value::String(ref str) => str.hash(state),
@@ -450,6 +450,10 @@ impl Hash for HashedValue<'_> {
 
 #[cfg(test)]
 mod tests {
+
+    use ahash::AHashMap;
+    use serde_json::json;
+
     use super::*;
 
     #[test]
@@ -495,5 +499,14 @@ mod tests {
             let b = serde_json::from_str(b).unwrap();
             assert!(equals(&a, &b));
         }
+    }
+
+    #[test]
+    fn test_hashed_value() {
+        let mut seen = AHashMap::with_capacity(10);
+        let (v1, v2) = (json!(2), json!(2.0));
+        assert!(equals(&v1, &v2));
+        assert!(seen.insert(HashedValue(&v1), 1).is_none());
+        assert!(seen.insert(HashedValue(&v2), 1).is_some());
     }
 }
