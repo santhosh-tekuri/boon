@@ -462,12 +462,17 @@ mod tests {
     }
 
     #[test]
-    fn test_fragment_to_anchor() {
+    fn test_fragment_split() {
         let tests = [
             ("#", Fragment::JsonPointer("".into())),
             ("#/a/b", Fragment::JsonPointer("/a/b".into())),
             ("#abcd", Fragment::Anchor("abcd".into())),
             ("#%61%62%63%64", Fragment::Anchor("abcd".into())),
+            (
+                "#%2F%61%62%63%64%2fef",
+                Fragment::JsonPointer("/abcd/ef".into()),
+            ), // '/' is encoded
+            ("#abcd+ef", Fragment::Anchor("abcd+ef".into())), // '+' should not traslate to space
         ];
         for test in tests {
             let (_, got) = Fragment::split(test.0).unwrap();
