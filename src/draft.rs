@@ -201,7 +201,7 @@ impl Draft {
         sch: &Value,
         sch_ptr: &JsonPointer,
         res: &mut Resource,
-        root_url: &Url,
+        url: &Url,
     ) -> Result<(), CompileError> {
         let Value::Object(obj) = sch else {
             return Ok(());
@@ -214,7 +214,7 @@ impl Draft {
                     return Ok(());
                 }
                 return Err(CompileError::DuplicateAnchor {
-                    url: root_url.as_str().to_owned(),
+                    url: url.as_str().to_owned(),
                     anchor: entry.key().to_string(),
                     ptr1: entry.get().to_string(),
                     ptr2: sch_ptr.to_string(),
@@ -233,7 +233,7 @@ impl Draft {
             // anchor is specified in id
             if let Some(Value::String(id)) = obj.get(self.id) {
                 let Ok((_, frag)) = Fragment::split(id) else {
-                    let loc = UrlFrag::format(root_url, sch_ptr.as_str());
+                    let loc = UrlFrag::format(url, sch_ptr.as_str());
                     return Err(CompileError::ParseAnchorError { loc });
                 };
                 if let Fragment::Anchor(anchor) = frag {
@@ -260,19 +260,19 @@ impl Draft {
     pub(crate) fn collect_resources(
         &self,
         sch: &Value,
-        base: &Url,            // base of json
-        root_ptr: JsonPointer, // ptr of json
-        root_url: &Url,
+        base: &Url,           // base of json
+        sch_ptr: JsonPointer, // ptr of json
+        url: &Url,
         resources: &mut HashMap<JsonPointer, Resource>,
     ) -> Result<(), CompileError> {
-        if resources.contains_key(&root_ptr) {
+        if resources.contains_key(&sch_ptr) {
             // resources are already collected
             return Ok(());
         }
         if let Value::Bool(_) = sch {
-            if root_ptr.is_empty() {
+            if sch_ptr.is_empty() {
                 // root resource
-                resources.insert(root_ptr.clone(), Resource::new(root_ptr, base.clone()));
+                resources.insert(sch_ptr.clone(), Resource::new(sch_ptr, base.clone()));
             }
             return Ok(());
         }
@@ -287,33 +287,33 @@ impl Draft {
         let tmp;
         let res = if let Some(id) = id {
             let Ok(id) = UrlFrag::join(base, id) else {
-                let loc = UrlFrag::format(root_url, root_ptr.as_str());
+                let loc = UrlFrag::format(url, sch_ptr.as_str());
                 return Err(CompileError::ParseIdError { loc });
             };
             tmp = id.url;
             base = &tmp;
-            Some(Resource::new(root_ptr.clone(), base.clone()))
-        } else if root_ptr.is_empty() {
+            Some(Resource::new(sch_ptr.clone(), base.clone()))
+        } else if sch_ptr.is_empty() {
             // root resource
-            Some(Resource::new(root_ptr.clone(), base.clone()))
+            Some(Resource::new(sch_ptr.clone(), base.clone()))
         } else {
             None
         };
         if let Some(res) = res {
             if let Some(dup) = resources.values_mut().find(|res| res.id == *base) {
                 return Err(CompileError::DuplicateId {
-                    url: root_url.to_string(),
+                    url: url.to_string(),
                     id: base.to_string(),
                     ptr1: res.ptr.to_string(),
                     ptr2: dup.ptr.to_string(),
                 });
             }
-            resources.insert(root_ptr.clone(), res);
+            resources.insert(sch_ptr.clone(), res);
         }
 
         // collect anchors
         if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
-            self.collect_anchors(sch, &root_ptr, res, root_url)?;
+            self.collect_anchors(sch, &sch_ptr, res, url)?;
         } else {
             debug_assert!(false, "base resource must exist");
         }
@@ -323,22 +323,22 @@ impl Draft {
                 continue;
             };
             if pos & POS_SELF != 0 {
-                let ptr = root_ptr.append(kw);
-                self.collect_resources(v, base, ptr, root_url, resources)?;
+                let ptr = sch_ptr.append(kw);
+                self.collect_resources(v, base, ptr, url, resources)?;
             }
             if pos & POS_ITEM != 0 {
                 if let Value::Array(arr) = v {
                     for (i, item) in arr.iter().enumerate() {
-                        let ptr = root_ptr.append2(kw, &i.to_string());
-                        self.collect_resources(item, base, ptr, root_url, resources)?;
+                        let ptr = sch_ptr.append2(kw, &i.to_string());
+                        self.collect_resources(item, base, ptr, url, resources)?;
                     }
                 }
             }
             if pos & POS_PROP != 0 {
                 if let Value::Object(obj) = v {
                     for (pname, pvalue) in obj {
-                        let ptr = root_ptr.append2(kw, pname);
-                        self.collect_resources(pvalue, base, ptr, root_url, resources)?;
+                        let ptr = sch_ptr.append2(kw, pname);
+                        self.collect_resources(pvalue, base, ptr, url, resources)?;
                     }
                 }
             }
