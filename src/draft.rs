@@ -183,19 +183,15 @@ impl Draft {
             })
     }
 
-    fn get_id<'a>(&self, obj: &'a Map<String, Value>) -> Option<&'a Value> {
-        if self.version < 2019 {
-            if obj.contains_key("$ref") {
-                None // All other properties in a "$ref" object MUST be ignored
-            } else {
-                match obj.get(self.id) {
-                    Some(Value::String(id)) if id.starts_with('#') => None, // anchor only
-                    id => id,
-                }
-            }
-        } else {
-            obj.get(self.id)
+    fn get_id<'a>(&self, obj: &'a Map<String, Value>) -> Option<&'a str> {
+        if self.version < 2019 && obj.contains_key("$ref") {
+            return None; // All other properties in a "$ref" object MUST be ignored
         }
+        let Some(Value::String(id)) = obj.get(self.id) else {
+            return None;
+        };
+        let (id, _) = split(id); // ignore fragment
+        Some(id).filter(|id| !id.is_empty())
     }
 
     // collects anchors/dynamic_achors from `sch` into `res`.
@@ -289,7 +285,7 @@ impl Draft {
 
         let mut base = base;
         let tmp;
-        let res = if let Some(Value::String(id)) = id {
+        let res = if let Some(id) = id {
             let Ok(id) = UrlFrag::join(base, id) else {
                 let loc = UrlFrag::format(root_url, root_ptr.as_str());
                 return Err(CompileError::ParseIdError { loc });
