@@ -199,7 +199,7 @@ impl Draft {
     pub(crate) fn collect_anchors(
         &self,
         sch: &Value,
-        root_ptr: &JsonPointer,
+        sch_ptr: &JsonPointer,
         res: &mut Resource,
         root_url: &Url,
     ) -> Result<(), CompileError> {
@@ -209,7 +209,7 @@ impl Draft {
 
         let mut add_anchor = |anchor: Anchor| match res.anchors.entry(anchor) {
             Entry::Occupied(entry) => {
-                if entry.get() == root_ptr {
+                if entry.get() == sch_ptr {
                     // anchor with same root_ptr already exists
                     return Ok(());
                 }
@@ -217,11 +217,11 @@ impl Draft {
                     url: root_url.as_str().to_owned(),
                     anchor: entry.key().to_string(),
                     ptr1: entry.get().to_string(),
-                    ptr2: root_ptr.to_string(),
+                    ptr2: sch_ptr.to_string(),
                 });
             }
             entry => {
-                entry.or_insert(root_ptr.to_owned());
+                entry.or_insert(sch_ptr.to_owned());
                 Ok(())
             }
         };
@@ -233,7 +233,7 @@ impl Draft {
             // anchor is specified in id
             if let Some(Value::String(id)) = obj.get(self.id) {
                 let Ok((_, frag)) = Fragment::split(id) else {
-                    let loc = UrlFrag::format(root_url, root_ptr.as_str());
+                    let loc = UrlFrag::format(root_url, sch_ptr.as_str());
                     return Err(CompileError::ParseAnchorError { loc });
                 };
                 if let Fragment::Anchor(anchor) = frag {
