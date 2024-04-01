@@ -281,11 +281,9 @@ impl Draft {
             return Ok(());
         };
 
-        let id = self.get_id(obj);
-
         let mut base = base;
         let tmp;
-        let res = if let Some(id) = id {
+        let res = if let Some(id) = self.get_id(obj) {
             let Ok(id) = UrlFrag::join(base, id) else {
                 let loc = UrlFrag::format(url, sch_ptr.as_str());
                 return Err(CompileError::ParseIdError { loc });
@@ -311,7 +309,7 @@ impl Draft {
             resources.insert(sch_ptr.clone(), res);
         }
 
-        // collect anchors
+        // collect anchors into base resource
         if let Some(res) = resources.values_mut().find(|res| res.id == *base) {
             self.collect_anchors(sch, &sch_ptr, res, url)?;
         } else {
@@ -351,17 +349,18 @@ impl Draft {
             return true;
         }
 
-        fn split(ptr: &str) -> (&str, &str) {
-            if let Some(i) = ptr[1..].find('/') {
-                (&ptr[1..i + 1], &ptr[1 + i..])
+        fn split(mut ptr: &str) -> (&str, &str) {
+            ptr = &ptr[1..]; // rm `/` prefix
+            if let Some(i) = ptr.find('/') {
+                (&ptr[..i], &ptr[i..])
             } else {
-                (&ptr[1..], "")
+                (&ptr, "")
             }
         }
 
-        let (token, ptr) = split(ptr);
+        let (tok, ptr) = split(ptr);
 
-        if let Some(&pos) = self.subschemas.get(token) {
+        if let Some(&pos) = self.subschemas.get(tok) {
             if pos & POS_SELF != 0 && self.is_subschema(ptr) {
                 return true;
             }
