@@ -29,22 +29,22 @@ impl JsonPointer {
         }
     }
 
-    pub(crate) fn unescape(mut token: &str) -> Result<Cow<str>, ()> {
-        let Some(mut tilde) = token.find('~') else {
-            return Ok(Cow::Borrowed(token));
+    pub(crate) fn unescape(mut tok: &str) -> Result<Cow<str>, ()> {
+        let Some(mut tilde) = tok.find('~') else {
+            return Ok(Cow::Borrowed(tok));
         };
-        let mut s = String::with_capacity(token.len());
+        let mut s = String::with_capacity(tok.len());
         loop {
-            s.push_str(&token[..tilde]);
-            token = &token[tilde + 1..];
-            match token.chars().next() {
+            s.push_str(&tok[..tilde]);
+            tok = &tok[tilde + 1..];
+            match tok.chars().next() {
                 Some('1') => s.push('/'),
                 Some('0') => s.push('~'),
                 _ => return Err(()),
             }
-            token = &token[1..];
-            let Some(i) = token.find('~') else {
-                s.push_str(token);
+            tok = &tok[1..];
+            let Some(i) = tok.find('~') else {
+                s.push_str(tok);
                 break;
             };
             tilde = i;
