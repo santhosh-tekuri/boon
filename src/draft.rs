@@ -17,6 +17,7 @@ const POS_ITEM: u8 = 1 << 2;
 pub(crate) static DRAFT4: Lazy<Draft> = Lazy::new(|| Draft {
     version: 4,
     id: "id",
+    url: "http://json-schema.org/draft-04/schema",
     subschemas: HashMap::from([
         // type agnostic
         ("definitions", POS_PROP),
@@ -44,6 +45,7 @@ pub(crate) static DRAFT6: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 6,
         id: "$id",
+        url: "http://json-schema.org/draft-06/schema",
         subschemas,
         vocab_prefix: "",
         all_vocabs: vec![],
@@ -57,6 +59,7 @@ pub(crate) static DRAFT7: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 7,
         id: "$id",
+        url: "http://json-schema.org/draft-07/schema",
         subschemas,
         vocab_prefix: "",
         all_vocabs: vec![],
@@ -76,6 +79,7 @@ pub(crate) static DRAFT2019: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 2019,
         id: "$id",
+        url: "https://json-schema.org/draft/2019-09/schema",
         subschemas,
         vocab_prefix: "https://json-schema.org/draft/2019-09/vocab/",
         all_vocabs: vec![
@@ -96,6 +100,7 @@ pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
     Draft {
         version: 2020,
         id: "$id",
+        url: "https://json-schema.org/draft/2020-12/schema",
         subschemas,
         vocab_prefix: "https://json-schema.org/draft/2020-12/vocab/",
         all_vocabs: vec![
@@ -123,6 +128,7 @@ pub(crate) fn latest() -> &'static Draft {
 
 pub(crate) struct Draft {
     pub(crate) version: usize,
+    pub(crate) url: &'static str,
     id: &'static str,
     subschemas: HashMap<&'static str, u8>,
     pub(crate) vocab_prefix: &'static str,
@@ -527,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_is_subschema() {
-        let tests = vec![("/allOf/0", true)];
+        let tests = vec![("/allOf/0", true), ("/allOf/$defs", false)];
         for test in tests {
             let got = DRAFT2020.is_subschema(test.0);
             assert_eq!(got, test.1, "{}", test.0);
