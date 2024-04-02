@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use serde_json::Value;
 use url::Url;
 
-use crate::compiler::CompileError;
+use crate::{compiler::CompileError, draft::latest};
 
 /// A trait for loading json from given `url`
 pub trait UrlLoader {
@@ -63,6 +63,10 @@ impl DefaultUrlLoader {
             .strip_prefix("http://json-schema.org/")
             .or_else(|| url.as_str().strip_prefix("https://json-schema.org/"));
         if let Some(meta) = meta {
+            if meta == "schema" {
+                let latest = Url::parse(latest().url).expect("draft url must be valid url");
+                return self.load(&latest);
+            }
             if let Some(content) = STD_METAFILES.get(meta) {
                 return serde_json::from_str::<Value>(content).map_err(|e| {
                     CompileError::LoadUrlError {
