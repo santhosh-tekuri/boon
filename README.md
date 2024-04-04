@@ -11,11 +11,11 @@
 ## Library Features
 
 - [x] pass [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite) excluding optional(compare with other impls at [bowtie](https://bowtie-json-schema.github.io/bowtie/#))
-  - [x] [![draft-04](https://img.shields.io/endpoint?url=https://bowtie-json-schema.github.io/bowtie/badges/rust-boon/compliance/Draft_4.json)](https://bowtie-json-schema.github.io/bowtie/draft4.html)
-  - [x] [![draft-06](https://img.shields.io/endpoint?url=https://bowtie-json-schema.github.io/bowtie/badges/rust-boon/compliance/Draft_6.json)](https://bowtie-json-schema.github.io/bowtie/draft6.html)
-  - [x] [![draft-07](https://img.shields.io/endpoint?url=https://bowtie-json-schema.github.io/bowtie/badges/rust-boon/compliance/Draft_7.json)](https://bowtie-json-schema.github.io/bowtie/draft7.html)
-  - [x] [![draft/2019-09](https://img.shields.io/endpoint?url=https://bowtie-json-schema.github.io/bowtie/badges/rust-boon/compliance/Draft_2019-09.json)](https://bowtie-json-schema.github.io/bowtie/draft2019-09.html)
-  - [x] [![draft/2020-12](https://img.shields.io/endpoint?url=https://bowtie-json-schema.github.io/bowtie/badges/rust-boon/compliance/Draft_2020-12.json)](https://bowtie-json-schema.github.io/bowtie/draft2020-12.html)
+  - [x] [![draft-04](https://img.shields.io/endpoint?url=https://bowtie.report/badges/rust-boon/compliance/draft4.json)](https://bowtie.report/#/dialects/draft4)
+  - [x] [![draft-06](https://img.shields.io/endpoint?url=https://bowtie.report/badges/rust-boon/compliance/draft6.json)](https://bowtie.report/#/dialects/draft6)
+  - [x] [![draft-07](https://img.shields.io/endpoint?url=https://bowtie.report/badges/rust-boon/compliance/draft7.json)](https://bowtie.report/#/dialects/draft7)
+  - [x] [![draft/2019-09](https://img.shields.io/endpoint?url=https://bowtie.report/badges/rust-boon/compliance/draft2019-09.json)](https://bowtie.report/#/dialects/draft2019-09)
+  - [x] [![draft/2020-12](https://img.shields.io/endpoint?url=https://bowtie.report/badges/rust-boon/compliance/draft2020-12.json)](https://bowtie.report/#/dialects/draft2020-12)
 - [x] detect infinite loop traps
   - [x] `$schema` cycle
   - [x] validation cycle
