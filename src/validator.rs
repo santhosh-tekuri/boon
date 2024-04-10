@@ -479,20 +479,23 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         }
 
         // contentEncoding --
-        let mut decoded = Cow::from(str.as_bytes());
+        let mut decoded = Some(Cow::from(str.as_bytes()));
         if let Some(decoder) = &s.content_encoding {
             match (decoder.func)(str) {
-                Ok(bytes) => decoded = Cow::from(bytes),
-                Err(err) => self.add_error(ErrorKind::ContentEncoding {
-                    want: decoder.name,
-                    err,
-                }),
+                Ok(bytes) => decoded = Some(Cow::from(bytes)),
+                Err(err) => {
+                    decoded = None;
+                    self.add_error(ErrorKind::ContentEncoding {
+                        want: decoder.name,
+                        err,
+                    })
+                }
             }
         }
 
         // contentMediaType --
         let mut deserialized = None;
-        if let Some(mt) = &s.content_media_type {
+        if let (Some(mt), Some(decoded)) = (&s.content_media_type, decoded) {
             match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
                 Ok(des) => deserialized = des,
                 Err(e) => {
