@@ -474,37 +474,39 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             }
         }
 
-        if s.draft_version >= 7 {
-            // contentEncoding --
-            let mut decoded = Cow::from(str.as_bytes());
-            if let Some(decoder) = &s.content_encoding {
-                match (decoder.func)(str) {
-                    Ok(bytes) => decoded = Cow::from(bytes),
-                    Err(err) => self.add_error(ErrorKind::ContentEncoding {
-                        want: decoder.name,
-                        err,
-                    }),
+        if s.draft_version == 6 {
+            return;
+        }
+
+        // contentEncoding --
+        let mut decoded = Cow::from(str.as_bytes());
+        if let Some(decoder) = &s.content_encoding {
+            match (decoder.func)(str) {
+                Ok(bytes) => decoded = Cow::from(bytes),
+                Err(err) => self.add_error(ErrorKind::ContentEncoding {
+                    want: decoder.name,
+                    err,
+                }),
+            }
+        }
+
+        // contentMediaType --
+        let mut deserialized = None;
+        if let Some(mt) = &s.content_media_type {
+            match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
+                Ok(des) => deserialized = des,
+                Err(e) => {
+                    self.add_error(kind!(ContentMediaType, decoded.into(), mt.name, e));
                 }
             }
+        }
 
-            // contentMediaType --
-            let mut deserialized = None;
-            if let Some(mt) = &s.content_media_type {
-                match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
-                    Ok(des) => deserialized = des,
-                    Err(e) => {
-                        self.add_error(kind!(ContentMediaType, decoded.into(), mt.name, e));
-                    }
-                }
-            }
-
-            // contentSchema --
-            if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
-                if let Err(mut e) = self.schemas.validate(&v, sch) {
-                    e.schema_url = &s.loc;
-                    e.kind = kind!(ContentSchema);
-                    self.errors.push(e.clone_static());
-                }
+        // contentSchema --
+        if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
+            if let Err(mut e) = self.schemas.validate(&v, sch) {
+                e.schema_url = &s.loc;
+                e.kind = kind!(ContentSchema);
+                self.errors.push(e.clone_static());
             }
         }
     }
