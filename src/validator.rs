@@ -1,12 +1,8 @@
 use std::{borrow::Cow, cmp::min, collections::HashSet, fmt::Write};
 
-use ahash::AHashMap;
 use serde_json::{Map, Value};
 
-use crate::{
-    util::{HashedValue, *},
-    *,
-};
+use crate::{util::*, *};
 
 macro_rules! prop {
     ($prop:expr) => {
@@ -354,42 +350,9 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
         // uniqueItems --
         if len > 1 && s.unique_items {
-            match arr.as_slice() {
-                [e0, e1] => {
-                    if equals(e0, e1) {
-                        self.add_error(kind!(UniqueItems, got: [0, 1]));
-                    }
-                }
-                [e0, e1, e2] => {
-                    if equals(e0, e1) {
-                        self.add_error(kind!(UniqueItems, got: [0, 1]));
-                    } else if equals(e0, e2) {
-                        self.add_error(kind!(UniqueItems, got: [0, 2]));
-                    } else if equals(e1, e2) {
-                        self.add_error(kind!(UniqueItems, got: [1, 2]));
-                    }
-                }
-                _ => {
-                    if len <= 20 {
-                        'outer: for i in 0..len - 1 {
-                            for j in i + 1..len {
-                                if equals(&arr[i], &arr[j]) {
-                                    self.add_error(kind!(UniqueItems, got: [i, j]));
-                                    break 'outer;
-                                }
-                            }
-                        }
-                    } else {
-                        let mut seen = AHashMap::with_capacity(len);
-                        for (i, item) in arr.iter().enumerate() {
-                            if let Some(j) = seen.insert(HashedValue(item), i) {
-                                self.add_error(kind!(UniqueItems, got: [j, i]));
-                                break;
-                            }
-                        }
-                    }
-                }
-            };
+            if let Some((i, j)) = duplicates(arr) {
+                self.add_error(kind!(UniqueItems, got: [i, j]));
+            }
         }
 
         if s.draft_version < 2020 {

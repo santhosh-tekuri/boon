@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-use ahash::AHasher;
+use ahash::{AHashMap, AHasher};
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
 use serde_json::Value;
 use url::Url;
@@ -396,6 +396,45 @@ pub(crate) fn equals(v1: &Value, v2: &Value) -> bool {
         }
         _ => false,
     }
+}
+
+pub(crate) fn duplicates(arr: &Vec<Value>) -> Option<(usize, usize)> {
+    match arr.as_slice() {
+        [e0, e1] => {
+            if equals(e0, e1) {
+                return Some((0, 1));
+            }
+        }
+        [e0, e1, e2] => {
+            if equals(e0, e1) {
+                return Some((0, 1));
+            } else if equals(e0, e2) {
+                return Some((0, 2));
+            } else if equals(e1, e2) {
+                return Some((1, 2));
+            }
+        }
+        _ => {
+            let len = arr.len();
+            if len <= 20 {
+                for i in 0..len - 1 {
+                    for j in i + 1..len {
+                        if equals(&arr[i], &arr[j]) {
+                            return Some((i, j));
+                        }
+                    }
+                }
+            } else {
+                let mut seen = AHashMap::with_capacity(len);
+                for (i, item) in arr.iter().enumerate() {
+                    if let Some(j) = seen.insert(HashedValue(item), i) {
+                        return Some((j, i));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 // HashedValue --
