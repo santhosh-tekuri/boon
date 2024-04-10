@@ -411,14 +411,14 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
         // contains --
         if let Some(sch) = &s.contains {
-            let mut contains_matched = vec![];
-            let mut contains_errors = vec![];
+            let mut matched = vec![];
+            let mut errors = vec![];
 
             for (i, item) in arr.iter().enumerate() {
                 if let Err(e) = self.validate_val(*sch, item, item!(i)) {
-                    contains_errors.push(e);
+                    errors.push(e);
                 } else {
-                    contains_matched.push(i);
+                    matched.push(i);
                     if s.draft_version >= 2020 {
                         self.uneval.items.remove(&i);
                     }
@@ -427,21 +427,21 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
             // minContains --
             if let Some(min) = s.min_contains {
-                if contains_matched.len() < min {
-                    let mut e = self.error(kind!(MinContains, contains_matched.clone(), min));
-                    e.causes = contains_errors;
+                if matched.len() < min {
+                    let mut e = self.error(kind!(MinContains, matched.clone(), min));
+                    e.causes = errors;
                     self.errors.push(e);
                 }
-            } else if contains_matched.is_empty() {
+            } else if matched.is_empty() {
                 let mut e = self.error(kind!(Contains));
-                e.causes = contains_errors;
+                e.causes = errors;
                 self.errors.push(e);
             }
 
             // maxContains --
             if let Some(max) = s.max_contains {
-                if contains_matched.len() > max {
-                    self.add_error(kind!(MaxContains, contains_matched, max));
+                if matched.len() > max {
+                    self.add_error(kind!(MaxContains, matched, max));
                 }
             }
         }
