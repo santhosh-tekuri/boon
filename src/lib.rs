@@ -677,7 +677,7 @@ impl<'s, 'v> Display for ErrorKind<'s, 'v> {
             Self::Pattern { got, want } => {
                 write!(f, "{} does not match pattern {}", quote(got), quote(want))
             }
-            Self::ContentEncoding { want, err, .. } => {
+            Self::ContentEncoding { want, err } => {
                 write!(f, "value is not {} encoded: {err}", quote(want))
             }
             Self::ContentMediaType { want, err, .. } => {

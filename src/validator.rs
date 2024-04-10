@@ -92,7 +92,7 @@ struct Validator<'v, 's, 'd, 'e> {
     scope: Scope<'d>,
     uneval: Uneval<'v>,
     errors: Vec<ValidationError<'s, 'v>>,
-    bool_result: bool,
+    bool_result: bool, // is interested to know valid or not (but not actuall error)
 }
 
 impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
@@ -108,6 +108,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             };
         }
 
+        // check cycle --
         if let Some(scp) = self.scope.check_cycle() {
             let kind = ErrorKind::RefCycle {
                 url: &self.schema.loc,
@@ -127,6 +128,13 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             }
         }
 
+        // constant --
+        if let Some(c) = &s.constant {
+            if !equals(v, c) {
+                return Err(self.error(kind!(Const, want: c)));
+            }
+        }
+
         // enum --
         if let Some(Enum { types, values }) = &s.enum_ {
             if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
@@ -134,10 +142,10 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             }
         }
 
-        // constant --
-        if let Some(c) = &s.constant {
-            if !equals(v, c) {
-                return Err(self.error(kind!(Const, want: c)));
+        // format --
+        if let Some(format) = &s.format {
+            if let Err(e) = (format.func)(v) {
+                self.add_error(kind!(Format, Cow::Borrowed(v), format.name, e));
             }
         }
 
@@ -150,13 +158,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             self.errors.extend(result.err());
         }
 
-        // format --
-        if let Some(format) = &s.format {
-            if let Err(e) = (format.func)(v) {
-                self.add_error(kind!(Format, Cow::Borrowed(v), format.name, e));
-            }
-        }
-
+        // type specific validations --
         match v {
             Value::Object(obj) => self.obj_validate(obj),
             Value::Array(arr) => self.arr_validate(arr),
@@ -165,7 +167,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             _ => {}
         }
 
-        if !self.bool_result || self.errors.is_empty() {
+        if self.errors.is_empty() || !self.bool_result {
             if s.draft_version >= 2019 {
                 self.refs_validate();
             }
@@ -225,9 +227,9 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         }
 
         // dependencies --
-        for (prop, dependency) in &s.dependencies {
+        for (prop, dep) in &s.dependencies {
             if obj.contains_key(prop) {
-                match dependency {
+                match dep {
                     Dependency::Props(required) => {
                         if let Some(missing) = self.find_missing(obj, required) {
                             self.add_error(ErrorKind::Dependency { prop, missing });

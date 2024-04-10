@@ -59,7 +59,7 @@ impl Root {
                     format!("no root resource found for {}", self.url).into(),
                 ))?
             } else {
-                // look for resource with id==url
+                // look for resource with id==uf.url
                 let Some(res) = self.resources.values().find(|res| res.id == uf.url) else {
                     return Ok(None); // external url
                 };
