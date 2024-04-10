@@ -673,24 +673,24 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 
         // allOf --
         if !s.all_of.is_empty() {
-            let mut allof_errors = vec![];
+            let mut errors = vec![];
             for sch in &s.all_of {
                 if let Err(e) = self.validate_self(*sch) {
-                    allof_errors.push(e);
+                    errors.push(e);
                     if self.bool_result {
                         break;
                     }
                 }
             }
-            if !allof_errors.is_empty() {
-                self.add_errors(allof_errors, kind!(AllOf));
+            if !errors.is_empty() {
+                self.add_errors(errors, kind!(AllOf));
             }
         }
 
         // anyOf --
         if !s.any_of.is_empty() {
             let mut matched = false;
-            let mut anyof_errors = vec![];
+            let mut errors = vec![];
             for sch in &s.any_of {
                 match self.validate_self(*sch) {
                     Ok(_) => {
@@ -700,21 +700,22 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                             break;
                         }
                     }
-                    Err(e) => anyof_errors.push(e),
+                    Err(e) => errors.push(e),
                 }
             }
             if !matched {
-                self.add_errors(anyof_errors, kind!(AnyOf));
+                self.add_errors(errors, kind!(AnyOf));
             }
         }
 
         // oneOf --
         if !s.one_of.is_empty() {
-            let (mut matched, mut oneof_errors) = (None, vec![]);
+            let mut matched = None;
+            let mut errors = vec![];
             for (i, sch) in s.one_of.iter().enumerate() {
                 if let Err(e) = self._validate_self(*sch, None, matched.is_some()) {
                     if matched.is_none() {
-                        oneof_errors.push(e);
+                        errors.push(e);
                     }
                 } else {
                     match matched {
@@ -727,7 +728,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                 }
             }
             if matched.is_none() {
-                self.add_errors(oneof_errors, ErrorKind::OneOf(None));
+                self.add_errors(errors, ErrorKind::OneOf(None));
             }
         }
 
