@@ -758,7 +758,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
             };
         }
 
-        // unevaluatedProps --
+        // unevaluatedProperties --
         if let (Some(sch), Value::Object(obj)) = (s.unevaluated_properties, v) {
             let uneval = std::mem::take(&mut self.uneval);
             for pname in &uneval.props {
@@ -888,7 +888,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                 let cur = &self.schemas.get(scope.sch).loc;
                 let parent = &self.schemas.get(parent.sch).loc;
                 loc.insert_str(0, &cur[parent.len()..]);
-            };
+            }
             scope = parent;
         }
         loc
