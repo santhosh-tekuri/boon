@@ -196,8 +196,8 @@ fn check_time(mut str: &str) -> Result<(), Box<dyn Error>> {
         (h, m) = (hm / 60, hm % 60);
     }
 
-    // check leapsecond
-    if !(s < 60 || h == 23 && m == 59) {
+    // check leap second
+    if !(s < 60 || (h == 23 && m == 59)) {
         Err("invalid leap second")?
     }
     Ok(())
@@ -603,7 +603,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
         Err("local part more than 64 characters long")?
     }
 
-    if local.starts_with('"') && local.ends_with('"') {
+    if local.len() > 1 && local.starts_with('"') && local.ends_with('"') {
         // quoted
         let local = &local[1..local.len() - 1];
         if local.contains(|c| matches!(c, '\\' | '"')) {
@@ -739,7 +739,7 @@ fn validate_uuid(v: &Value) -> Result<(), Box<dyn Error>> {
     static HEX_GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
     let mut i = 0;
     for group in s.split('-') {
-        if i > HEX_GROUPS.len() {
+        if i >= HEX_GROUPS.len() {
             Err("more than 5 elements")?;
         }
         if group.len() != HEX_GROUPS[i] {
