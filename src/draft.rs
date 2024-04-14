@@ -129,11 +129,11 @@ pub(crate) fn latest() -> &'static Draft {
 pub(crate) struct Draft {
     pub(crate) version: usize,
     pub(crate) url: &'static str,
-    id: &'static str,
-    subschemas: HashMap<&'static str, u8>,
-    pub(crate) vocab_prefix: &'static str,
-    pub(crate) all_vocabs: Vec<&'static str>,
-    pub(crate) default_vocabs: Vec<&'static str>,
+    id: &'static str,                         // property name used to represent id
+    subschemas: HashMap<&'static str, u8>,    // location of subschemas
+    pub(crate) vocab_prefix: &'static str,    // prefix used for vocabulary
+    pub(crate) all_vocabs: Vec<&'static str>, // names of supported vocabs
+    pub(crate) default_vocabs: Vec<&'static str>, // names of default vocabs
 }
 
 impl Draft {
