@@ -591,7 +591,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
                 // $dynamicRef includes anchor
                 if self.schemas.get(sch).dynamic_anchor == dref.anchor {
                     // initial target has matching $dynamicAnchor
-                    sch = self.resolve_dynamic_anchor(anchor).unwrap_or(sch);
+                    sch = self.resolve_dynamic_anchor(anchor, sch);
                 }
             }
             add_err!(self.validate_ref(sch, "$dynamicRef"));
@@ -633,15 +633,15 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         }
     }
 
-    fn resolve_dynamic_anchor(&self, name: &String) -> Option<SchemaIndex> {
+    fn resolve_dynamic_anchor(&self, name: &String, fallback: SchemaIndex) -> SchemaIndex {
+        let mut sch = fallback;
         let mut scope = &self.scope;
-        let mut sch = None;
         loop {
             let scope_sch = self.schemas.get(scope.sch);
             let base_sch = self.schemas.get(scope_sch.resource);
             debug_assert_eq!(base_sch.idx, base_sch.resource);
             if let Some(dsch) = base_sch.dynamic_anchors.get(name) {
-                sch.replace(*dsch);
+                sch = *dsch
             }
             if let Some(parent) = scope.parent {
                 scope = parent;
