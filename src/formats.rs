@@ -826,12 +826,12 @@ fn validate_uri_template(v: &Value) -> Result<(), Box<dyn Error>> {
             .map(|c| c == '{')
         {
             if got != want {
-                Err("nested curly brackets")?;
+                Err("nested curly braces")?;
             }
             want = !want;
         }
         if !want {
-            Err("no matching closing bracket")?
+            Err("no matching closing brace")?
         }
     }
     Ok(())
