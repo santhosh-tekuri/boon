@@ -579,7 +579,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         // $recursiveRef --
         if let Some(mut sch) = s.recursive_ref {
             if self.schemas.get(sch).recursive_anchor {
-                sch = self.resolve_recursive_anchor().unwrap_or(sch);
+                sch = self.resolve_recursive_anchor(sch);
             }
             add_err!(self.validate_ref(sch, "$recursiveRef"));
         }
@@ -616,14 +616,14 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
         Ok(())
     }
 
-    fn resolve_recursive_anchor(&self) -> Option<SchemaIndex> {
+    fn resolve_recursive_anchor(&self, fallback: SchemaIndex) -> SchemaIndex {
+        let mut sch = fallback;
         let mut scope = &self.scope;
-        let mut sch = None;
         loop {
             let scope_sch = self.schemas.get(scope.sch);
             let base_sch = self.schemas.get(scope_sch.resource);
             if base_sch.recursive_anchor {
-                sch.replace(scope.sch);
+                sch = scope.sch
             }
             if let Some(parent) = scope.parent {
                 scope = parent;
