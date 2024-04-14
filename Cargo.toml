@@ -28,7 +28,8 @@ ahash = "0.8.3"
 getopts = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
-ureq = "2"
+ureq = "2.9.6"
+rustls = "0.22"
 criterion = "0.5"
 
 [[bench]]

@@ -1,8 +1,13 @@
-use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr};
+use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr, sync::Arc};
 
 use boon::{Compiler, Draft, Schemas, UrlLoader};
 use getopts::Options;
+use rustls::{
+    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
+    SignatureScheme,
+};
 use serde_json::Value;
+use ureq::Agent;
 use url::Url;
 
 fn main() {
@@ -61,6 +66,7 @@ fn main() {
     let quiet = matches.opt_present("quiet");
     let assert_format = matches.opt_present("assert-format");
     let assert_content = matches.opt_present("assert-content");
+    let insecure = matches.opt_present("insecure");
 
     // schema --
     let Some(schema) = matches.free.first() else {
@@ -74,8 +80,8 @@ fn main() {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.register_url_loader("file", Box::new(FileUrlLoader));
-    compiler.register_url_loader("http", Box::new(HttpUrlLoader));
-    compiler.register_url_loader("https", Box::new(HttpUrlLoader));
+    compiler.register_url_loader("http", Box::new(HttpUrlLoader::new(insecure)));
+    compiler.register_url_loader("https", Box::new(HttpUrlLoader::new(insecure)));
     compiler.set_default_draft(draft);
     if assert_format {
         compiler.enable_format_assertions();
@@ -186,6 +192,7 @@ fn options() -> Options {
         "assert-content",
         "Enable content assertions with draft >= 7",
     );
+    opts.optflag("k", "insecure", "Use insecure TLS connection");
     opts
 }
 
@@ -207,10 +214,25 @@ impl UrlLoader for FileUrlLoader {
     }
 }
 
-struct HttpUrlLoader;
+struct HttpUrlLoader(Agent);
+
+impl HttpUrlLoader {
+    fn new(insecure: bool) -> Self {
+        let mut builder = ureq::builder();
+        if insecure {
+            let tls_config = rustls::ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(InsecureVerifier))
+                .with_no_client_auth();
+            builder = builder.tls_config(tls_config.into());
+        }
+        Self(builder.build())
+    }
+}
+
 impl UrlLoader for HttpUrlLoader {
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
-        let response = ureq::get(url).call()?;
+        let response = self.0.get(url).call()?;
         let is_yaml = url.ends_with(".yaml") || url.ends_with(".yml") || {
             let ctype = response.content_type();
             ctype.ends_with("/yaml") || ctype.ends_with("-yaml")
@@ -220,5 +242,43 @@ impl UrlLoader for HttpUrlLoader {
         } else {
             Ok(serde_json::from_reader(response.into_reader())?)
         }
+    }
+}
+
+#[derive(Debug)]
+struct InsecureVerifier;
+
+impl ServerCertVerifier for InsecureVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        vec![SignatureScheme::RSA_PSS_SHA256]
     }
 }
