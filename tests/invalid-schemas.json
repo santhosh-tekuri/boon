@@ -5,7 +5,9 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "#/a~0b~~cd"
         },
-        "errors": ["InvalidJsonPointer(\"http://fake.com/schema.json#/a~0b~~cd\")"]
+        "errors": [
+            "InvalidJsonPointer(\"http://fake.com/schema.json#/a~0b~~cd\")"
+        ]
     },
     {
         "description": "UnsupportedUrlScheme",
@@ -13,26 +15,36 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "ftp://mars.com/schema.json"
         },
-        "errors": ["UnsupportedUrlScheme { url: \"ftp://mars.com/schema.json\" }"]
+        "errors": [
+            "UnsupportedUrlScheme { url: \"ftp://mars.com/schema.json\" }"
+        ]
     },
     {
         "description": "ValidationError",
         "schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "patternProperties": {
-                "^(abc]": { "type": "string" }
+                "^(abc]": {
+                    "type": "string"
+                }
             }
         },
-        "errors": ["ValidationError { url: \"http://fake.com/schema.json#\""]
+        "errors": [
+            "ValidationError { url: \"http://fake.com/schema.json#\""
+        ]
     },
     {
         "description": "ValidationError-nonsubschema",
         "schema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "dummy": { "type": 1 },
+            "dummy": {
+                "type": 1
+            },
             "$ref": "#/dummy"
         },
-        "errors": ["ValidationError { url: \"http://fake.com/schema.json#/dummy\""]
+        "errors": [
+            "ValidationError { url: \"http://fake.com/schema.json#/dummy\""
+        ]
     },
     {
         "description": "JsonPointerNotFound-obj",
@@ -40,7 +52,9 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "#/$defs/something"
         },
-        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/$defs/something\")"]
+        "errors": [
+            "JsonPointerNotFound(\"http://fake.com/schema.json#/$defs/something\")"
+        ]
     },
     {
         "description": "JsonPointerNotFound-arr-pos",
@@ -49,7 +63,9 @@
             "$ref": "#/dummy/0",
             "dummy": []
         },
-        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/0\")"]
+        "errors": [
+            "JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/0\")"
+        ]
     },
     {
         "description": "JsonPointerNotFound-arr-neg",
@@ -58,7 +74,9 @@
             "$ref": "#/dummy/-1",
             "dummy": []
         },
-        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/-1\")"]
+        "errors": [
+            "JsonPointerNotFound(\"http://fake.com/schema.json#/dummy/-1\")"
+        ]
     },
     {
         "description": "JsonPointerNotFound-primitive",
@@ -66,17 +84,23 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$ref": "#/$schema/something"
         },
-        "errors": ["JsonPointerNotFound(\"http://fake.com/schema.json#/$schema/something\")"]
+        "errors": [
+            "JsonPointerNotFound(\"http://fake.com/schema.json#/$schema/something\")"
+        ]
     },
     {
         "description": "InvalidRegex",
         "schema": {
             "$schema": "https://json-schema.org/draft-04/schema",
             "patternProperties": {
-                "^(abc]": { "type": "string" }
+                "^(abc]": {
+                    "type": "string"
+                }
             }
         },
-        "errors": ["InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\", "]
+        "errors": [
+            "InvalidRegex { url: \"http://fake.com/schema.json#/patternProperties\", regex: \"^(abc]\", "
+        ]
     },
     {
         "description": "DuplicateId",
@@ -139,7 +163,9 @@
         "schema": {
             "$schema": "http://remotes/a.json"
         },
-        "errors": ["UnsupportedDraft { url: \"http://remotes/b.json\" }"]
+        "errors": [
+            "UnsupportedDraft { url: \"http://remotes/b.json\" }"
+        ]
     },
     {
         "description": "MetaSchemaCycle",
@@ -154,7 +180,9 @@
         "schema": {
             "$schema": "http://remotes/a.json"
         },
-        "errors": ["MetaSchemaCycle { url: \"http://remotes/a.json\" }"]
+        "errors": [
+            "MetaSchemaCycle { url: \"http://remotes/a.json\" }"
+        ]
     },
     {
         "description": "AnchorNotFound-local",
@@ -166,7 +194,9 @@
                 }
             }
         },
-        "errors": ["AnchorNotFound { url: \"http://fake.com/schema.json\", reference: \"http://fake.com/sample.json#abcd\" }"]
+        "errors": [
+            "AnchorNotFound { url: \"http://fake.com/schema.json\", reference: \"http://fake.com/sample.json#abcd\" }"
+        ]
     },
     {
         "description": "AnchorNotFound-remote",
@@ -176,10 +206,12 @@
         "schema": {
             "$ref": "http://remotes/a.json#abcd"
         },
-        "errors": ["AnchorNotFound { url: \"http://remotes/a.json\", reference: \"http://remotes/a.json#abcd\" }"]
+        "errors": [
+            "AnchorNotFound { url: \"http://remotes/a.json\", reference: \"http://remotes/a.json#abcd\" }"
+        ]
     },
     {
-        "description": "UnsupprtedVocabulary-required",
+        "description": "UnsupportedVocabulary-required",
         "remotes": {
             "http://remotes/a.json": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema#",
@@ -191,10 +223,12 @@
         "schema": {
             "$schema": "http://remotes/a.json"
         },
-        "errors": ["UnsupprtedVocabulary { url: \"http://remotes/a.json\", vocabulary: \"https://json-schema.org/draft/2019-09/vocab/format\" }"]
+        "errors": [
+            "UnsupportedVocabulary { url: \"http://remotes/a.json\", vocabulary: \"https://json-schema.org/draft/2019-09/vocab/format\" }"
+        ]
     },
     {
-        "description": "UnsupprtedVocabulary-optioanl",
+        "description": "UnsupportedVocabulary-optioanl",
         "remotes": {
             "http://remotes/a.json": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema#",

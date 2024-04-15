@@ -109,7 +109,7 @@ impl Root {
                 if let Some(name) = name {
                     vocabs.push(name.to_owned()); // todo: avoid alloc
                 } else {
-                    return Err(CompileError::UnsupprtedVocabulary {
+                    return Err(CompileError::UnsupportedVocabulary {
                         url: self.url.as_str().to_owned(),
                         vocabulary: vocab.to_owned(),
                     });

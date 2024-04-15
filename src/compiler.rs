@@ -812,7 +812,7 @@ pub enum CompileError {
     AnchorNotFound { url: String, reference: String },
 
     /// Unsupported vocabulary `vocabulary` in `url`.
-    UnsupprtedVocabulary { url: String, vocabulary: String },
+    UnsupportedVocabulary { url: String, vocabulary: String },
 
     /// Invalid Regex `regex` at `url`.
     InvalidRegex {
@@ -902,7 +902,7 @@ impl Display for CompileError {
                     "anchor in reference {reference} is not found in schema {url}"
                 )
             }
-            Self::UnsupprtedVocabulary { url, vocabulary } => {
+            Self::UnsupportedVocabulary { url, vocabulary } => {
                 write!(f, "unsupported vocabulary {vocabulary} in {url}")
             }
             Self::InvalidRegex { url, regex, src } => {
