@@ -108,11 +108,9 @@
 		},
 		"patternProperties": {
 			"type": "object",
-			"regexProperties": true,
 			"additionalProperties": { "$ref": "#" },
 			"default": {}
 		},
-		"regexProperties": { "type": "boolean" },
 		"dependencies": {
 			"type": "object",
 			"additionalProperties": {
