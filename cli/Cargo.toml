@@ -1,0 +1,18 @@
+[package]
+name = "cli"
+version = "0.5.3"
+edition = "2021"
+
+[dependencies]
+boon = { version = "0.5", path = ".."}
+url = "2"
+getopts = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+ureq = "2.9.6"
+rustls = "0.22"
+
+[[bin]]
+name = "boon"
+path = "src/main.rs"
