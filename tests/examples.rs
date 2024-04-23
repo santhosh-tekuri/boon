@@ -42,7 +42,7 @@ fn example_from_strings() -> Result<(), Box<dyn Error>> {
         "oneOf": [
             { "$ref": "dog.json" },
             { "$ref": "cat.json" }
-        ],
+        ]
     });
     let instance: Value = json!({"speak": "bow"});
 

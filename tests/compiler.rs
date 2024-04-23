@@ -71,7 +71,7 @@ fn test_compile_nonstd() -> Result<(), Box<dyn Error>> {
                     },
                     "oneOf": [
                         { "$ref": "#a" },
-                        { "$ref": "http://temp.com/y" },
+                        { "$ref": "http://temp.com/y" }
                     ]
                 }
             }
