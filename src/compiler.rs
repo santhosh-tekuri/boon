@@ -964,7 +964,11 @@ impl Queue {
             Fragment::Anchor(_) => {
                 let root = match roots.get(&uf.url).or_else(|| self.roots.get(&uf.url)) {
                     Some(root) => root,
-                    None => roots.enqueue_root(uf.url.clone(), &mut self.roots)?,
+                    None => {
+                        let doc = roots.loader.load(&uf.url)?;
+                        let r = roots.create_root(uf.url.clone(), doc)?;
+                        self.roots.entry(uf.url).or_insert(r)
+                    }
                 };
                 root.resolve_fragment(&uf.frag)
             }

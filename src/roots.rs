@@ -58,28 +58,25 @@ impl Roots {
 
     pub(crate) fn or_load(&mut self, url: Url) -> Result<(), CompileError> {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
-        if !self.map.contains_key(&url) {
-            let doc = self.loader.load(&url)?;
-            Roots::add_root(self.default_draft, &mut self.map, &self.loader, url, doc)?;
+        if self.map.contains_key(&url) {
+            return Ok(());
         }
+        let doc = self.loader.load(&url)?;
+        let r = self.create_root(url.clone(), doc)?;
+        self.map.insert(url, r);
         Ok(())
     }
 
-    fn add_root<'a>(
-        default_draft: &'static Draft,
-        wmap: &'a mut HashMap<Url, Root>,
-        loader: &DefaultUrlLoader,
-        url: Url,
-        doc: &Value,
-    ) -> Result<&'a Root, CompileError> {
+    pub(crate) fn create_root(&self, url: Url, doc: &Value) -> Result<Root, CompileError> {
         let draft = {
             let up = UrlPtr {
                 url: url.clone(),
                 ptr: "".into(),
             };
-            loader.get_draft(&up, doc, default_draft, HashSet::new())?
+            self.loader
+                .get_draft(&up, doc, self.default_draft, HashSet::new())?
         };
-        let vocabs = loader.get_meta_vocabs(doc, draft)?;
+        let vocabs = self.loader.get_meta_vocabs(doc, draft)?;
         let resources = {
             let mut m = HashMap::default();
             draft.collect_resources(doc, &url, "".into(), &url, &mut m)?;
@@ -96,22 +93,12 @@ impl Roots {
             )?;
         }
 
-        let r = Root {
+        Ok(Root {
             draft,
             resources,
             url: url.clone(),
             meta_vocabs: vocabs,
-        };
-        Ok(wmap.entry(url).or_insert(r))
-    }
-
-    pub(crate) fn enqueue_root<'a>(
-        &self,
-        url: Url,
-        target: &'a mut HashMap<Url, Root>,
-    ) -> Result<&'a Root, CompileError> {
-        let doc = self.loader.load(&url)?;
-        Self::add_root(self.default_draft, target, &self.loader, url, doc)
+        })
     }
 
     pub(crate) fn insert(&mut self, roots: &mut HashMap<Url, Root>) {
