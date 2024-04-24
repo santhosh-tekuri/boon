@@ -1,12 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-    compiler::CompileError::{self, *},
-    draft::*,
-    loader::DefaultUrlLoader,
-    root::Root,
-    util::*,
-};
+use crate::{compiler::CompileError, draft::*, loader::DefaultUrlLoader, root::Root, util::*};
 
 use serde_json::Value;
 use url::Url;
@@ -54,9 +48,10 @@ impl Roots {
             return Err(CompileError::Bug("or_load didn't add".into()));
         };
         if !root.draft.is_subschema(up.ptr.as_str()) {
-            let v = up.ptr.lookup(&root.doc, &up.url)?;
+            let doc = self.loader.load(&root.url)?;
+            let v = up.ptr.lookup(doc, &up.url)?;
             root.draft.validate(up, v)?;
-            root.add_subschema(&up.ptr)?;
+            root.add_subschema(doc, &up.ptr)?;
         }
         Ok(())
     }
@@ -65,63 +60,29 @@ impl Roots {
         debug_assert!(url.fragment().is_none(), "trying to add root with fragment");
         if !self.map.contains_key(&url) {
             let doc = self.loader.load(&url)?;
-            Roots::add_root(
-                self.default_draft,
-                &HashMap::new(),
-                &mut self.map,
-                &self.loader,
-                HashSet::new(),
-                url,
-                doc,
-            )?;
+            Roots::add_root(self.default_draft, &mut self.map, &self.loader, url, doc)?;
         }
         Ok(())
     }
 
     fn add_root<'a>(
         default_draft: &'static Draft,
-        rmap: &HashMap<Url, Root>,
         wmap: &'a mut HashMap<Url, Root>,
         loader: &DefaultUrlLoader,
-        mut cycle: HashSet<Url>,
         url: Url,
-        doc: Value,
+        doc: &Value,
     ) -> Result<&'a Root, CompileError> {
-        let (draft, vocabs) = (|| {
-            let Value::Object(obj) = &doc else {
-                return Ok((default_draft, None));
+        let draft = {
+            let up = UrlPtr {
+                url: url.clone(),
+                ptr: "".into(),
             };
-            let Some(Value::String(sch)) = obj.get("$schema") else {
-                return Ok((default_draft, None));
-            };
-            if let Some(draft) = Draft::from_url(sch) {
-                return Ok((draft, None));
-            }
-            let (sch, _) = split(sch);
-            let sch = Url::parse(sch).map_err(|e| InvalidMetaSchemaUrl {
-                url: url.as_str().to_owned(),
-                src: e.into(),
-            })?;
-            if let Some(r) = rmap.get(&sch) {
-                return Ok((r.draft, r.get_reqd_vocabs()?));
-            }
-            if let Some(r) = wmap.get(&sch) {
-                return Ok((r.draft, r.get_reqd_vocabs()?));
-            }
-            if sch == url {
-                return Err(UnsupportedDraft { url: sch.into() });
-            }
-            if !cycle.insert(sch.clone()) {
-                return Err(MetaSchemaCycle { url: sch.into() });
-            }
-            let doc = loader.load(&sch)?;
-            let meta_root = Roots::add_root(default_draft, rmap, wmap, loader, cycle, sch, doc)?;
-            Ok((meta_root.draft, meta_root.get_reqd_vocabs()?))
-        })()?;
-
+            loader.get_draft(&up, doc, default_draft, HashSet::new())?
+        };
+        let vocabs = loader.get_meta_vocabs(doc, draft)?;
         let resources = {
             let mut m = HashMap::default();
-            draft.collect_resources(&doc, &url, "".into(), &url, &mut m)?;
+            draft.collect_resources(doc, &url, "".into(), &url, &mut m)?;
             m
         };
 
@@ -131,7 +92,7 @@ impl Roots {
                     url: url.clone(),
                     ptr: "".into(),
                 },
-                &doc,
+                doc,
             )?;
         }
 
@@ -139,7 +100,6 @@ impl Roots {
             draft,
             resources,
             url: url.clone(),
-            doc,
             meta_vocabs: vocabs,
         };
         Ok(wmap.entry(url).or_insert(r))
@@ -151,15 +111,7 @@ impl Roots {
         target: &'a mut HashMap<Url, Root>,
     ) -> Result<&'a Root, CompileError> {
         let doc = self.loader.load(&url)?;
-        Self::add_root(
-            self.default_draft,
-            &self.map,
-            target,
-            &self.loader,
-            HashSet::new(),
-            url,
-            doc,
-        )
+        Self::add_root(self.default_draft, target, &self.loader, url, doc)
     }
 
     pub(crate) fn insert(&mut self, roots: &mut HashMap<Url, Root>) {

@@ -200,6 +200,41 @@ impl Draft {
         Some(id).filter(|id| !id.is_empty())
     }
 
+    pub(crate) fn get_vocabs(
+        &self,
+        url: &Url,
+        doc: &Value,
+    ) -> Result<Option<Vec<String>>, CompileError> {
+        if self.version < 2019 {
+            return Ok(None);
+        }
+        let Value::Object(obj) = doc else {
+            return Ok(None);
+        };
+
+        let Some(Value::Object(obj)) = obj.get("$vocabulary") else {
+            return Ok(None);
+        };
+
+        let mut vocabs = vec![];
+        for (vocab, reqd) in obj {
+            if let Value::Bool(true) = reqd {
+                let name = vocab
+                    .strip_prefix(self.vocab_prefix)
+                    .filter(|name| self.all_vocabs.contains(name));
+                if let Some(name) = name {
+                    vocabs.push(name.to_owned()); // todo: avoid alloc
+                } else {
+                    return Err(CompileError::UnsupportedVocabulary {
+                        url: url.as_str().to_owned(),
+                        vocabulary: vocab.to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(Some(vocabs))
+    }
+
     // collects anchors/dynamic_achors from `sch` into `res`.
     // note this does not collect from subschemas in sch.
     pub(crate) fn collect_anchors(

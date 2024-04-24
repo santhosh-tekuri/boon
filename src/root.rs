@@ -9,7 +9,6 @@ pub(crate) struct Root {
     pub(crate) draft: &'static Draft,
     pub(crate) resources: HashMap<JsonPointer, Resource>, // ptr => _
     pub(crate) url: Url,
-    pub(crate) doc: Value,
     pub(crate) meta_vocabs: Option<Vec<String>>,
 }
 
@@ -88,39 +87,12 @@ impl Root {
         &self.resource(ptr).id
     }
 
-    pub(crate) fn get_reqd_vocabs(&self) -> Result<Option<Vec<String>>, CompileError> {
-        if self.draft.version < 2019 {
-            return Ok(None);
-        }
-        let Value::Object(obj) = &self.doc else {
-            return Ok(None);
-        };
-
-        let Some(Value::Object(obj)) = obj.get("$vocabulary") else {
-            return Ok(None);
-        };
-
-        let mut vocabs = vec![];
-        for (vocab, reqd) in obj {
-            if let Value::Bool(true) = reqd {
-                let name = vocab
-                    .strip_prefix(self.draft.vocab_prefix)
-                    .filter(|name| self.draft.all_vocabs.contains(name));
-                if let Some(name) = name {
-                    vocabs.push(name.to_owned()); // todo: avoid alloc
-                } else {
-                    return Err(CompileError::UnsupportedVocabulary {
-                        url: self.url.as_str().to_owned(),
-                        vocabulary: vocab.to_owned(),
-                    });
-                }
-            }
-        }
-        Ok(Some(vocabs))
-    }
-
-    pub(crate) fn add_subschema(&mut self, ptr: &JsonPointer) -> Result<(), CompileError> {
-        let v = ptr.lookup(&self.doc, &self.url)?;
+    pub(crate) fn add_subschema(
+        &mut self,
+        doc: &Value,
+        ptr: &JsonPointer,
+    ) -> Result<(), CompileError> {
+        let v = ptr.lookup(doc, &self.url)?;
         let base_url = self.base_url(ptr).clone();
         self.draft
             .collect_resources(v, &base_url, ptr.clone(), &self.url, &mut self.resources)?;

@@ -188,7 +188,7 @@ impl Compiler {
     */
     pub fn add_resource(&mut self, loc: &str, json: Value) -> Result<(), CompileError> {
         let uf = UrlFrag::absolute(loc)?;
-        self.roots.loader.add_resource(uf.url, json);
+        self.roots.loader.add_doc(uf.url, json);
         Ok(())
     }
 
@@ -238,7 +238,8 @@ impl Compiler {
             let Some(root) = self.roots.get(&up.url) else {
                 return Err(CompileError::Bug("or_load didn't add".into()));
             };
-            let v = up.lookup(&root.doc)?;
+            let doc = self.roots.loader.load(&root.url)?;
+            let v = up.lookup(doc)?;
             let sch = self.compile_value(target, v, &up.clone(), root, &mut queue)?;
             compiled.push(sch);
             self.roots.insert(&mut queue.roots);
