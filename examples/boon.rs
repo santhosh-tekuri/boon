@@ -1,3 +1,4 @@
+use core::panic;
 use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr, sync::Arc};
 
 use boon::{Compiler, Draft, Schemas, UrlLoader};
@@ -77,8 +78,10 @@ fn main() {
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
     compiler.register_url_loader("file", Box::new(FileUrlLoader));
-    compiler.register_url_loader("http", Box::new(HttpUrlLoader::new(insecure)));
-    compiler.register_url_loader("https", Box::new(HttpUrlLoader::new(insecure)));
+    let cacert = matches.opt_str("cacert");
+    let cacert = cacert.as_deref();
+    compiler.register_url_loader("http", Box::new(HttpUrlLoader::new(cacert, insecure)));
+    compiler.register_url_loader("https", Box::new(HttpUrlLoader::new(cacert, insecure)));
     compiler.set_default_draft(draft);
     if assert_format {
         compiler.enable_format_assertions();
@@ -189,6 +192,12 @@ fn options() -> Options {
         "assert-content",
         "Enable content assertions with draft >= 7",
     );
+    opts.optopt(
+        "",
+        "cacert",
+        "Use the specified PEM certificate file to verify the peer. The file may contain multiple CA certificates",
+        "<FILE>",
+    );
     opts.optflag("k", "insecure", "Use insecure TLS connection");
     opts
 }
@@ -214,9 +223,25 @@ impl UrlLoader for FileUrlLoader {
 struct HttpUrlLoader(Agent);
 
 impl HttpUrlLoader {
-    fn new(insecure: bool) -> Self {
+    fn new(cacert: Option<&str>, insecure: bool) -> Self {
         let mut builder = ureq::builder();
-        if insecure {
+        if let Some(cacert) = cacert {
+            let file = File::open(cacert).unwrap_or_else(|e| panic!("error opening {cacert}: {e}"));
+            let certs: Result<Vec<_>, _> =
+                rustls_pemfile::certs(&mut BufReader::new(file)).collect();
+            let certs = certs.unwrap_or_else(|e| panic!("error reading cacert: {e}"));
+            assert!(!certs.is_empty(), "no certs in cacert");
+            let mut store = rustls::RootCertStore::empty();
+            for cert in certs {
+                store
+                    .add(cert)
+                    .unwrap_or_else(|e| panic!("error adding cert: {e}"))
+            }
+            let tls_config = rustls::ClientConfig::builder()
+                .with_root_certificates(store)
+                .with_no_client_auth();
+            builder = builder.tls_config(tls_config.into());
+        } else if insecure {
             let tls_config = rustls::ClientConfig::builder()
                 .dangerous()
                 .with_custom_certificate_verifier(Arc::new(InsecureVerifier))
