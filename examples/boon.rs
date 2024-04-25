@@ -2,10 +2,7 @@ use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr, syn
 
 use boon::{Compiler, Draft, Schemas, UrlLoader};
 use getopts::Options;
-use rustls::{
-    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    SignatureScheme,
-};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use serde_json::Value;
 use ureq::Agent;
 use url::Url;
@@ -279,6 +276,8 @@ impl ServerCertVerifier for InsecureVerifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![SignatureScheme::RSA_PSS_SHA256]
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
