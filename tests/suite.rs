@@ -85,8 +85,7 @@ fn test_file(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>
             compiler.enable_format_assertions();
             compiler.enable_content_assertions();
         }
-        compiler.register_url_loader("http", Box::new(RemotesLoader(suite.to_owned())));
-        compiler.register_url_loader("https", Box::new(RemotesLoader(suite.to_owned())));
+        compiler.use_loader(Box::new(RemotesLoader(suite.to_owned())));
         compiler.add_resource(url, group.schema)?;
         let sch_index = compiler.compile(url, &mut schemas)?;
         for test in group.tests {

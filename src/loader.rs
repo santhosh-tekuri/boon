@@ -28,7 +28,7 @@ pub trait UrlLoader {
 // --
 
 #[cfg(not(target_arch = "wasm32"))]
-struct FileLoader;
+pub struct FileLoader;
 
 #[cfg(not(target_arch = "wasm32"))]
 impl UrlLoader for FileLoader {
@@ -42,22 +42,53 @@ impl UrlLoader for FileLoader {
 
 // --
 
+#[derive(Default)]
+pub struct SchemeUrlLoader {
+    loaders: HashMap<&'static str, Box<dyn UrlLoader>>,
+}
+
+impl SchemeUrlLoader {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Registers [`UrlLoader`] for given url `scheme`
+    pub fn register(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
+        self.loaders.insert(scheme, url_loader);
+    }
+}
+
+impl UrlLoader for SchemeUrlLoader {
+    fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
+        let url = Url::parse(url)?;
+        let Some(loader) = self.loaders.get(url.scheme()) else {
+            return Err(CompileError::UnsupportedUrlScheme {
+                url: url.as_str().to_owned(),
+            }
+            .into());
+        };
+        loader.load(url.as_str())
+    }
+}
+
+// --
+
 pub(crate) struct DefaultUrlLoader {
     doc_map: RefCell<HashMap<Url, usize>>,
     doc_list: AppendList<Value>,
-    loaders: HashMap<&'static str, Box<dyn UrlLoader>>,
+    loader: Box<dyn UrlLoader>,
 }
 
 impl DefaultUrlLoader {
     pub fn new() -> Self {
-        let mut v = Self {
+        let mut loader = SchemeUrlLoader::new();
+        #[cfg(not(target_arch = "wasm32"))]
+        loader.register("file", Box::new(FileLoader));
+        Self {
             doc_map: Default::default(),
             doc_list: AppendList::new(),
-            loaders: Default::default(),
-        };
-        #[cfg(not(target_arch = "wasm32"))]
-        v.loaders.insert("file", Box::new(FileLoader));
-        v
+            loader: Box::new(loader),
+        }
     }
 
     pub fn get_doc(&self, url: &Url) -> Option<&Value> {
@@ -77,8 +108,8 @@ impl DefaultUrlLoader {
             .insert(url, self.doc_list.len() - 1);
     }
 
-    pub fn register(&mut self, schema: &'static str, loader: Box<dyn UrlLoader>) {
-        self.loaders.insert(schema, loader);
+    pub fn use_loader(&mut self, loader: Box<dyn UrlLoader>) {
+        self.loader = loader;
     }
 
     pub(crate) fn load(&self, url: &Url) -> Result<&Value, CompileError> {
@@ -93,12 +124,7 @@ impl DefaultUrlLoader {
                 src: e.into(),
             })?
         } else {
-            let Some(loader) = self.loaders.get(url.scheme()) else {
-                return Err(CompileError::UnsupportedUrlScheme {
-                    url: url.as_str().to_owned(),
-                });
-            };
-            loader
+            self.loader
                 .load(url.as_str())
                 .map_err(|src| CompileError::LoadUrlError {
                     url: url.as_str().to_owned(),

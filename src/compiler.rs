@@ -129,16 +129,9 @@ impl Compiler {
         self.assert_content = true;
     }
 
-    /**
-    Registers [`UrlLoader`] for given url `scheme`
-
-    # Note
-    - loader for `file` scheme is included by default and
-    - all standard meta-schemas from `http(s)://json-schema.org` are loaded internally
-      without network access
-    */
-    pub fn register_url_loader(&mut self, scheme: &'static str, url_loader: Box<dyn UrlLoader>) {
-        self.roots.loader.register(scheme, url_loader);
+    /// Overrides default [`UrlLoader`] used to load schema resources
+    pub fn use_loader(&mut self, url_loader: Box<dyn UrlLoader>) {
+        self.roots.loader.use_loader(url_loader);
     }
 
     /**

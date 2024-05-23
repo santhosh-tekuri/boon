@@ -1,6 +1,6 @@
 use std::{error::Error, fs::File};
 
-use boon::{Compiler, Decoder, Format, MediaType, Schemas, UrlLoader};
+use boon::{Compiler, Decoder, FileLoader, Format, MediaType, Schemas, SchemeUrlLoader, UrlLoader};
 use serde::de::IgnoredAny;
 use serde_json::{json, Value};
 use url::Url;
@@ -73,8 +73,11 @@ fn example_from_https() -> Result<(), Box<dyn Error>> {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    compiler.register_url_loader("http", Box::new(HttpUrlLoader));
-    compiler.register_url_loader("https", Box::new(HttpUrlLoader));
+    let mut loader = SchemeUrlLoader::new();
+    loader.register("file", Box::new(FileLoader));
+    loader.register("http", Box::new(HttpUrlLoader));
+    loader.register("https", Box::new(HttpUrlLoader));
+    compiler.use_loader(Box::new(loader));
     let sch_index = compiler.compile(schema_url, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());
@@ -107,7 +110,9 @@ fn example_from_yaml_files() -> Result<(), Box<dyn Error>> {
 
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    compiler.register_url_loader("file", Box::new(FileUrlLoader));
+    let mut loader = SchemeUrlLoader::new();
+    loader.register("file", Box::new(FileUrlLoader));
+    compiler.use_loader(Box::new(loader));
     let sch_index = compiler.compile(schema_file, &mut schemas)?;
     let result = schemas.validate(&instance, sch_index);
     assert!(result.is_ok());

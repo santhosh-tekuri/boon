@@ -11,7 +11,7 @@ fn test_debug() -> Result<(), Box<dyn Error>> {
     compiler.enable_format_assertions();
     compiler.enable_content_assertions();
     let remotes = Remotes(test["remotes"].as_object().unwrap().clone());
-    compiler.register_url_loader("http", Box::new(remotes));
+    compiler.use_loader(Box::new(remotes));
     let url = "http://debug.com/schema.json";
     compiler.add_resource(url, test["schema"].clone())?;
     let sch = compiler.compile(url, &mut schemas)?;

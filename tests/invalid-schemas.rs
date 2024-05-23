@@ -48,7 +48,7 @@ fn compile(test: &Test) -> Result<(), CompileError> {
     let mut compiler = Compiler::new();
     let url = "http://fake.com/schema.json";
     if let Some(remotes) = &test.remotes {
-        compiler.register_url_loader("http", Box::new(Remotes(remotes.clone())));
+        compiler.use_loader(Box::new(Remotes(remotes.clone())));
     }
     compiler.add_resource(url, test.schema.clone())?;
     compiler.compile(url, &mut schemas)?;

@@ -118,7 +118,7 @@ pub use {
     compiler::{CompileError, Compiler, Draft},
     content::{Decoder, MediaType},
     formats::Format,
-    loader::UrlLoader,
+    loader::{FileLoader, SchemeUrlLoader, UrlLoader},
     output::{
         AbsoluteKeywordLocation, FlagOutput, KeywordPath, OutputError, OutputUnit, SchemaToken,
     },
