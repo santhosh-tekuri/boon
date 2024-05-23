@@ -1020,21 +1020,6 @@ pub enum InstanceToken<'v> {
     Item(usize),
 }
 
-impl<'v> InstanceToken<'v> {
-    fn to_string(tokens: &[InstanceToken]) -> String {
-        use InstanceToken::*;
-        let mut r = String::new();
-        for tok in tokens {
-            r.push('/');
-            match tok {
-                Prop(s) => r.push_str(&escape(s)),
-                Item(i) => write!(&mut r, "{i}").expect("write to String should never fail"),
-            }
-        }
-        r
-    }
-}
-
 impl<'v> From<String> for InstanceToken<'v> {
     fn from(prop: String) -> Self {
         InstanceToken::Prop(prop.into())
@@ -1077,9 +1062,16 @@ impl<'v> InstanceLocation<'v> {
     }
 }
 
-impl<'v> ToString for InstanceLocation<'v> {
-    fn to_string(&self) -> String {
-        InstanceToken::to_string(&self.tokens)
+impl<'v> Display for InstanceLocation<'v> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for tok in &self.tokens {
+            f.write_char('/')?;
+            match tok {
+                InstanceToken::Prop(s) => f.write_str(&escape(s))?,
+                InstanceToken::Item(i) => write!(f, "{i}")?,
+            }
+        }
+        Ok(())
     }
 }
 

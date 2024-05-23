@@ -395,7 +395,7 @@ impl Draft {
             if let Some(i) = ptr.find('/') {
                 (&ptr[..i], &ptr[i..])
             } else {
-                (&ptr, "")
+                (ptr, "")
             }
         }
 
