@@ -1,7 +1,7 @@
 use core::panic;
 use std::{env, error::Error, fs::File, io::BufReader, process, str::FromStr, sync::Arc};
 
-use boon::{Compiler, Draft, Schemas, UrlLoader};
+use boon::{Compiler, Draft, Schemas, SchemeUrlLoader, UrlLoader};
 use getopts::Options;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use serde_json::Value;
@@ -77,11 +77,13 @@ fn main() {
     // compile --
     let mut schemas = Schemas::new();
     let mut compiler = Compiler::new();
-    compiler.register_url_loader("file", Box::new(FileUrlLoader));
+    let mut loader = SchemeUrlLoader::new();
+    loader.register("file", Box::new(FileUrlLoader));
     let cacert = matches.opt_str("cacert");
     let cacert = cacert.as_deref();
-    compiler.register_url_loader("http", Box::new(HttpUrlLoader::new(cacert, insecure)));
-    compiler.register_url_loader("https", Box::new(HttpUrlLoader::new(cacert, insecure)));
+    loader.register("http", Box::new(HttpUrlLoader::new(cacert, insecure)));
+    loader.register("https", Box::new(HttpUrlLoader::new(cacert, insecure)));
+    compiler.use_loader(Box::new(loader));
     compiler.set_default_draft(draft);
     if assert_format {
         compiler.enable_format_assertions();
