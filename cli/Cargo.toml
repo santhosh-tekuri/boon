@@ -1,10 +1,10 @@
 [package]
-name = "cli"
+name = "boon-cli"
 version = "0.6.0"
 edition = "2021"
 
 [dependencies]
-boon = { version = "0.5", path = ".."}
+boon = { version = "0.6", path = ".."}
 url = "2"
 getopts = "0.2"
 serde = { version = "1.0", features = ["derive"] }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0] - 2024-05-30
+
+### Braking Changes
+- loader: Allow to replace entirely
+
+### Bug Fixes
+- seperate doc loading from root creation
+- validator: if contentEncoding fails, skip contentMediaType
+- loader: should load latest from metaschemas dir
+- fix: hash for json numbers with zero fractions
+- fix: resources/anchors in non-std schema loc not supported
+
+### Changes
+- boon binary artificats under github release
+- boon binary `--cacert` option
+- boon binary `--insecure` flag
+
 ## [0.5.3] - 2024-01-27
 
 ### Changes

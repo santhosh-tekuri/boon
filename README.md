@@ -56,7 +56,9 @@
 
 ## CLI
 
-to install: `cargo install --example boon boon`
+to install: `cargo install boon-cli`
+
+or download it from [releases](https://github.com/santhosh-tekuri/boon/releases)
 
 ```
 Usage: boon [OPTIONS] SCHEMA [INSTANCE...]
@@ -72,6 +74,9 @@ Options:
                         Enable format assertions with draft >= 2019
     -c, --assert-content
                         Enable content assertions with draft >= 7
+        --cacert <FILE> Use the specified PEM certificate file to verify the
+                        peer. The file may contain multiple CA certificates
+    -k, --insecure      Use insecure TLS connection
 ```
 
 This cli can validate both schema and multiple instances.
