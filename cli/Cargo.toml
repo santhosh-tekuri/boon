@@ -2,6 +2,12 @@
 name = "boon-cli"
 version = "0.6.0"
 edition = "2021"
+description = "cli for JSONSchema (draft 2020-12, draft 2019-09, draft-7, draft-6, draft-4) Validation"
+repository = "https://github.com/santhosh-tekuri/boon/cli"
+authors = ["santhosh kumar tekuri <santhosh.tekuri@gmail.com>"]
+keywords = ["jsonschema", "validation"]
+categories = ["web-programming"]
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 boon = { version = "0.6", path = ".."}
