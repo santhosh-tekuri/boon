@@ -1,7 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     str::FromStr,
-    usize,
 };
 
 use once_cell::sync::Lazy;
