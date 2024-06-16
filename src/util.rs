@@ -1,9 +1,8 @@
 use std::{
     borrow::{Borrow, Cow},
-    env,
     fmt::Display,
-    hash::Hash,
-    hash::Hasher,
+    hash::{Hash, Hasher},
+    path,
     str::FromStr,
 };
 
@@ -221,21 +220,11 @@ impl UrlFrag {
             Ok(url) => Ok(UrlFrag { url, frag }),
             #[cfg(not(target_arch = "wasm32"))]
             Err(url::ParseError::RelativeUrlWithoutBase) => {
-                // TODO(unstable): replace with `path::absolute` once it is stabilized
-                use std::path::Path;
-                let mut path = Path::new(u);
-                let tmp;
-                if !path.is_absolute() {
-                    tmp = env::current_dir()
-                        .map_err(|e| CompileError::ParseUrlError {
-                            url: u.to_owned(),
-                            src: e.into(),
-                        })?
-                        .join(path);
-                    path = tmp.as_path();
-                }
-
-                let url = Url::from_file_path(path).map_err(|_| {
+                let p = path::absolute(u).map_err(|e| CompileError::ParseUrlError {
+                    url: u.to_owned(),
+                    src: e.into(),
+                })?;
+                let url = Url::from_file_path(p).map_err(|_| {
                     CompileError::Bug(format!("failed to convert {u} into url").into())
                 })?;
                 Ok(UrlFrag { url, frag })
