@@ -357,7 +357,7 @@ fn check_hostname(mut s: &str) -> Result<(), Box<dyn Error>> {
             .chars()
             .find(|c| !matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-'))
         {
-            Err(format!("invalid character {ch:?}"))?; // todo: tell which char is invalid
+            Err(format!("invalid character {ch:?}"))?;
         }
     }
 
