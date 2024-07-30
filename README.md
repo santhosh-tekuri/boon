@@ -56,7 +56,7 @@
 
 ## CLI
 
-to install: `cargo install boon-cli`
+to install: `cargo install boon-cli --locked`
 
 or download it from [releases](https://github.com/santhosh-tekuri/boon/releases)
 
