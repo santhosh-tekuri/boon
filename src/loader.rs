@@ -80,6 +80,7 @@ pub(crate) struct DefaultUrlLoader {
 }
 
 impl DefaultUrlLoader {
+    #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     pub fn new() -> Self {
         let mut loader = SchemeUrlLoader::new();
         #[cfg(not(target_arch = "wasm32"))]

@@ -2,7 +2,6 @@ use std::{
     borrow::{Borrow, Cow},
     fmt::Display,
     hash::{Hash, Hasher},
-    path,
     str::FromStr,
 };
 
@@ -220,7 +219,7 @@ impl UrlFrag {
             Ok(url) => Ok(UrlFrag { url, frag }),
             #[cfg(not(target_arch = "wasm32"))]
             Err(url::ParseError::RelativeUrlWithoutBase) => {
-                let p = path::absolute(u).map_err(|e| CompileError::ParseUrlError {
+                let p = std::path::absolute(u).map_err(|e| CompileError::ParseUrlError {
                     url: u.to_owned(),
                     src: e.into(),
                 })?;
@@ -307,6 +306,7 @@ pub(crate) fn is_integer(v: &Value) -> bool {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn starts_with_windows_drive(p: &str) -> bool {
     p.chars().next().filter(char::is_ascii_uppercase).is_some() && p[1..].starts_with(":\\")
 }
