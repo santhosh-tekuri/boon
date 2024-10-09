@@ -215,7 +215,7 @@ fn check_date_time(s: &str) -> Result<(), Box<dyn Error>> {
     if s.len() < 20 {
         Err("less than 20 characters long")?;
     }
-    if !s.is_char_boundary(10) || !s[10..].starts_with(|c| matches!(c, 't' | 'T')) {
+    if !s.is_char_boundary(10) || !s[10..].starts_with(['t', 'T']) {
         Err("11th character must be t or T")?;
     }
     if let Err(e) = check_date(&s[..10]) {
@@ -606,7 +606,7 @@ fn check_email(s: &str) -> Result<(), Box<dyn Error>> {
     if local.len() > 1 && local.starts_with('"') && local.ends_with('"') {
         // quoted
         let local = &local[1..local.len() - 1];
-        if local.contains(|c| matches!(c, '\\' | '"')) {
+        if local.contains(['\\', '"']) {
             Err("backslash and quote not allowed within quoted local part")?
         }
     } else {
