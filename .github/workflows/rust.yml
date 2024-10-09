@@ -45,4 +45,15 @@ jobs:
       run: cargo doc
       env:
         RUSTFLAGS: -D warnings
-      
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        target: wasm32-unknown-emscripten
+    - name: Check
+      run: cargo check --target wasm32-unknown-emscripten

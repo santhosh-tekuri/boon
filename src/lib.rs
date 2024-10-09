@@ -114,11 +114,13 @@ mod roots;
 mod util;
 mod validator;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use loader::FileLoader;
 pub use {
     compiler::{CompileError, Compiler, Draft},
     content::{Decoder, MediaType},
     formats::Format,
-    loader::{FileLoader, SchemeUrlLoader, UrlLoader},
+    loader::{SchemeUrlLoader, UrlLoader},
     output::{
         AbsoluteKeywordLocation, FlagOutput, KeywordPath, OutputError, OutputUnit, SchemaToken,
     },
