@@ -1,4 +1,4 @@
-/*! This crate supports JsonScehama validation for drafts `2020-12`, `2019-09`, `7`, `6` and `4`.
+/*! This crate supports JsonSchema validation for drafts `2020-12`, `2019-09`, `7`, `6` and `4`.
 
 ```rust,no_run
 # use std::fs::File;
