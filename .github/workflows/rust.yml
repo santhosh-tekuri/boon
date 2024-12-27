@@ -45,6 +45,17 @@ jobs:
       run: cargo doc
       env:
         RUSTFLAGS: -D warnings
+    - name: check cli formatting
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --manifest-path=cli/Cargo.toml --all -- --check
+    - name: check cli linting
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --manifest-path=cli/Cargo.toml --all-targets --all-features -- -D warnings
+      
   wasm:
     runs-on: ubuntu-latest
     steps:
