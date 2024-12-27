@@ -10,7 +10,7 @@ use serde::{
 
 use crate::{util::*, ErrorKind, InstanceLocation, ValidationError};
 
-impl<'s, 'v> ValidationError<'s, 'v> {
+impl<'s> ValidationError<'s, '_> {
     fn absolute_keyword_location(&self) -> AbsoluteKeywordLocation<'s> {
         if let ErrorKind::Reference { url, .. } = &self.kind {
             AbsoluteKeywordLocation {
@@ -139,7 +139,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
 
 // DfsIterator --
 
-impl<'s, 'v> Display for ValidationError<'s, 'v> {
+impl Display for ValidationError<'_, '_> {
     /// Formats error hierarchy. Use `#` to show the schema location.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut indent = Indent::default();
@@ -282,7 +282,7 @@ impl<'a, 's, 'v> SchemaLocation<'a, 's, 'v> {
     }
 }
 
-impl<'a, 's, 'v> Display for SchemaLocation<'a, 's, 'v> {
+impl Display for SchemaLocation<'_, '_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.stack.iter().cloned();
         let cur = iter.next_back().unwrap();
@@ -423,7 +423,7 @@ pub struct OutputUnit<'e, 's, 'v> {
     pub error: OutputError<'e, 's, 'v>,
 }
 
-impl<'e, 's, 'v> Serialize for OutputUnit<'e, 's, 'v> {
+impl Serialize for OutputUnit<'_, '_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -445,7 +445,7 @@ impl<'e, 's, 'v> Serialize for OutputUnit<'e, 's, 'v> {
     }
 }
 
-impl<'e, 's, 'v> Display for OutputUnit<'e, 's, 'v> {
+impl Display for OutputUnit<'_, '_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write_json_to_fmt(f, self)
     }
@@ -459,7 +459,7 @@ pub enum OutputError<'e, 's, 'v> {
     Branch(Vec<OutputUnit<'e, 's, 'v>>),
 }
 
-impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
+impl Serialize for OutputError<'_, '_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -479,10 +479,10 @@ impl<'e, 's, 'v> Serialize for OutputError<'e, 's, 'v> {
 
 // AbsoluteKeywordLocation --
 
-impl<'s, 'v> ErrorKind<'s, 'v> {
+impl<'s> ErrorKind<'s, '_> {
     pub fn keyword_path(&self) -> Option<KeywordPath<'s>> {
         #[inline(always)]
-        fn kw(kw: &'static str) -> Option<KeywordPath> {
+        fn kw(kw: &'static str) -> Option<KeywordPath<'static>> {
             Some(KeywordPath {
                 keyword: kw,
                 token: None,
@@ -550,7 +550,7 @@ pub struct AbsoluteKeywordLocation<'s> {
     pub keyword_path: Option<KeywordPath<'s>>,
 }
 
-impl<'s> Display for AbsoluteKeywordLocation<'s> {
+impl Display for AbsoluteKeywordLocation<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.schema_url.fmt(f)?;
         if let Some(path) = &self.keyword_path {
@@ -577,7 +577,7 @@ pub struct KeywordPath<'s> {
     pub token: Option<SchemaToken<'s>>,
 }
 
-impl<'s> Display for KeywordPath<'s> {
+impl Display for KeywordPath<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.keyword.fmt(f)?;
         if let Some(token) = &self.token {
@@ -597,7 +597,7 @@ pub enum SchemaToken<'s> {
     Item(usize),
 }
 
-impl<'s> Display for SchemaToken<'s> {
+impl Display for SchemaToken<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SchemaToken::Prop(p) => write!(f, "{}", escape(p)),

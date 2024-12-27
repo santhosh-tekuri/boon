@@ -327,7 +327,7 @@ struct ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 }
 
 // compile supported drafts
-impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+impl ObjCompiler<'_, '_, '_, '_, '_, '_> {
     fn compile_obj(&mut self, s: &mut Schema) -> Result<(), CompileError> {
         self.compile_draft4(s)?;
         if self.draft_version() >= 6 {
@@ -628,7 +628,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 }
 
 // enqueue helpers
-impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+impl ObjCompiler<'_, '_, '_, '_, '_, '_> {
     fn enqueue_schema(&mut self, ptr: JsonPointer) -> SchemaIndex {
         let up = UrlPtr {
             url: self.up.url.clone(),
@@ -701,7 +701,7 @@ impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
 }
 
 // query helpers
-impl<'c, 'v, 'l, 's, 'r, 'q> ObjCompiler<'c, 'v, 'l, 's, 'r, 'q> {
+impl<'v> ObjCompiler<'_, 'v, '_, '_, '_, '_> {
     fn draft_version(&self) -> usize {
         self.root.draft.version
     }

@@ -253,12 +253,12 @@ impl Draft {
                     // anchor with same root_ptr already exists
                     return Ok(());
                 }
-                return Err(CompileError::DuplicateAnchor {
+                Err(CompileError::DuplicateAnchor {
                     url: url.as_str().to_owned(),
                     anchor: entry.key().to_string(),
                     ptr1: entry.get().to_string(),
                     ptr2: sch_ptr.to_string(),
-                });
+                })
             }
             entry => {
                 entry.or_insert(sch_ptr.to_owned());

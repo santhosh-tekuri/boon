@@ -83,7 +83,7 @@ struct Translator<'a> {
     out: Option<String>,
 }
 
-impl<'a> Translator<'a> {
+impl Translator<'_> {
     fn replace(&mut self, span: &Span, with: &str) {
         let (start, end) = (span.start.offset, span.end.offset);
         self.out = Some(format!("{}{with}{}", &self.pat[..start], &self.pat[end..]));
@@ -114,7 +114,7 @@ impl<'a> Translator<'a> {
     }
 }
 
-impl<'a> Visitor for Translator<'a> {
+impl Visitor for Translator<'_> {
     type Output = Option<String>;
     type Err = &'static str;
 

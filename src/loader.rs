@@ -133,9 +133,8 @@ impl DefaultUrlLoader {
                 })?
         };
         self.add_doc(url.clone(), doc);
-        return self
-            .get_doc(url)
-            .ok_or(CompileError::Bug("doc must exist".into()));
+        self.get_doc(url)
+            .ok_or(CompileError::Bug("doc must exist".into()))
     }
 
     pub(crate) fn get_draft(

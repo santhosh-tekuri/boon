@@ -419,7 +419,7 @@ pub struct ValidationError<'s, 'v> {
     pub causes: Vec<ValidationError<'s, 'v>>,
 }
 
-impl<'s, 'v> Error for ValidationError<'s, 'v> {}
+impl Error for ValidationError<'_, '_> {}
 
 /// A list specifying general categories of validation errors.
 #[derive(Debug)]
@@ -557,7 +557,7 @@ pub enum ErrorKind<'s, 'v> {
     OneOf(Option<(usize, usize)>),
 }
 
-impl<'s, 'v> Display for ErrorKind<'s, 'v> {
+impl Display for ErrorKind<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Group => write!(f, "validation failed"),

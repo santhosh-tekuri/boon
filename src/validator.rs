@@ -91,7 +91,7 @@ struct Validator<'v, 's, 'd, 'e> {
     bool_result: bool, // is interested to know valid or not (but not actuall error)
 }
 
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl<'v, 's> Validator<'v, 's, '_, '_> {
     fn validate(mut self) -> Result<Uneval<'v>, ValidationError<'s, 'v>> {
         let s = self.schema;
         let v = self.v;
@@ -186,7 +186,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // type specific validations
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl<'v> Validator<'v, '_, '_, '_> {
     fn obj_validate(&mut self, obj: &'v Map<String, Value>) {
         let s = self.schema;
         macro_rules! add_err {
@@ -565,7 +565,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // references validation
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl<'v, 's> Validator<'v, 's, '_, '_> {
     fn refs_validate(&mut self) {
         let s = self.schema;
         macro_rules! add_err {
@@ -653,7 +653,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // conditional validation
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl Validator<'_, '_, '_, '_> {
     fn cond_validate(&mut self) {
         let s = self.schema;
         macro_rules! add_err {
@@ -746,7 +746,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // uneval validation
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl Validator<'_, '_, '_, '_> {
     fn uneval_validate(&mut self) {
         let s = self.schema;
         let v = self.v;
@@ -783,7 +783,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // validation helpers
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl<'v, 's> Validator<'v, 's, '_, '_> {
     fn validate_val(
         &mut self,
         sch: SchemaIndex,
@@ -843,7 +843,7 @@ impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
 }
 
 // error helpers
-impl<'v, 's, 'd, 'e> Validator<'v, 's, 'd, 'e> {
+impl<'v, 's> Validator<'v, 's, '_, '_> {
     #[inline(always)]
     fn error(&self, kind: ErrorKind<'s, 'v>) -> ValidationError<'s, 'v> {
         if self.bool_result {
@@ -981,7 +981,7 @@ struct Scope<'a> {
     parent: Option<&'a Scope<'a>>,
 }
 
-impl<'a> Scope<'a> {
+impl Scope<'_> {
     fn child<'x>(
         &'x self,
         sch: SchemaIndex,
@@ -1020,7 +1020,7 @@ pub enum InstanceToken<'v> {
     Item(usize),
 }
 
-impl<'v> From<String> for InstanceToken<'v> {
+impl From<String> for InstanceToken<'_> {
     fn from(prop: String) -> Self {
         InstanceToken::Prop(prop.into())
     }
@@ -1032,7 +1032,7 @@ impl<'v> From<&'v str> for InstanceToken<'v> {
     }
 }
 
-impl<'v> From<usize> for InstanceToken<'v> {
+impl From<usize> for InstanceToken<'_> {
     fn from(index: usize) -> Self {
         InstanceToken::Item(index)
     }
@@ -1044,7 +1044,7 @@ pub struct InstanceLocation<'v> {
     pub tokens: Vec<InstanceToken<'v>>,
 }
 
-impl<'v> InstanceLocation<'v> {
+impl InstanceLocation<'_> {
     fn new() -> Self {
         Self::default()
     }
@@ -1062,7 +1062,7 @@ impl<'v> InstanceLocation<'v> {
     }
 }
 
-impl<'v> Display for InstanceLocation<'v> {
+impl Display for InstanceLocation<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for tok in &self.tokens {
             f.write_char('/')?;
@@ -1075,7 +1075,7 @@ impl<'v> Display for InstanceLocation<'v> {
     }
 }
 
-impl<'s, 'v> ValidationError<'s, 'v> {
+impl<'s> ValidationError<'s, '_> {
     pub(crate) fn clone_static(self) -> ValidationError<'s, 'static> {
         let mut causes = Vec::with_capacity(self.causes.len());
         for cause in self.causes {
@@ -1090,7 +1090,7 @@ impl<'s, 'v> ValidationError<'s, 'v> {
     }
 }
 
-impl<'s, 'v> ErrorKind<'s, 'v> {
+impl<'s> ErrorKind<'s, '_> {
     fn clone_static(self) -> ErrorKind<'s, 'static> {
         use ErrorKind::*;
         match self {
