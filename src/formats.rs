@@ -764,7 +764,7 @@ fn validate_uri(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
-    if fluent_uri::Uri::parse(s)?.is_relative() {
+    if fluent_uri::UriRef::parse(s.as_str())?.scheme().is_none() {
         Err("relative url")?;
     };
     Ok(())
@@ -794,7 +794,7 @@ fn validate_uri_reference(v: &Value) -> Result<(), Box<dyn Error>> {
     let Value::String(s) = v else {
         return Ok(());
     };
-    fluent_uri::Uri::parse(s)?;
+    fluent_uri::UriRef::parse(s.as_str())?;
     Ok(())
 }
 
