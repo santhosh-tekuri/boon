@@ -10,7 +10,7 @@ categories = ["web-programming"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-boon = { version = "0.6", path = ".."}
+boon = { version = "0.6.1", path = ".."}
 url = "2"
 getopts = "0.2"
 serde = { version = "1.0", features = ["derive"] }

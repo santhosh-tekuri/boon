@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2025-01-07
+
+### Bug Fixes
+- fix: FileLoader should not be used in wasm
+
 ## [0.6.0] - 2024-05-30
 
 ### Braking Changes
