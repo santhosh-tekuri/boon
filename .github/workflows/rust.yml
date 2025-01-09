@@ -6,7 +6,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-22.04, windows-latest]
     steps:
     - name: install rust
       uses: actions-rs/toolchain@v1
@@ -57,7 +57,7 @@ jobs:
         args: --manifest-path=cli/Cargo.toml --all-targets --all-features -- -D warnings
       
   wasm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout repo
       uses: actions/checkout@v3
