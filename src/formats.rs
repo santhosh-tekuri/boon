@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::ecma;
 
-/// Defines format for `format` keyword.
+/// Defines a format for the `format` keyword.
 #[derive(Clone, Copy)]
 pub struct Format {
     /// Name of the format

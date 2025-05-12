@@ -117,7 +117,7 @@ pub(crate) static DRAFT2020: Lazy<Draft> = Lazy::new(|| {
 });
 
 pub(crate) static STD_METASCHEMAS: Lazy<Schemas> =
-    Lazy::new(|| load_std_metaschemas().expect("std metaschemas must be compilable"));
+    Lazy::new(|| load_std_metaschemas().expect("std meta-schemas must be compilable"));
 
 pub(crate) fn latest() -> &'static Draft {
     crate::Draft::default().internal()

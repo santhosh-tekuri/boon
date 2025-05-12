@@ -16,11 +16,11 @@ macro_rules! item {
     };
 }
 
-pub(crate) fn validate<'s, 'v>(
-    v: &'v Value,
-    schema: &'s Schema,
-    schemas: &'s Schemas,
-) -> Result<(), ValidationError<'s, 'v>> {
+pub(crate) fn validate<'schema, 'instance>(
+    instance: &'instance Value,
+    schema: &'schema Schema,
+    schemas: &'schema Schemas,
+) -> Result<(), ValidationError<'schema, 'instance>> {
     let scope = Scope {
         sch: schema.idx,
         ref_kw: None,
@@ -29,12 +29,12 @@ pub(crate) fn validate<'s, 'v>(
     };
     let mut vloc = Vec::with_capacity(8);
     let result = Validator {
-        v,
+        instance,
         vloc: &mut vloc,
         schema,
         schemas,
         scope,
-        uneval: Uneval::from(v, schema, false),
+        uneval: Uneval::from(instance, schema, false),
         errors: vec![],
         bool_result: false,
     }
@@ -80,24 +80,24 @@ macro_rules! kind {
     };
 }
 
-struct Validator<'v, 's, 'd, 'e> {
-    v: &'v Value,
-    vloc: &'e mut Vec<InstanceToken<'v>>,
-    schema: &'s Schema,
-    schemas: &'s Schemas,
+struct Validator<'instance, 'schema, 'd, 'e> {
+    instance: &'instance Value,
+    vloc: &'e mut Vec<InstanceToken<'instance>>,
+    schema: &'schema Schema,
+    schemas: &'schema Schemas,
     scope: Scope<'d>,
-    uneval: Uneval<'v>,
-    errors: Vec<ValidationError<'s, 'v>>,
+    uneval: Uneval<'instance>,
+    errors: Vec<ValidationError<'schema, 'instance>>,
     bool_result: bool, // is interested to know valid or not (but not actuall error)
 }
 
-impl<'v, 's> Validator<'v, 's, '_, '_> {
-    fn validate(mut self) -> Result<Uneval<'v>, ValidationError<'s, 'v>> {
-        let s = self.schema;
-        let v = self.v;
+impl<'instance, 'schema> Validator<'instance, 'schema, '_, '_> {
+    fn validate(mut self) -> Result<Uneval<'instance>, ValidationError<'schema, 'instance>> {
+        let schema = self.schema;
+        let instance = self.instance;
 
         // boolean --
-        if let Some(b) = s.boolean {
+        if let Some(b) = schema.boolean {
             return match b {
                 false => Err(self.error(kind!(FalseSchema))),
                 true => Ok(self.uneval),
@@ -115,47 +115,47 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
 
         // type --
-        if !s.types.is_empty() {
-            let v_type = Type::of(v);
+        if !schema.types.is_empty() {
+            let v_type = Type::of(instance);
             let matched =
-                s.types.contains(v_type) || (s.types.contains(Type::Integer) && is_integer(v));
+                schema.types.contains(v_type) || (schema.types.contains(Type::Integer) && is_integer(instance));
             if !matched {
-                return Err(self.error(kind!(Type, v_type, s.types)));
+                return Err(self.error(kind!(Type, v_type, schema.types)));
             }
         }
 
         // constant --
-        if let Some(c) = &s.constant {
-            if !equals(v, c) {
+        if let Some(c) = &schema.constant {
+            if !equals(instance, c) {
                 return Err(self.error(kind!(Const, want: c)));
             }
         }
 
         // enum --
-        if let Some(Enum { types, values }) = &s.enum_ {
-            if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
+        if let Some(Enum { types, values }) = &schema.enum_ {
+            if !types.contains(Type::of(instance)) || !values.iter().any(|e| equals(e, instance)) {
                 return Err(self.error(kind!(Enum, want: values)));
             }
         }
 
         // format --
-        if let Some(format) = &s.format {
-            if let Err(e) = (format.func)(v) {
-                self.add_error(kind!(Format, Cow::Borrowed(v), format.name, e));
+        if let Some(format) = &schema.format {
+            if let Err(e) = (format.func)(instance) {
+                self.add_error(kind!(Format, Cow::Borrowed(instance), format.name, e));
             }
         }
 
         // $ref --
-        if let Some(ref_) = s.ref_ {
+        if let Some(ref_) = schema.ref_ {
             let result = self.validate_ref(ref_, "$ref");
-            if s.draft_version < 2019 {
+            if schema.draft_version < 2019 {
                 return result.map(|_| self.uneval);
             }
             self.errors.extend(result.err());
         }
 
         // type specific validations --
-        match v {
+        match instance {
             Value::Object(obj) => self.obj_validate(obj),
             Value::Array(arr) => self.arr_validate(arr),
             Value::String(str) => self.str_validate(str),
@@ -164,11 +164,11 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
 
         if self.errors.is_empty() || !self.bool_result {
-            if s.draft_version >= 2019 {
+            if schema.draft_version >= 2019 {
                 self.refs_validate();
             }
             self.cond_validate();
-            if s.draft_version >= 2019 {
+            if schema.draft_version >= 2019 {
                 self.uneval_validate();
             }
         }
@@ -186,9 +186,9 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
 }
 
 // type specific validations
-impl<'v> Validator<'v, '_, '_, '_> {
-    fn obj_validate(&mut self, obj: &'v Map<String, Value>) {
-        let s = self.schema;
+impl<'instance> Validator<'instance, '_, '_, '_> {
+    fn obj_validate(&mut self, obj: &'instance Map<String, Value>) {
+        let schema = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
                 if let Err(e) = $result {
@@ -198,22 +198,22 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // minProperties --
-        if let Some(min) = s.min_properties {
+        if let Some(min) = schema.min_properties {
             if obj.len() < min {
                 self.add_error(kind!(MinProperties, obj.len(), min));
             }
         }
 
         // maxProperties --
-        if let Some(max) = s.max_properties {
+        if let Some(max) = schema.max_properties {
             if obj.len() > max {
                 self.add_error(kind!(MaxProperties, obj.len(), max));
             }
         }
 
         // required --
-        if !s.required.is_empty() {
-            if let Some(missing) = self.find_missing(obj, &s.required) {
+        if !schema.required.is_empty() {
+            if let Some(missing) = self.find_missing(obj, &schema.required) {
                 self.add_error(kind!(Required, want: missing));
             }
         }
@@ -223,7 +223,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // dependencies --
-        for (prop, dep) in &s.dependencies {
+        for (prop, dep) in &schema.dependencies {
             if obj.contains_key(prop) {
                 match dep {
                     Dependency::Props(required) => {
@@ -246,13 +246,13 @@ impl<'v> Validator<'v, '_, '_, '_> {
             let mut evaluated = false;
 
             // properties --
-            if let Some(sch) = s.properties.get(pname) {
+            if let Some(sch) = schema.properties.get(pname) {
                 evaluated = true;
                 add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
             }
 
             // patternProperties --
-            for (regex, sch) in &s.pattern_properties {
+            for (regex, sch) in &schema.pattern_properties {
                 if regex.is_match(pname) {
                     evaluated = true;
                     add_err!(self.validate_val(*sch, pvalue, prop!(pname)));
@@ -261,7 +261,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
 
             if !evaluated {
                 // additionalProperties --
-                if let Some(additional) = &s.additional_properties {
+                if let Some(additional) = &schema.additional_properties {
                     evaluated = true;
                     match additional {
                         Additional::Bool(allowed) => {
@@ -284,16 +284,16 @@ impl<'v> Validator<'v, '_, '_, '_> {
             self.add_error(kind!(AdditionalProperties, got: additional_props));
         }
 
-        if s.draft_version == 4 {
+        if schema.draft_version == 4 {
             return;
         }
 
         // propertyNames --
-        if let Some(sch) = &s.property_names {
+        if let Some(sch) = &schema.property_names {
             for pname in obj.keys() {
                 let v = Value::String(pname.to_owned());
                 if let Err(mut e) = self.schemas.validate(&v, *sch) {
-                    e.schema_url = &s.loc;
+                    e.schema_url = &schema.loc;
                     e.kind = ErrorKind::PropertyName {
                         prop: pname.to_owned(),
                     };
@@ -302,19 +302,19 @@ impl<'v> Validator<'v, '_, '_, '_> {
             }
         }
 
-        if s.draft_version == 6 {
+        if schema.draft_version == 6 {
             return;
         }
 
         // dependentSchemas --
-        for (pname, sch) in &s.dependent_schemas {
+        for (pname, sch) in &schema.dependent_schemas {
             if obj.contains_key(pname) {
                 add_err!(self.validate_self(*sch));
             }
         }
 
         // dependentRequired --
-        for (prop, required) in &s.dependent_required {
+        for (prop, required) in &schema.dependent_required {
             if obj.contains_key(prop) {
                 if let Some(missing) = self.find_missing(obj, required) {
                     self.add_error(ErrorKind::DependentRequired { prop, missing });
@@ -323,8 +323,8 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
     }
 
-    fn arr_validate(&mut self, arr: &'v Vec<Value>) {
-        let s = self.schema;
+    fn arr_validate(&mut self, arr: &'instance Vec<Value>) {
+        let schema = self.schema;
         let len = arr.len();
         macro_rules! add_err {
             ($result:expr) => {
@@ -335,31 +335,31 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // minItems --
-        if let Some(min) = s.min_items {
+        if let Some(min) = schema.min_items {
             if len < min {
                 self.add_error(kind!(MinItems, len, min));
             }
         }
 
         // maxItems --
-        if let Some(max) = s.max_items {
+        if let Some(max) = schema.max_items {
             if len > max {
                 self.add_error(kind!(MaxItems, len, max));
             }
         }
 
         // uniqueItems --
-        if len > 1 && s.unique_items {
+        if len > 1 && schema.unique_items {
             if let Some((i, j)) = duplicates(arr) {
                 self.add_error(kind!(UniqueItems, got: [i, j]));
             }
         }
 
-        if s.draft_version < 2020 {
+        if schema.draft_version < 2020 {
             let mut evaluated = 0;
 
             // items --
-            if let Some(items) = &s.items {
+            if let Some(items) = &schema.items {
                 match items {
                     Items::SchemaRef(sch) => {
                         for (i, item) in arr.iter().enumerate() {
@@ -378,7 +378,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
             }
 
             // additionalItems --
-            if let Some(additional) = &s.additional_items {
+            if let Some(additional) = &schema.additional_items {
                 match additional {
                     Additional::Bool(allowed) => {
                         if !allowed && evaluated != len {
@@ -395,13 +395,13 @@ impl<'v> Validator<'v, '_, '_, '_> {
             }
         } else {
             // prefixItems --
-            for (i, (sch, item)) in s.prefix_items.iter().zip(arr).enumerate() {
+            for (i, (sch, item)) in schema.prefix_items.iter().zip(arr).enumerate() {
                 add_err!(self.validate_val(*sch, item, item!(i)));
             }
 
             // items2020 --
-            if let Some(sch) = &s.items2020 {
-                let evaluated = min(s.prefix_items.len(), len);
+            if let Some(sch) = &schema.items2020 {
+                let evaluated = min(schema.prefix_items.len(), len);
                 for (i, item) in arr[evaluated..].iter().enumerate() {
                     add_err!(self.validate_val(*sch, item, item!(i)));
                 }
@@ -410,7 +410,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // contains --
-        if let Some(sch) = &s.contains {
+        if let Some(sch) = &schema.contains {
             let mut matched = vec![];
             let mut errors = vec![];
 
@@ -419,14 +419,14 @@ impl<'v> Validator<'v, '_, '_, '_> {
                     errors.push(e);
                 } else {
                     matched.push(i);
-                    if s.draft_version >= 2020 {
+                    if schema.draft_version >= 2020 {
                         self.uneval.items.remove(&i);
                     }
                 }
             }
 
             // minContains --
-            if let Some(min) = s.min_contains {
+            if let Some(min) = schema.min_contains {
                 if matched.len() < min {
                     let mut e = self.error(kind!(MinContains, matched.clone(), min));
                     e.causes = errors;
@@ -439,7 +439,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
             }
 
             // maxContains --
-            if let Some(max) = s.max_contains {
+            if let Some(max) = schema.max_contains {
                 if matched.len() > max {
                     self.add_error(kind!(MaxContains, matched, max));
                 }
@@ -447,12 +447,12 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
     }
 
-    fn str_validate(&mut self, str: &'v String) {
-        let s = self.schema;
+    fn str_validate(&mut self, str: &'instance String) {
+        let schema = self.schema;
         let mut len = None;
 
         // minLength --
-        if let Some(min) = s.min_length {
+        if let Some(min) = schema.min_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len < min {
                 self.add_error(kind!(MinLength, *len, min));
@@ -460,7 +460,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // maxLength --
-        if let Some(max) = s.max_length {
+        if let Some(max) = schema.max_length {
             let len = len.get_or_insert_with(|| str.chars().count());
             if *len > max {
                 self.add_error(kind!(MaxLength, *len, max));
@@ -468,19 +468,19 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // pattern --
-        if let Some(regex) = &s.pattern {
+        if let Some(regex) = &schema.pattern {
             if !regex.is_match(str) {
                 self.add_error(kind!(Pattern, str.into(), regex.as_str()));
             }
         }
 
-        if s.draft_version == 6 {
+        if schema.draft_version == 6 {
             return;
         }
 
         // contentEncoding --
         let mut decoded = Some(Cow::from(str.as_bytes()));
-        if let Some(decoder) = &s.content_encoding {
+        if let Some(decoder) = &schema.content_encoding {
             match (decoder.func)(str) {
                 Ok(bytes) => decoded = Some(Cow::from(bytes)),
                 Err(err) => {
@@ -495,8 +495,8 @@ impl<'v> Validator<'v, '_, '_, '_> {
 
         // contentMediaType --
         let mut deserialized = None;
-        if let (Some(mt), Some(decoded)) = (&s.content_media_type, decoded) {
-            match (mt.func)(decoded.as_ref(), s.content_schema.is_some()) {
+        if let (Some(mt), Some(decoded)) = (&schema.content_media_type, decoded) {
+            match (mt.func)(decoded.as_ref(), schema.content_schema.is_some()) {
                 Ok(des) => deserialized = des,
                 Err(e) => {
                     self.add_error(kind!(ContentMediaType, decoded.into(), mt.name, e));
@@ -505,20 +505,20 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // contentSchema --
-        if let (Some(sch), Some(v)) = (s.content_schema, deserialized) {
+        if let (Some(sch), Some(v)) = (schema.content_schema, deserialized) {
             if let Err(mut e) = self.schemas.validate(&v, sch) {
-                e.schema_url = &s.loc;
+                e.schema_url = &schema.loc;
                 e.kind = kind!(ContentSchema);
                 self.errors.push(e.clone_static());
             }
         }
     }
 
-    fn num_validate(&mut self, num: &'v Number) {
-        let s = self.schema;
+    fn num_validate(&mut self, num: &'instance Number) {
+        let schema = self.schema;
 
         // minimum --
-        if let Some(min) = &s.minimum {
+        if let Some(min) = &schema.minimum {
             if let (Some(minf), Some(numf)) = (min.as_f64(), num.as_f64()) {
                 if numf < minf {
                     self.add_error(kind!(Minimum, Cow::Borrowed(num), min));
@@ -527,7 +527,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // maximum --
-        if let Some(max) = &s.maximum {
+        if let Some(max) = &schema.maximum {
             if let (Some(maxf), Some(numf)) = (max.as_f64(), num.as_f64()) {
                 if numf > maxf {
                     self.add_error(kind!(Maximum, Cow::Borrowed(num), max));
@@ -536,7 +536,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // exclusiveMinimum --
-        if let Some(ex_min) = &s.exclusive_minimum {
+        if let Some(ex_min) = &schema.exclusive_minimum {
             if let (Some(ex_minf), Some(numf)) = (ex_min.as_f64(), num.as_f64()) {
                 if numf <= ex_minf {
                     self.add_error(kind!(ExclusiveMinimum, Cow::Borrowed(num), ex_min));
@@ -545,7 +545,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // exclusiveMaximum --
-        if let Some(ex_max) = &s.exclusive_maximum {
+        if let Some(ex_max) = &schema.exclusive_maximum {
             if let (Some(ex_maxf), Some(numf)) = (ex_max.as_f64(), num.as_f64()) {
                 if numf >= ex_maxf {
                     self.add_error(kind!(ExclusiveMaximum, Cow::Borrowed(num), ex_max));
@@ -554,7 +554,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
         }
 
         // multipleOf --
-        if let Some(mul) = &s.multiple_of {
+        if let Some(mul) = &schema.multiple_of {
             if let (Some(mulf), Some(numf)) = (mul.as_f64(), num.as_f64()) {
                 if (numf / mulf).fract() != 0.0 {
                     self.add_error(kind!(MultipleOf, Cow::Borrowed(num), mul));
@@ -565,9 +565,9 @@ impl<'v> Validator<'v, '_, '_, '_> {
 }
 
 // references validation
-impl<'v, 's> Validator<'v, 's, '_, '_> {
+impl<'instance, 'schema> Validator<'instance, 'schema, '_, '_> {
     fn refs_validate(&mut self) {
-        let s = self.schema;
+        let schema = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
                 if let Err(e) = $result {
@@ -577,7 +577,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
 
         // $recursiveRef --
-        if let Some(mut sch) = s.recursive_ref {
+        if let Some(mut sch) = schema.recursive_ref {
             if self.schemas.get(sch).recursive_anchor {
                 sch = self.resolve_recursive_anchor(sch);
             }
@@ -585,7 +585,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
 
         // $dynamicRef --
-        if let Some(dref) = &s.dynamic_ref {
+        if let Some(dref) = &schema.dynamic_ref {
             let mut sch = dref.sch; // initial target
             if let Some(anchor) = &dref.anchor {
                 // $dynamicRef includes anchor
@@ -602,7 +602,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         &mut self,
         sch: SchemaIndex,
         kw: &'static str,
-    ) -> Result<(), ValidationError<'s, 'v>> {
+    ) -> Result<(), ValidationError<'schema, 'instance>> {
         if let Err(err) = self._validate_self(sch, kw.into(), false) {
             let url = &self.schemas.get(sch).loc;
             let mut ref_err = self.error(ErrorKind::Reference { kw, url });
@@ -655,7 +655,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
 // conditional validation
 impl Validator<'_, '_, '_, '_> {
     fn cond_validate(&mut self) {
-        let s = self.schema;
+        let schema = self.schema;
         macro_rules! add_err {
             ($result:expr) => {
                 if let Err(e) = $result {
@@ -665,16 +665,16 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // not --
-        if let Some(not) = s.not {
+        if let Some(not) = schema.not {
             if self._validate_self(not, None, true).is_ok() {
                 self.add_error(kind!(Not));
             }
         }
 
         // allOf --
-        if !s.all_of.is_empty() {
+        if !schema.all_of.is_empty() {
             let mut errors = vec![];
-            for sch in &s.all_of {
+            for sch in &schema.all_of {
                 if let Err(e) = self.validate_self(*sch) {
                     errors.push(e);
                     if self.bool_result {
@@ -688,10 +688,10 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // anyOf --
-        if !s.any_of.is_empty() {
+        if !schema.any_of.is_empty() {
             let mut matched = false;
             let mut errors = vec![];
-            for sch in &s.any_of {
+            for sch in &schema.any_of {
                 match self.validate_self(*sch) {
                     Ok(_) => {
                         matched = true;
@@ -709,10 +709,10 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // oneOf --
-        if !s.one_of.is_empty() {
+        if !schema.one_of.is_empty() {
             let mut matched = None;
             let mut errors = vec![];
-            for (i, sch) in s.one_of.iter().enumerate() {
+            for (i, sch) in schema.one_of.iter().enumerate() {
                 if let Err(e) = self._validate_self(*sch, None, matched.is_some()) {
                     if matched.is_none() {
                         errors.push(e);
@@ -733,12 +733,12 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // if, then, else --
-        if let Some(if_) = s.if_ {
+        if let Some(if_) = schema.if_ {
             if self._validate_self(if_, None, true).is_ok() {
-                if let Some(then) = s.then {
+                if let Some(then) = schema.then {
                     add_err!(self.validate_self(then));
                 }
-            } else if let Some(else_) = s.else_ {
+            } else if let Some(else_) = schema.else_ {
                 add_err!(self.validate_self(else_));
             }
         }
@@ -748,8 +748,8 @@ impl Validator<'_, '_, '_, '_> {
 // uneval validation
 impl Validator<'_, '_, '_, '_> {
     fn uneval_validate(&mut self) {
-        let s = self.schema;
-        let v = self.v;
+        let schema = self.schema;
+        let instance = self.instance;
         macro_rules! add_err {
             ($result:expr) => {
                 if let Err(e) = $result {
@@ -759,7 +759,7 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // unevaluatedProperties --
-        if let (Some(sch), Value::Object(obj)) = (s.unevaluated_properties, v) {
+        if let (Some(sch), Value::Object(obj)) = (schema.unevaluated_properties, instance) {
             let uneval = std::mem::take(&mut self.uneval);
             for pname in &uneval.props {
                 if let Some(pvalue) = obj.get(*pname) {
@@ -770,7 +770,7 @@ impl Validator<'_, '_, '_, '_> {
         }
 
         // unevaluatedItems --
-        if let (Some(sch), Value::Array(arr)) = (s.unevaluated_items, v) {
+        if let (Some(sch), Value::Array(arr)) = (schema.unevaluated_items, instance) {
             let uneval = std::mem::take(&mut self.uneval);
             for i in &uneval.items {
                 if let Some(pvalue) = arr.get(*i) {
@@ -783,13 +783,13 @@ impl Validator<'_, '_, '_, '_> {
 }
 
 // validation helpers
-impl<'v, 's> Validator<'v, 's, '_, '_> {
+impl<'instance, 'schema> Validator<'instance, 'schema, '_, '_> {
     fn validate_val(
         &mut self,
         sch: SchemaIndex,
-        v: &'v Value,
-        token: InstanceToken<'v>,
-    ) -> Result<(), ValidationError<'s, 'v>> {
+        instance: &'instance Value,
+        token: InstanceToken<'instance>,
+    ) -> Result<(), ValidationError<'schema, 'instance>> {
         if self.vloc.len() == self.scope.vid {
             self.vloc.push(token);
         } else {
@@ -798,12 +798,12 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         let scope = self.scope.child(sch, None, self.scope.vid + 1);
         let schema = &self.schemas.get(sch);
         Validator {
-            v,
+            instance,
             vloc: self.vloc,
             schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(v, schema, false),
+            uneval: Uneval::from(instance, schema, false),
             errors: vec![],
             bool_result: self.bool_result,
         }
@@ -816,16 +816,16 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         sch: SchemaIndex,
         ref_kw: Option<&'static str>,
         bool_result: bool,
-    ) -> Result<(), ValidationError<'s, 'v>> {
+    ) -> Result<(), ValidationError<'schema, 'instance>> {
         let scope = self.scope.child(sch, ref_kw, self.scope.vid);
         let schema = &self.schemas.get(sch);
         let result = Validator {
-            v: self.v,
+            instance: self.instance,
             vloc: self.vloc,
             schema,
             schemas: self.schemas,
             scope,
-            uneval: Uneval::from(self.v, schema, !self.uneval.is_empty()),
+            uneval: Uneval::from(self.instance, schema, !self.uneval.is_empty()),
             errors: vec![],
             bool_result: self.bool_result || bool_result,
         }
@@ -837,15 +837,15 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
     }
 
     #[inline(always)]
-    fn validate_self(&mut self, sch: SchemaIndex) -> Result<(), ValidationError<'s, 'v>> {
+    fn validate_self(&mut self, sch: SchemaIndex) -> Result<(), ValidationError<'schema, 'instance>> {
         self._validate_self(sch, None, false)
     }
 }
 
 // error helpers
-impl<'v, 's> Validator<'v, 's, '_, '_> {
+impl<'instance, 'schema> Validator<'instance, 'schema, '_, '_> {
     #[inline(always)]
-    fn error(&self, kind: ErrorKind<'s, 'v>) -> ValidationError<'s, 'v> {
+    fn error(&self, kind: ErrorKind<'schema, 'instance>) -> ValidationError<'schema, 'instance> {
         if self.bool_result {
             return ValidationError {
                 schema_url: &self.schema.loc,
@@ -863,12 +863,12 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
     }
 
     #[inline(always)]
-    fn add_error(&mut self, kind: ErrorKind<'s, 'v>) {
+    fn add_error(&mut self, kind: ErrorKind<'schema, 'instance>) {
         self.errors.push(self.error(kind));
     }
 
     #[inline(always)]
-    fn add_errors(&mut self, errors: Vec<ValidationError<'s, 'v>>, kind: ErrorKind<'s, 'v>) {
+    fn add_errors(&mut self, errors: Vec<ValidationError<'schema, 'instance>>, kind: ErrorKind<'schema, 'instance>) {
         if errors.len() == 1 {
             self.errors.extend(errors);
         } else {
@@ -896,9 +896,9 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
 
     fn find_missing(
         &self,
-        obj: &'v Map<String, Value>,
-        required: &'s [String],
-    ) -> Option<Vec<&'s str>> {
+        obj: &'instance Map<String, Value>,
+        required: &'schema [String],
+    ) -> Option<Vec<&'schema str>> {
         let mut missing = required
             .iter()
             .filter(|p| !obj.contains_key(p.as_str()))
@@ -915,7 +915,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
     }
 
-    fn instance_location(&self) -> InstanceLocation<'v> {
+    fn instance_location(&self) -> InstanceLocation<'instance> {
         let len = self.scope.vid;
         let mut tokens = Vec::with_capacity(len);
         for tok in &self.vloc[..len] {
@@ -1013,9 +1013,9 @@ impl Scope<'_> {
 
 /// Token in InstanceLocation json-pointer.
 #[derive(Debug, Clone)]
-pub enum InstanceToken<'v> {
+pub enum InstanceToken<'instance> {
     /// Token for property.
-    Prop(Cow<'v, str>),
+    Prop(Cow<'instance, str>),
     /// Token for array item.
     Item(usize),
 }
@@ -1026,8 +1026,8 @@ impl From<String> for InstanceToken<'_> {
     }
 }
 
-impl<'v> From<&'v str> for InstanceToken<'v> {
-    fn from(prop: &'v str) -> Self {
+impl<'instance> From<&'instance str> for InstanceToken<'instance> {
+    fn from(prop: &'instance str) -> Self {
         InstanceToken::Prop(prop.into())
     }
 }
@@ -1040,8 +1040,8 @@ impl From<usize> for InstanceToken<'_> {
 
 /// The location of the JSON value within the instance being validated
 #[derive(Debug, Default)]
-pub struct InstanceLocation<'v> {
-    pub tokens: Vec<InstanceToken<'v>>,
+pub struct InstanceLocation<'instance> {
+    pub tokens: Vec<InstanceToken<'instance>>,
 }
 
 impl InstanceLocation<'_> {
@@ -1075,8 +1075,8 @@ impl Display for InstanceLocation<'_> {
     }
 }
 
-impl<'s> ValidationError<'s, '_> {
-    pub(crate) fn clone_static(self) -> ValidationError<'s, 'static> {
+impl<'schema> ValidationError<'schema, '_> {
+    pub(crate) fn clone_static(self) -> ValidationError<'schema, 'static> {
         let mut causes = Vec::with_capacity(self.causes.len());
         for cause in self.causes {
             causes.push(cause.clone_static());
@@ -1090,8 +1090,8 @@ impl<'s> ValidationError<'s, '_> {
     }
 }
 
-impl<'s> ErrorKind<'s, '_> {
-    fn clone_static(self) -> ErrorKind<'s, 'static> {
+impl<'schema> ErrorKind<'schema, '_> {
+    fn clone_static(self) -> ErrorKind<'schema, 'static> {
         use ErrorKind::*;
         match self {
             AdditionalProperties { got } => AdditionalProperties {
