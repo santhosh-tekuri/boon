@@ -20,6 +20,11 @@ fn main() {
         }
     };
 
+    if matches.opt_present("version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        process::exit(0);
+    }
+
     if matches.opt_present("help") {
         println!("{}", opts.usage(BRIEF));
         process::exit(0);
@@ -170,6 +175,7 @@ const BRIEF: &str = "Usage: boon [OPTIONS] SCHEMA [INSTANCE...]";
 
 fn options() -> Options {
     let mut opts = Options::new();
+    opts.optflag("v", "version", "Print version and exit");
     opts.optflag("h", "help", "Print help information");
     opts.optflag("q", "quiet", "Do not print errors");
     opts.optopt(
