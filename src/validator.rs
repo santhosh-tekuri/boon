@@ -28,7 +28,7 @@ pub(crate) fn validate<'s, 'v>(
         parent: None,
     };
     let mut vloc = Vec::with_capacity(8);
-    let result = Validator {
+    let (result, _) = Validator {
         v,
         vloc: &mut vloc,
         schema,
@@ -92,15 +92,15 @@ struct Validator<'v, 's, 'd, 'e> {
 }
 
 impl<'v, 's> Validator<'v, 's, '_, '_> {
-    fn validate(mut self) -> Result<Uneval<'v>, ValidationError<'s, 'v>> {
+    fn validate(mut self) -> (Result<(), ValidationError<'s, 'v>>, Uneval<'v>) {
         let s = self.schema;
         let v = self.v;
 
         // boolean --
         if let Some(b) = s.boolean {
             return match b {
-                false => Err(self.error(kind!(FalseSchema))),
-                true => Ok(self.uneval),
+                false => (Err(self.error(kind!(FalseSchema))), self.uneval),
+                true => (Ok(()), self.uneval),
             };
         }
 
@@ -111,7 +111,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
                 kw_loc1: self.kw_loc(&self.scope),
                 kw_loc2: self.kw_loc(scp),
             };
-            return Err(self.error(kind));
+            return (Err(self.error(kind)), self.uneval);
         }
 
         // type --
@@ -120,21 +120,21 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
             let matched =
                 s.types.contains(v_type) || (s.types.contains(Type::Integer) && is_integer(v));
             if !matched {
-                return Err(self.error(kind!(Type, v_type, s.types)));
+                return (Err(self.error(kind!(Type, v_type, s.types))), self.uneval);
             }
         }
 
         // constant --
         if let Some(c) = &s.constant {
             if !equals(v, c) {
-                return Err(self.error(kind!(Const, want: c)));
+                return (Err(self.error(kind!(Const, want: c))), self.uneval);
             }
         }
 
         // enum --
         if let Some(Enum { types, values }) = &s.enum_ {
             if !types.contains(Type::of(v)) || !values.iter().any(|e| equals(e, v)) {
-                return Err(self.error(kind!(Enum, want: values)));
+                return (Err(self.error(kind!(Enum, want: values))), self.uneval);
             }
         }
 
@@ -149,7 +149,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         if let Some(ref_) = s.ref_ {
             let result = self.validate_ref(ref_, "$ref");
             if s.draft_version < 2019 {
-                return result.map(|_| self.uneval);
+                return (result, self.uneval);
             }
             self.errors.extend(result.err());
         }
@@ -174,12 +174,12 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
         }
 
         match self.errors.len() {
-            0 => Ok(self.uneval),
-            1 => Err(self.errors.remove(0)),
+            0 => (Ok(()), self.uneval),
+            1 => (Err(self.errors.remove(0)), self.uneval),
             _ => {
                 let mut e = self.error(kind!(Group));
                 e.causes = self.errors;
-                Err(e)
+                (Err(e), self.uneval)
             }
         }
     }
@@ -808,7 +808,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
             bool_result: self.bool_result,
         }
         .validate()
-        .map(|_| ())
+        .0
     }
 
     fn _validate_self(
@@ -819,7 +819,7 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
     ) -> Result<(), ValidationError<'s, 'v>> {
         let scope = self.scope.child(sch, ref_kw, self.scope.vid);
         let schema = &self.schemas.get(sch);
-        let result = Validator {
+        let (result, reply) = Validator {
             v: self.v,
             vloc: self.vloc,
             schema,
@@ -830,10 +830,8 @@ impl<'v, 's> Validator<'v, 's, '_, '_> {
             bool_result: self.bool_result || bool_result,
         }
         .validate();
-        if let Ok(reply) = &result {
-            self.uneval.merge(reply);
-        }
-        result.map(|_| ())
+        self.uneval.merge(&reply);
+        result
     }
 
     #[inline(always)]

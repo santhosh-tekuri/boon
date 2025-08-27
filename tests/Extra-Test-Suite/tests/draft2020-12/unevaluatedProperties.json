@@ -1,0 +1,57 @@
+[
+  {
+    "description": "unevaluatedProperties with a failing $ref",
+    "schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "child": {
+          "type": "object",
+          "properties": {
+            "prop2": { "type": "string" }
+          },
+          "unevaluatedProperties": false
+        }
+      },
+      "type": "object",
+      "properties": {
+        "prop1": { "type": "string" },
+        "child_schema": { "$ref": "#/$defs/child" }
+      },
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {
+        "description": "unevaluated property in child should fail validation",
+        "data": {
+          "prop1": "value1",
+          "child_schema": {
+            "prop2": "value2",
+            "extra_prop_in_child": "this should fail"
+          }
+        },
+        "valid": false
+      },
+      {
+        "description": "a valid instance should pass",
+        "data": {
+          "prop1": "value1",
+          "child_schema": {
+            "prop2": "value2"
+          }
+        },
+        "valid": true
+      },
+      {
+        "description": "unevaluated property in parent should fail",
+        "data": {
+          "prop1": "value1",
+          "child_schema": {
+            "prop2": "value2"
+          },
+          "extra_prop_in_parent": "this should fail"
+        },
+        "valid": false
+      }
+    ]
+  }
+]
