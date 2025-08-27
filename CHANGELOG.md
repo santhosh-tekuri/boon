@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Bug Fixes
+- validator: ensure `uneval` state is propagated when `$ref` validation fails
+
 ## [0.6.1] - 2025-01-07
 
 ### Bug Fixes
