@@ -10,8 +10,8 @@ use serde::{
 
 use crate::{util::*, ErrorKind, InstanceLocation, ValidationError};
 
-impl<'s> ValidationError<'s, '_> {
-    fn absolute_keyword_location(&self) -> AbsoluteKeywordLocation<'s> {
+impl<'schema> ValidationError<'schema, '_> {
+    fn absolute_keyword_location(&self) -> AbsoluteKeywordLocation<'schema> {
         if let ErrorKind::Reference { url, .. } = &self.kind {
             AbsoluteKeywordLocation {
                 schema_url: url,
@@ -182,13 +182,13 @@ impl Display for ValidationError<'_, '_> {
     }
 }
 
-struct DfsIterator<'a, 'v, 's> {
-    root: Option<&'a ValidationError<'v, 's>>,
-    stack: Vec<Frame<'a, 'v, 's>>,
+struct DfsIterator<'a, 'instance, 'schema> {
+    root: Option<&'a ValidationError<'instance, 'schema>>,
+    stack: Vec<Frame<'a, 'instance, 'schema>>,
 }
 
-impl<'a, 'v, 's> DfsIterator<'a, 'v, 's> {
-    fn new(err: &'a ValidationError<'v, 's>) -> Self {
+impl<'a, 'instance, 'schema> DfsIterator<'a, 'instance, 'schema> {
+    fn new(err: &'a ValidationError<'instance, 'schema>) -> Self {
         DfsIterator {
             root: Some(err),
             stack: vec![],
@@ -196,8 +196,8 @@ impl<'a, 'v, 's> DfsIterator<'a, 'v, 's> {
     }
 }
 
-impl<'a, 'v, 's> Iterator for DfsIterator<'a, 'v, 's> {
-    type Item = DfsItem<&'a ValidationError<'v, 's>>;
+impl<'a, 'instance, 'schema> Iterator for DfsIterator<'a, 'instance, 'schema> {
+    type Item = DfsItem<&'a ValidationError<'instance, 'schema>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(mut frame) = self.stack.pop() else {
@@ -221,13 +221,13 @@ impl<'a, 'v, 's> Iterator for DfsIterator<'a, 'v, 's> {
     }
 }
 
-struct Frame<'a, 'v, 's> {
-    err: &'a ValidationError<'v, 's>,
-    causes: &'a [ValidationError<'v, 's>],
+struct Frame<'a, 'instance, 'schema> {
+    err: &'a ValidationError<'instance, 'schema>,
+    causes: &'a [ValidationError<'instance, 'schema>],
 }
 
-impl<'a, 'v, 's> Frame<'a, 'v, 's> {
-    fn from(err: &'a ValidationError<'v, 's>) -> Self {
+impl<'a, 'instance, 'schema> Frame<'a, 'instance, 'schema> {
+    fn from(err: &'a ValidationError<'instance, 'schema>) -> Self {
         Self {
             err,
             causes: &err.causes,
@@ -268,12 +268,12 @@ impl Indent {
 // SchemaLocation
 
 #[derive(Default)]
-struct SchemaLocation<'a, 's, 'v> {
-    stack: Vec<&'a ValidationError<'s, 'v>>,
+struct SchemaLocation<'a, 'schema, 'instance> {
+    stack: Vec<&'a ValidationError<'schema, 'instance>>,
 }
 
-impl<'a, 's, 'v> SchemaLocation<'a, 's, 'v> {
-    fn pre(&mut self, e: &'a ValidationError<'s, 'v>) {
+impl<'a, 'schema, 'instance> SchemaLocation<'a, 'schema, 'instance> {
+    fn pre(&mut self, e: &'a ValidationError<'schema, 'instance>) {
         self.stack.push(e);
     }
 
@@ -413,14 +413,14 @@ impl Display for FlagOutput {
 }
 
 /// Single OutputUnit used in Basic/Detailed output formats.
-pub struct OutputUnit<'e, 's, 'v> {
+pub struct OutputUnit<'e, 'schema, 'instance> {
     pub valid: bool,
     pub keyword_location: String,
     /// The absolute, dereferenced location of the validating keyword
-    pub absolute_keyword_location: Option<AbsoluteKeywordLocation<'s>>,
+    pub absolute_keyword_location: Option<AbsoluteKeywordLocation<'schema>>,
     /// The location of the JSON value within the instance being validated
-    pub instance_location: &'e InstanceLocation<'v>,
-    pub error: OutputError<'e, 's, 'v>,
+    pub instance_location: &'e InstanceLocation<'instance>,
+    pub error: OutputError<'e, 'schema, 'instance>,
 }
 
 impl Serialize for OutputUnit<'_, '_, '_> {
@@ -452,11 +452,11 @@ impl Display for OutputUnit<'_, '_, '_> {
 }
 
 /// Error of [`OutputUnit`].
-pub enum OutputError<'e, 's, 'v> {
+pub enum OutputError<'e, 'schema, 'instance> {
     /// Single.
-    Leaf(&'e ErrorKind<'s, 'v>),
+    Leaf(&'e ErrorKind<'schema, 'instance>),
     /// Nested.
-    Branch(Vec<OutputUnit<'e, 's, 'v>>),
+    Branch(Vec<OutputUnit<'e, 'schema, 'instance>>),
 }
 
 impl Serialize for OutputError<'_, '_, '_> {
@@ -479,8 +479,8 @@ impl Serialize for OutputError<'_, '_, '_> {
 
 // AbsoluteKeywordLocation --
 
-impl<'s> ErrorKind<'s, '_> {
-    pub fn keyword_path(&self) -> Option<KeywordPath<'s>> {
+impl<'schema> ErrorKind<'schema, '_> {
+    pub fn keyword_path(&self) -> Option<KeywordPath<'schema>> {
         #[inline(always)]
         fn kw(kw: &'static str) -> Option<KeywordPath<'static>> {
             Some(KeywordPath {
@@ -490,7 +490,7 @@ impl<'s> ErrorKind<'s, '_> {
         }
 
         #[inline(always)]
-        fn kw_prop<'s>(kw: &'static str, prop: &'s str) -> Option<KeywordPath<'s>> {
+        fn kw_prop<'schema>(kw: &'static str, prop: &'schema str) -> Option<KeywordPath<'schema>> {
             Some(KeywordPath {
                 keyword: kw,
                 token: Some(SchemaToken::Prop(prop)),
@@ -543,11 +543,11 @@ impl<'s> ErrorKind<'s, '_> {
 
 /// The absolute, dereferenced location of the validating keyword
 #[derive(Debug, Clone)]
-pub struct AbsoluteKeywordLocation<'s> {
+pub struct AbsoluteKeywordLocation<'schema> {
     /// The absolute, dereferenced schema location.
-    pub schema_url: &'s str,
+    pub schema_url: &'schema str,
     /// Location within the `schema_url`.
-    pub keyword_path: Option<KeywordPath<'s>>,
+    pub keyword_path: Option<KeywordPath<'schema>>,
 }
 
 impl Display for AbsoluteKeywordLocation<'_> {
@@ -570,11 +570,11 @@ impl Display for AbsoluteKeywordLocation<'_> {
 
 #[derive(Debug, Clone)]
 /// JsonPointer in schema.
-pub struct KeywordPath<'s> {
+pub struct KeywordPath<'schema> {
     /// The first token.
     pub keyword: &'static str,
     /// Optinal token within keyword.
-    pub token: Option<SchemaToken<'s>>,
+    pub token: Option<SchemaToken<'schema>>,
 }
 
 impl Display for KeywordPath<'_> {
@@ -590,9 +590,9 @@ impl Display for KeywordPath<'_> {
 
 /// Token for schema.
 #[derive(Debug, Clone)]
-pub enum SchemaToken<'s> {
+pub enum SchemaToken<'schema> {
     /// Token for property.
-    Prop(&'s str),
+    Prop(&'schema str),
     /// Token for array item.
     Item(usize),
 }
