@@ -35,7 +35,7 @@ impl<'s> ValidationError<'s, '_> {
     }
 
     /// The `Basic` structure, a flat list of output units.
-    pub fn basic_output(&self) -> OutputUnit {
+    pub fn basic_output(&self) -> OutputUnit<'_, '_, '_> {
         let mut outputs = vec![];
 
         let mut in_ref = InRef::default();
@@ -86,7 +86,7 @@ impl<'s> ValidationError<'s, '_> {
     }
 
     /// The `Detailed` structure, based on the schema.
-    pub fn detailed_output(&self) -> OutputUnit {
+    pub fn detailed_output(&self) -> OutputUnit<'_, '_, '_> {
         let mut root = None;
         let mut stack: Vec<OutputUnit> = vec![];
 

@@ -996,7 +996,7 @@ impl Scope<'_> {
         }
     }
 
-    fn check_cycle(&self) -> Option<&Scope> {
+    fn check_cycle(&self) -> Option<&Scope<'_>> {
         let mut scope = self.parent;
         while let Some(scp) = scope {
             if scp.vid != self.vid {

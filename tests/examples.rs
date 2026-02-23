@@ -169,7 +169,7 @@ fn example_custom_content_encoding() -> Result<(), Box<dyn Error>> {
         }
     }
     fn decode_hex(s: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-        if s.len() % 2 != 0 {
+        if !s.len().is_multiple_of(2) {
             Err("decode_hex: odd length")?;
         }
         let mut bytes = s.bytes();

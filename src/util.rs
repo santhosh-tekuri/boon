@@ -18,7 +18,7 @@ use crate::CompileError;
 pub(crate) struct JsonPointer(pub(crate) String);
 
 impl JsonPointer {
-    pub(crate) fn escape(token: &str) -> Cow<str> {
+    pub(crate) fn escape(token: &str) -> Cow<'_, str> {
         const SPECIAL: [char; 2] = ['~', '/'];
         if token.contains(SPECIAL) {
             token.replace('~', "~0").replace('/', "~1").into()
@@ -27,7 +27,7 @@ impl JsonPointer {
         }
     }
 
-    pub(crate) fn unescape(mut tok: &str) -> Result<Cow<str>, ()> {
+    pub(crate) fn unescape(mut tok: &str) -> Result<Cow<'_, str>, ()> {
         let Some(mut tilde) = tok.find('~') else {
             return Ok(Cow::Borrowed(tok));
         };
@@ -332,7 +332,7 @@ where
         .join(sep)
 }
 
-pub(crate) fn escape(token: &str) -> Cow<str> {
+pub(crate) fn escape(token: &str) -> Cow<'_, str> {
     JsonPointer::escape(token)
 }
 

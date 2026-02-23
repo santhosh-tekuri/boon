@@ -35,3 +35,6 @@ criterion = "0.5"
 [[bench]]
 name = "bench"
 harness = false
+
+[lints.clippy]
+result_large_err = "allow"

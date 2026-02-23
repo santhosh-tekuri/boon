@@ -5,7 +5,7 @@ use regex_syntax::ast::{self, *};
 
 // covert ecma regex to rust regex if possible
 // see https://262.ecma-international.org/11.0/#sec-regexp-regular-expression-objects
-pub(crate) fn convert(pattern: &str) -> Result<Cow<str>, Box<dyn std::error::Error>> {
+pub(crate) fn convert(pattern: &str) -> Result<Cow<'_, str>, Box<dyn std::error::Error>> {
     let mut pattern = Cow::Borrowed(pattern);
 
     let mut ast = loop {
