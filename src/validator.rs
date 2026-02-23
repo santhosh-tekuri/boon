@@ -387,7 +387,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
                     }
                     Additional::SchemaRef(sch) => {
                         for (i, item) in arr[evaluated..].iter().enumerate() {
-                            add_err!(self.validate_val(*sch, item, item!(i)));
+                            add_err!(self.validate_val(*sch, item, item!(evaluated + i)));
                         }
                     }
                 }
