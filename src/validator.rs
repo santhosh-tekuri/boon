@@ -403,7 +403,7 @@ impl<'v> Validator<'v, '_, '_, '_> {
             if let Some(sch) = &s.items2020 {
                 let evaluated = min(s.prefix_items.len(), len);
                 for (i, item) in arr[evaluated..].iter().enumerate() {
-                    add_err!(self.validate_val(*sch, item, item!(i)));
+                    add_err!(self.validate_val(*sch, item, item!(evaluated + i)));
                 }
                 debug_assert!(self.uneval.items.is_empty());
             }
