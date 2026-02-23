@@ -21,6 +21,7 @@ struct Test {
     description: String,
     data: Value,
     valid: bool,
+    errors: Option<Vec<String>>,
 }
 
 #[test]
@@ -100,6 +101,20 @@ fn test_file(suite: &str, path: &str, draft: Draft) -> Result<(), Box<dyn Error>
                 }
             }
             assert_eq!(result.is_ok(), test.valid);
+            if let Err(e) = &result {
+                if !test.valid {
+                    if let Some(errors) = &test.errors {
+                        let error = format!("{e:#}");
+                        for want in errors {
+                            if !error.contains(want) {
+                                println!("    got {error}");
+                                println!("   want {want}");
+                                panic!("error mismatch");
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     Ok(())
