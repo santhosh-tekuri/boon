@@ -24,11 +24,9 @@ pub enum Draft {
 
 impl Draft {
     /**
-    Get [`Draft`] for given `url`
+    Gets the [`Draft`] for a given `url`.
 
-    # Arguments
-
-    * `url` - accepts both `http` and `https` and ignores any fragments in url
+    `url` accepts both `http` and `https` schemes and ignores any fragments.
 
     # Examples
 
@@ -63,14 +61,14 @@ impl Draft {
     }
 }
 
-/// Returns latest draft supported
+/// Returns latest draft supported.
 impl Default for Draft {
     fn default() -> Self {
         Draft::V2020_12
     }
 }
 
-/// JsonSchema compiler.
+/// JSON Schema compiler.
 #[derive(Default)]
 pub struct Compiler {
     roots: Roots,
@@ -82,13 +80,13 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    /// Creates a JSON Schema compiler with the default options.
     pub fn new() -> Self {
         Self::default()
     }
 
     /**
-    Overrides the draft used to compile schemas without
-    explicit `$schema` field.
+    Overrides the draft used to compile schemas without a `$schema` field.
 
     By default this library uses latest draft supported.
 
@@ -101,22 +99,22 @@ impl Compiler {
     }
 
     /**
-    Always enable format assertions.
+    Enables format assertions.
 
     # Default Behavior
 
-    - for draft-07 and earlier: enabled
-    - for draft/2019-09: disabled, unless
-      metaschema says `format` vocabulary is required
-    - for draft/2020-12: disabled, unless
-      metaschema says `format-assertion` vocabulary is required
+    - draft-07 and earlier: enabled
+    - draft/2019-09: disabled, unless
+      meta-schema says `format` vocabulary is required
+    - draft/2020-12: disabled, unless
+      meta-schema says `format-assertion` vocabulary is required
     */
     pub fn enable_format_assertions(&mut self) {
         self.assert_format = true;
     }
 
     /**
-    Always enable content assertions.
+    Enables content assertions.
 
     content assertions include keywords:
     - contentEncoding
@@ -129,19 +127,22 @@ impl Compiler {
         self.assert_content = true;
     }
 
-    /// Overrides default [`UrlLoader`] used to load schema resources
+    /// Overrides default [`UrlLoader`] used to load schema resources.
+    ///
+    /// By default a [`SchemeUrlLoader`] is used with the `file` scheme registered to
+    /// [`FileLoader`].
     pub fn use_loader(&mut self, url_loader: Box<dyn UrlLoader>) {
         self.roots.loader.use_loader(url_loader);
     }
 
     /**
-    Registers custom `format`
+    Registers a custom format for use with format assertions.
 
-    # Note
+    # Notes
 
-    - `regex` format cannot be overridden
-    -  format assertions are disabled for draft >= 2019-09.
-       see [`Compiler::enable_format_assertions`]
+    - `regex` format cannot be overridden.
+    -  Format assertions are disabled by default for draft >= 2019-09.
+       See [`Compiler::enable_format_assertions`].
     */
     pub fn register_format(&mut self, format: Format) {
         if format.name != "regex" {
@@ -150,17 +151,17 @@ impl Compiler {
     }
 
     /**
-    Registers custom `contentEncoding`
+    Registers custom `contentEncoding`.
 
     Note that content assertions are disabled by default.
-    see [`Compiler::enable_content_assertions`]
+    See [`Compiler::enable_content_assertions`].
     */
     pub fn register_content_encoding(&mut self, decoder: Decoder) {
         self.decoders.insert(decoder.name, decoder);
     }
 
     /**
-    Registers custom `contentMediaType`
+    Registers custom `contentMediaType`.
 
     Note that content assertions are disabled by default.
     see [`Compiler::enable_content_assertions`]
@@ -170,14 +171,16 @@ impl Compiler {
     }
 
     /**
-    Adds schema resource which used later in reference resoltion
-    If you do not know which schema resources required, then use [`UrlLoader`].
+    Adds schema resource which used later in reference resoltion.
 
-    The argument `loc` can be file path or url. any fragment in `loc` is ignored.
+    If you do not know which schema resources are required, then use [`UrlLoader`].
+    Resources added using this method override won't be checked using the URL loader.
+
+    The argument `loc` can be file path or url. Any fragment in `loc` is ignored.
 
     # Errors
 
-    returns [`CompileError`] if url parsing failed.
+    Returns [`CompileError`] if URL parsing failed.
     */
     pub fn add_resource(&mut self, loc: &str, json: Value) -> Result<(), CompileError> {
         let uf = UrlFrag::absolute(loc)?;
@@ -186,14 +189,14 @@ impl Compiler {
     }
 
     /**
-    Compile given `loc` into `target` and return an identifier to the compiled
+    Compiles given `loc` into `target` and return an identifier to the compiled
     schema.
 
-    the argument `loc` can be file path or url with optional fragment.
-    examples: `http://example.com/schema.json#/defs/address`,
+    The argument `loc` can be file path or url with optional fragment.
+    Examples: `http://example.com/schema.json#/defs/address`,
               `samples/schema_file.json#defs/address`
 
-    if `loc` is already compiled, it simply returns the same [`SchemaIndex`]
+    If `loc` is already compiled, it simply returns the same [`SchemaIndex`].
      */
     pub fn compile(
         &mut self,
@@ -768,7 +771,7 @@ pub enum CompileError {
     /// Cycle in resolving `$schema` in `url`.
     MetaSchemaCycle { url: String },
 
-    /// `url` is not valid against metaschema.
+    /// `url` is not valid against meta-schema.
     ValidationError {
         url: String,
         src: ValidationError<'static, 'static>,
@@ -864,9 +867,9 @@ impl Display for CompileError {
             }
             Self::ValidationError { url, src } => {
                 if f.alternate() {
-                    write!(f, "{url} is not valid against metaschema: {src}")
+                    write!(f, "{url} is not valid against meta-schema: {src}")
                 } else {
-                    write!(f, "{url} is not valid against metaschema")
+                    write!(f, "{url} is not valid against meta-schema")
                 }
             }
             Self::ParseIdError { loc } => write!(f, "error in parsing id at {loc}"),
