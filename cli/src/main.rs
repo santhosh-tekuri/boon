@@ -215,7 +215,7 @@ impl UrlLoader for FileUrlLoader {
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>> {
         let url = Url::parse(url)?;
         let path = url.to_file_path().map_err(|_| "invalid file path")?;
-        let file = File::open(&path)?;
+        let file = BufReader::new(File::open(&path)?);
         if path
             .extension()
             .filter(|&ext| ext == "yaml" || ext == "yml")

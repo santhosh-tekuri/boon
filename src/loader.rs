@@ -5,7 +5,7 @@ use std::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-use std::fs::File;
+use std::{fs::File, io::BufReader};
 
 use appendlist::AppendList;
 use once_cell::sync::Lazy;
@@ -36,7 +36,7 @@ impl UrlLoader for FileLoader {
         let url = Url::parse(url)?;
         let path = url.to_file_path().map_err(|_| "invalid file path")?;
         let file = File::open(path)?;
-        Ok(serde_json::from_reader(file)?)
+        Ok(serde_json::from_reader(BufReader::new(file))?)
     }
 }
 
