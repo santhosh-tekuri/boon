@@ -19,14 +19,15 @@ use crate::{
     UrlPtr,
 };
 
-/// A trait for loading json from given `url`
+/// A trait for loading a schema with a given URL.
 pub trait UrlLoader {
-    /// Loads json from given absolute `url`.
+    /// Loads a schema from a given `url`.
     fn load(&self, url: &str) -> Result<Value, Box<dyn Error>>;
 }
 
 // --
 
+/// A loader that loads schemas with an absolute path from disk. Use with the `file` URL scheme.
 #[cfg(not(target_arch = "wasm32"))]
 pub struct FileLoader;
 
@@ -42,6 +43,7 @@ impl UrlLoader for FileLoader {
 
 // --
 
+/// A loader which delegates to other loaders based on a URL's scheme.
 #[derive(Default)]
 pub struct SchemeUrlLoader {
     loaders: HashMap<&'static str, Box<dyn UrlLoader>>,

@@ -134,7 +134,7 @@ use regex::Regex;
 use serde_json::{Number, Value};
 use util::*;
 
-/// Identifier to compiled schema.
+/// An index to a compiled schema in [`Schemas`].
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchemaIndex(usize);
 
@@ -146,6 +146,7 @@ pub struct Schemas {
 }
 
 impl Schemas {
+    /// Creates an empty collection of compiled schemas.
     pub fn new() -> Self {
         Self::default()
     }
@@ -166,32 +167,33 @@ impl Schemas {
         self.map.get(up).and_then(|&i| self.list.get(i))
     }
 
-    /// Returns true if `sch_index` is generated for this instance.
+    /// Returns true if `sch_index` exists in this collection.
     pub fn contains(&self, sch_index: SchemaIndex) -> bool {
         self.list.get(sch_index.0).is_some()
     }
 
+    /// Returns the number of schemas in this collection.
     pub fn size(&self) -> usize {
         self.list.len()
     }
 
     /**
-    Validates `v` with schema identified by `sch_index`
+    Validates `instance` with schema identified by `sch_index`.
 
     # Panics
 
     Panics if `sch_index` is not generated for this instance.
     [`Schemas::contains`] can be used too ensure that it does not panic.
     */
-    pub fn validate<'s, 'v>(
-        &'s self,
-        v: &'v Value,
+    pub fn validate<'schema, 'instance>(
+        &'schema self,
+        instance: &'instance Value,
         sch_index: SchemaIndex,
-    ) -> Result<(), ValidationError<'s, 'v>> {
+    ) -> Result<(), ValidationError<'schema, 'instance>> {
         let Some(sch) = self.list.get(sch_index.0) else {
             panic!("Schemas::validate: schema index out of bounds");
         };
-        validator::validate(v, sch, self)
+        validator::validate(instance, sch, self)
     }
 }
 
@@ -408,25 +410,25 @@ impl FromIterator<Type> for Types {
 
 /// Error type for validation failures.
 #[derive(Debug)]
-pub struct ValidationError<'s, 'v> {
+pub struct ValidationError<'schema, 'instance> {
     /// The absolute, dereferenced schema location.
-    pub schema_url: &'s str,
+    pub schema_url: &'schema str,
     /// The location of the JSON value within the instance being validated
-    pub instance_location: InstanceLocation<'v>,
+    pub instance_location: InstanceLocation<'instance>,
     /// kind of error
-    pub kind: ErrorKind<'s, 'v>,
+    pub kind: ErrorKind<'schema, 'instance>,
     /// Holds nested errors
-    pub causes: Vec<ValidationError<'s, 'v>>,
+    pub causes: Vec<ValidationError<'schema, 'instance>>,
 }
 
 impl Error for ValidationError<'_, '_> {}
 
 /// A list specifying general categories of validation errors.
 #[derive(Debug)]
-pub enum ErrorKind<'s, 'v> {
+pub enum ErrorKind<'schema, 'instance> {
     Group,
     Schema {
-        url: &'s str,
+        url: &'schema str,
     },
     ContentSchema,
     PropertyName {
@@ -434,10 +436,10 @@ pub enum ErrorKind<'s, 'v> {
     },
     Reference {
         kw: &'static str,
-        url: &'s str,
+        url: &'schema str,
     },
     RefCycle {
-        url: &'s str,
+        url: &'schema str,
         kw_loc1: String,
         kw_loc2: String,
     },
@@ -447,13 +449,13 @@ pub enum ErrorKind<'s, 'v> {
         want: Types,
     },
     Enum {
-        want: &'s Vec<Value>,
+        want: &'schema Vec<Value>,
     },
     Const {
-        want: &'s Value,
+        want: &'schema Value,
     },
     Format {
-        got: Cow<'v, Value>,
+        got: Cow<'instance, Value>,
         want: &'static str,
         err: Box<dyn Error>,
     },
@@ -466,22 +468,22 @@ pub enum ErrorKind<'s, 'v> {
         want: usize,
     },
     AdditionalProperties {
-        got: Vec<Cow<'v, str>>,
+        got: Vec<Cow<'instance, str>>,
     },
     Required {
-        want: Vec<&'s str>,
+        want: Vec<&'schema str>,
     },
     Dependency {
         /// dependency of prop that failed.
-        prop: &'s str,
+        prop: &'schema str,
         /// missing props.
-        missing: Vec<&'s str>,
+        missing: Vec<&'schema str>,
     },
     DependentRequired {
         /// dependency of prop that failed.
-        prop: &'s str,
+        prop: &'schema str,
         /// missing props.
-        missing: Vec<&'s str>,
+        missing: Vec<&'schema str>,
     },
     MinItems {
         got: usize,
@@ -515,8 +517,8 @@ pub enum ErrorKind<'s, 'v> {
         want: usize,
     },
     Pattern {
-        got: Cow<'v, str>,
-        want: &'s str,
+        got: Cow<'instance, str>,
+        want: &'schema str,
     },
     ContentEncoding {
         want: &'static str,
@@ -528,24 +530,24 @@ pub enum ErrorKind<'s, 'v> {
         err: Box<dyn Error>,
     },
     Minimum {
-        got: Cow<'v, Number>,
-        want: &'s Number,
+        got: Cow<'instance, Number>,
+        want: &'schema Number,
     },
     Maximum {
-        got: Cow<'v, Number>,
-        want: &'s Number,
+        got: Cow<'instance, Number>,
+        want: &'schema Number,
     },
     ExclusiveMinimum {
-        got: Cow<'v, Number>,
-        want: &'s Number,
+        got: Cow<'instance, Number>,
+        want: &'schema Number,
     },
     ExclusiveMaximum {
-        got: Cow<'v, Number>,
-        want: &'s Number,
+        got: Cow<'instance, Number>,
+        want: &'schema Number,
     },
     MultipleOf {
-        got: Cow<'v, Number>,
-        want: &'s Number,
+        got: Cow<'instance, Number>,
+        want: &'schema Number,
     },
     Not,
     /// none of the subschemas matched
